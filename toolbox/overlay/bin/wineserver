@@ -1,0 +1,3 @@
+#!/bin/bash
+RUNNER_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$RUNNER_DIR/files/bin/wineserver" "$@"

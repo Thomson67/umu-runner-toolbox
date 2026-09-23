@@ -1,0 +1,528 @@
+#!/bin/bash
+set -u
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+RUNNER_DIR="$(cd "$SELF_DIR/.." && pwd)"
+REAL_WINE="$RUNNER_DIR/files/bin/wine"
+UMU_RUN="/userdata/system/umu/umu-run"
+UMU_HOME="/userdata/system/umu/home"
+UMU_CACHE="/userdata/system/umu/cache"
+ROOT_BRIDGE="$RUNNER_DIR/umu-batocera/umu-root-runner.py"
+LOG_DIR="/userdata/system/logs/umu-runner"
+COMPAT_ROOT="/userdata/system/umu/compatdata"
+mkdir -p "$LOG_DIR" "$UMU_HOME" "$UMU_CACHE" "$COMPAT_ROOT"
+
+stamp="$(date '+%Y%m%d-%H%M%S')"
+LOG="$LOG_DIR/runner-$stamp-$$.log"
+log() { printf '%s\n' "$*" >> "$LOG"; }
+
+ORIGINAL_WINEPREFIX="${WINEPREFIX-}"
+
+# v3.7.1: recent GE-Proton/Wine winebus versions handle native Sony HIDRAW
+# reports differently. Batocera exports WINE_ENABLE_HIDRAW=1 when HIDRAW is
+# enabled for the game. Mirror Batocera's recent Sony-controller integration
+# only for runners whose winebus advertises the new native-report handling.
+SONY_HIDRAW_XINPUT=0
+if [[ "${WINE_ENABLE_HIDRAW:-0}" = "1" ]] && \
+   grep -aq "hidraw handles native reports" \
+   "$RUNNER_DIR/files/lib/wine/x86_64-unix/winebus.so" 2>/dev/null; then
+    export PROTON_SONY_HIDRAW_XINPUT=1
+    SONY_HIDRAW_XINPUT=1
+fi
+
+# v3.7.1: runner isolation. Proton prefixes can contain absolute symlinks back
+# into older GE-Proton distributions. When another Proton version migrates the
+# same prefix it may follow those links and overwrite the older runner itself.
+# Protect every managed *-UMU runner read-only for the whole application launch,
+# not only the selected runner: the victim can be a different historical runner.
+UMU_PROTECTED_MOUNTS=()
+
+runner_manifest_ok() {
+    local r="$1" m="$r/umu-batocera/integrity.sha256"
+    [ -s "$m" ] || return 2
+    (cd "$r" && sha256sum -c "$m" >/dev/null 2>&1)
+}
+
+protect_all_umu_runners_ro() {
+    local r opts
+    for r in /userdata/system/wine/custom/*-UMU; do
+        [ -d "$r" ] || continue
+
+        # A managed runner that is already corrupt must never participate in a
+        # new UMU session. Unmanaged runners are protected RO but do not block.
+        if [ -s "$r/umu-batocera/integrity.sha256" ]; then
+            if ! runner_manifest_ok "$r"; then
+                log "FATAL: integrity mismatch: $r"
+                return 90
+            fi
+            log "integrity_ok=$r"
+        else
+            log "integrity_unmanaged=$r"
+        fi
+
+        opts="$(findmnt -n -o OPTIONS -T "$r" 2>/dev/null || true)"
+        if mountpoint -q "$r" 2>/dev/null; then
+            case ",$opts," in
+                *,ro,*) log "runner_already_ro=$r"; continue ;;
+                *) log "FATAL: runner is an existing writable mountpoint: $r"; return 91 ;;
+            esac
+        fi
+
+        if ! mount --bind "$r" "$r" 2>>"$LOG"; then
+            log "FATAL: bind protection failed: $r"
+            return 92
+        fi
+        if ! mount -o remount,bind,ro "$r" 2>>"$LOG"; then
+            umount "$r" 2>>"$LOG" || true
+            log "FATAL: read-only remount failed: $r"
+            return 93
+        fi
+        UMU_PROTECTED_MOUNTS+=("$r")
+        log "runner_protected_ro=$r"
+    done
+    return 0
+}
+
+unprotect_umu_runners() {
+    local i r
+    for ((i=${#UMU_PROTECTED_MOUNTS[@]}-1; i>=0; i--)); do
+        r="${UMU_PROTECTED_MOUNTS[$i]}"
+        umount "$r" 2>>"$LOG" || umount -l "$r" 2>>"$LOG" || true
+        log "runner_unprotected=$r"
+    done
+    UMU_PROTECTED_MOUNTS=()
+}
+
+log "===== Batocera UMU runner v3.7.1 ====="
+log "date=$(date -Is 2>/dev/null || date)"
+log "uid=$(id)"
+log "runner=$RUNNER_DIR"
+log "pwd=$PWD"
+log "batocera_wineprefix=$ORIGINAL_WINEPREFIX"
+log "DISPLAY=${DISPLAY-}"
+log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY-}"
+log "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR-}"
+log "wine_enable_hidraw=${WINE_ENABLE_HIDRAW:-0}"
+log "sony_hidraw_xinput=$SONY_HIDRAW_XINPUT"
+log "argv_count=$#"
+i=0; for a in "$@"; do log "argv[$i]=$a"; i=$((i+1)); done
+
+win_to_unix() {
+    local p="$1"
+    case "$p" in
+        [Zz]:\\*|[Ss]:\\*)
+            p="/${p:3}"
+            p="${p//\\//}"
+            printf '%s' "$p"
+            return 0
+            ;;
+    esac
+    printf '%s' "$p"
+}
+
+is_prefix_root() {
+    [ -n "$1" ] && [ -d "$1/drive_c" ] && [ -f "$1/system.reg" ] && [ -f "$1/user.reg" ]
+}
+
+find_embedded_prefix() {
+    local d="$1" n=0
+    [ -f "$d" ] && d="$(dirname "$d")"
+    while [ -n "$d" ] && [ "$d" != "/" ] && [ "$n" -lt 16 ]; do
+        if is_prefix_root "$d"; then
+            printf '%s' "$d"
+            return 0
+        fi
+        d="$(dirname "$d")"
+        n=$((n+1))
+    done
+    return 1
+}
+
+# Find the executable Batocera wants Wine to start.
+#
+# Maintenance helpers stay on the ordinary Wine path so Batocera can perform
+# prefix setup without starting a full Proton/UMU session.
+#
+# v3.3 IMPORTANT: explorer.exe / winefile.exe are NOT launched inside Wine.
+# Starting the game as a child of Explorer gives Proton/UMU a different primary
+# executable context (EXE, install path, caches, media behaviour, process tree).
+# Instead, when Batocera requests Explorer because autorun.cmd is absent, we show
+# a native Batocera file chooser, then reinvoke this wrapper with the selected EXE.
+# The selected game therefore becomes the primary UMU application exactly like
+# an autorun.cmd launch.
+
+select_game_exe() {
+    local prefix="$1"
+    local start="${prefix:+$prefix/drive_c}"
+    [ -d "$start" ] || start="${prefix:-$PWD}"
+    [ -d "$start" ] || start="$PWD"
+
+    local title="Choisir l'executable Windows a lancer avec UMU / GE-Proton"
+    local selected=""
+
+    if command -v yad >/dev/null 2>&1; then
+        selected="$(yad --file-selection \
+            --title="$title" \
+            --filename="$start/" \
+            --file-filter='Executables Windows (*.exe)|*.exe *.EXE' \
+            --file-filter='Tous les fichiers|*' 2>>"$LOG" || true)"
+    elif command -v zenity >/dev/null 2>&1; then
+        selected="$(zenity --file-selection \
+            --title="$title" \
+            --filename="$start/" \
+            --file-filter='Executables Windows (*.exe) | *.exe *.EXE' 2>>"$LOG" || true)"
+    else
+        log "selector_error=no-yad-or-zenity"
+        return 127
+    fi
+
+    [ -n "$selected" ] || return 125
+    case "$(printf '%s' "$selected" | tr '[:upper:]' '[:lower:]')" in
+        *.exe) ;;
+        *)
+            log "selector_error=selected-file-is-not-exe"
+            log "selector_selected=$selected"
+            return 126
+            ;;
+    esac
+
+    printf '%s' "$selected"
+}
+exe=""
+exe_index=-1
+interactive_shell=0
+idx=0
+for arg in "$@"; do
+    cand="$(win_to_unix "$arg")"
+    low="$(printf '%s' "$arg" | tr '[:upper:]' '[:lower:]')"
+    base="$(basename "${low//\//}")"
+    case "$base" in
+        explorer.exe|winefile.exe)
+            interactive_shell=1
+            exe_index=$idx
+            break
+            ;;
+    esac
+    case "$low" in
+        *.exe|*.com|*.bat|*.cmd)
+            case "$base" in
+                wineboot.exe|winecfg.exe|regedit.exe|regsvr32.exe|rundll32.exe|control.exe|cmd.exe|start.exe)
+                    ;;
+                *) exe="$cand"; exe_index=$idx; break ;;
+            esac
+            ;;
+    esac
+    idx=$((idx+1))
+done
+
+if [ "$interactive_shell" -eq 1 ]; then
+    log "launch_kind=manual-selector"
+    log "selector_prefix=$ORIGINAL_WINEPREFIX"
+    selected="$(select_game_exe "$ORIGINAL_WINEPREFIX")"
+    selrc=$?
+    if [ "$selrc" -eq 125 ]; then
+        log "selector=cancelled"
+        exit 0
+    elif [ "$selrc" -ne 0 ]; then
+        log "selector=failed rc=$selrc"
+        exit "$selrc"
+    fi
+    log "selector_selected=$selected"
+    # Re-enter the wrapper with the real game executable. WINEPREFIX and all
+    # Batocera environment variables are preserved, but the game now becomes
+    # UMU's primary EXE (same path as autorun.cmd).
+    exec "$0" "$selected"
+fi
+
+if [ -z "$exe" ]; then
+    log "mode=fallback-real-wine"
+    exec "$REAL_WINE" "$@"
+fi
+
+args=("$@")
+launch_args=()
+if [ "$exe_index" -ge 0 ]; then
+    j=$((exe_index+1))
+    while [ "$j" -lt "${#args[@]}" ]; do
+        launch_args+=("${args[$j]}")
+        j=$((j+1))
+    done
+fi
+
+case "$exe" in
+    /*) EXE_ABS="$exe" ;;
+    *)  EXE_ABS="$PWD/$exe" ;;
+esac
+EXE_ABS="$(readlink -f "$EXE_ABS" 2>/dev/null || printf '%s' "$EXE_ABS")"
+
+# v3.6: Batocera already builds the correct writable overlay for compressed
+# .wsquashfs games under /run/wine.  Do not replace that overlay with a raw
+# wine-bottle.  Instead expose the *merged overlay* through a stable path under
+# /userdata so pressure-vessel can use it without the reserved-/var/run warning.
+# Writes still go to Batocera's own upperdir/wine-bottle.
+PFX_BOUND=0
+ALIAS_BOUND=0
+PFX_MOUNT=""
+ALIAS_MOUNT=""
+
+cleanup_runtime_mounts() {
+    if [ "${PFX_BOUND:-0}" -eq 1 ] && [ -n "${PFX_MOUNT:-}" ]; then
+        umount "$PFX_MOUNT" 2>>"$LOG" || umount -l "$PFX_MOUNT" 2>>"$LOG" || true
+        PFX_BOUND=0
+    fi
+    if [ "${ALIAS_BOUND:-0}" -eq 1 ] && [ -n "${ALIAS_MOUNT:-}" ]; then
+        umount "$ALIAS_MOUNT" 2>>"$LOG" || umount -l "$ALIAS_MOUNT" 2>>"$LOG" || true
+        ALIAS_BOUND=0
+    fi
+    unprotect_umu_runners
+}
+trap cleanup_runtime_mounts EXIT INT TERM HUP
+
+if ! protect_all_umu_runners_ro; then
+    log "ERROR: UMU runner isolation could not be established; launch refused"
+    exit 90
+fi
+
+EFFECTIVE_WINEPREFIX="$ORIGINAL_WINEPREFIX"
+IDENTITY_ANCHOR=""
+COMPRESSED_OVERLAY=0
+ORIGINAL_PREFIX_CANON="$(readlink -f "$ORIGINAL_WINEPREFIX" 2>/dev/null || printf '%s' "$ORIGINAL_WINEPREFIX")"
+
+case "$(printf '%s' "$ORIGINAL_WINEPREFIX" | tr '[:upper:]' '[:lower:]')" in
+    /run/wine/*.wsquashfs|/var/run/wine/*.wsquashfs|/run/wine/*.wtgz|/var/run/wine/*.wtgz)
+        if [ "$(findmnt -n -o FSTYPE -T "$ORIGINAL_WINEPREFIX" 2>/dev/null || true)" = "overlay" ]; then
+            COMPRESSED_OVERLAY=1
+            compressed_anchor="$(basename "$ORIGINAL_WINEPREFIX")"
+            alias_safe="$(printf '%s' "$compressed_anchor" | tr -c 'A-Za-z0-9._-' '_')"
+            alias_key="$(printf 'compressed-overlay|%s' "$compressed_anchor" | cksum | awk '{print $1}')"
+            ALIAS_MOUNT="/userdata/system/umu/merged-prefixes/${alias_safe}-${alias_key}"
+            mkdir -p "$ALIAS_MOUNT"
+            if mountpoint -q "$ALIAS_MOUNT" 2>/dev/null; then
+                umount "$ALIAS_MOUNT" 2>>"$LOG" || umount -l "$ALIAS_MOUNT" 2>>"$LOG" || true
+            fi
+            if ! mount --bind "$ORIGINAL_PREFIX_CANON" "$ALIAS_MOUNT" 2>>"$LOG"; then
+                log "ERROR: compressed overlay alias bind failed: $ORIGINAL_PREFIX_CANON -> $ALIAS_MOUNT"
+                exit 76
+            fi
+            ALIAS_BOUND=1
+            EFFECTIVE_WINEPREFIX="$ALIAS_MOUNT"
+            IDENTITY_ANCHOR="$compressed_anchor"
+
+            case "$EXE_ABS" in
+                "$ORIGINAL_PREFIX_CANON"/*)
+                    rel_exe="${EXE_ABS#"$ORIGINAL_PREFIX_CANON"/}"
+                    EXE_ABS="$ALIAS_MOUNT/$rel_exe"
+                    ;;
+            esac
+
+            # v3.6.1: translate Batocera's current working directory as well.
+            # Batocera starts compressed games from /run (or /var/run)/wine/..., but
+            # pressure-vessel reserves /var/run and cannot recreate that cwd inside
+            # steamrt4.  Keeping EXE under the alias is not enough: bwrap also tries
+            # to chdir to the inherited PWD.  Mirror the cwd inside our /userdata
+            # alias so EXE, install path and cwd all live in container-shareable paths.
+            pwd_canon="$(readlink -f "$PWD" 2>/dev/null || printf '%s' "$PWD")"
+            case "$pwd_canon" in
+                "$ORIGINAL_PREFIX_CANON")
+                    UMU_CWD="$ALIAS_MOUNT"
+                    ;;
+                "$ORIGINAL_PREFIX_CANON"/*)
+                    rel_pwd="${pwd_canon#"$ORIGINAL_PREFIX_CANON"/}"
+                    UMU_CWD="$ALIAS_MOUNT/$rel_pwd"
+                    ;;
+                *)
+                    UMU_CWD="$ALIAS_MOUNT"
+                    ;;
+            esac
+
+            log "compressed_overlay=1"
+            log "compressed_overlay_source=$ORIGINAL_PREFIX_CANON"
+            log "compressed_overlay_alias=$ALIAS_MOUNT"
+        fi
+        ;;
+esac
+
+# pressure-vessel does not automatically expose arbitrary /userdata paths.
+# Batocera users commonly redirect saves with absolute symlinks into
+# /userdata/saves/windows.  Share that tree read/write so those symlinks remain
+# valid inside steamrt4.  Extra paths can be added with UMU_BATOCERA_EXTRA_RW
+# (colon-separated) without editing the runner.
+PV_RW="${PRESSURE_VESSEL_FILESYSTEMS_RW-}"
+append_pv_rw() {
+    local add="$1"
+    [ -n "$add" ] || return 0
+    case ":$PV_RW:" in
+        *":$add:"*) ;;
+        *) [ -n "$PV_RW" ] && PV_RW="$PV_RW:$add" || PV_RW="$add" ;;
+    esac
+}
+[ -d /userdata/saves ] && append_pv_rw /userdata/saves
+if [ -n "${UMU_BATOCERA_EXTRA_RW-}" ]; then
+    oldIFS="$IFS"; IFS=':'
+    for extra_rw in $UMU_BATOCERA_EXTRA_RW; do append_pv_rw "$extra_rw"; done
+    IFS="$oldIFS"
+fi
+export PRESSURE_VESSEL_FILESYSTEMS_RW="$PV_RW"
+log "PRESSURE_VESSEL_FILESYSTEMS_RW=$PRESSURE_VESSEL_FILESYSTEMS_RW"
+
+# v3.3: Batocera's WINEPREFIX is the source of truth whenever it already points
+# to a real Wine bottle. This deliberately preserves Batocera's own persistence
+# layout without hard-coding a version:
+#   v42  -> /userdata/system/wine-bottles/windows/<game>.wine
+#   v43+ -> /userdata/system/wine-bottles/windows/<runner>/<game>.wine
+# If WINEPREFIX is missing/not initialized, fall back to structural detection
+# around the executable for older/atypical launch paths.
+EMBEDDED_PREFIX=""
+PREFIX_SOURCE="none"
+if is_prefix_root "$EFFECTIVE_WINEPREFIX"; then
+    EMBEDDED_PREFIX="$EFFECTIVE_WINEPREFIX"
+    if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+        PREFIX_SOURCE="batocera-compressed-overlay-alias"
+    else
+        PREFIX_SOURCE="batocera-wineprefix"
+    fi
+else
+    EMBEDDED_PREFIX="$(find_embedded_prefix "$EXE_ABS" 2>/dev/null || true)"
+    if [ -n "$EMBEDDED_PREFIX" ]; then
+        PREFIX_SOURCE="executable-fallback"
+    fi
+fi
+
+GAME_BASENAME="$(basename "$EXE_ABS")"
+GAME_STEM="${GAME_BASENAME%.*}"
+GAME_SAFE="$(printf '%s' "$GAME_STEM" | tr -c 'A-Za-z0-9._-' '_')"
+
+if [ -n "$EMBEDDED_PREFIX" ]; then
+    # v3.3: one compatdata adapter per Batocera bottle, NOT per executable.
+    # autorun.cmd, manual selector and maintenance launches can therefore all
+    # refer to the same pfx adapter/shadercache. The real persistent data still
+    # lives in the Batocera wine-bottle via pfx -> WINEPREFIX.
+    anchor="${IDENTITY_ANCHOR:-$(basename "$EMBEDDED_PREFIX")}"
+    ident="embedded|$anchor"
+    prefix_stem="${anchor%.wine}"
+    GAME_SAFE="$(printf '%s' "$prefix_stem" | tr -c 'A-Za-z0-9._-' '_')"
+else
+    ident="standalone|$EXE_ABS"
+fi
+GAME_KEY="$(printf '%s' "$ident" | cksum | awk '{print $1}')"
+PREFIX="$COMPAT_ROOT/${GAME_SAFE}-${GAME_KEY}"
+mkdir -p "$PREFIX" "$UMU_CACHE"
+
+MODE="standard"
+if [ -n "$EMBEDDED_PREFIX" ]; then
+    MODE="embedded-prefix-bind"
+
+    # v3.4: do NOT use a symlink for compatdata/pfx.
+    # GE-Proton can normalize a symlinked pfx into "pfx -> .", which turns the
+    # whole compatdata directory into the active Wine prefix. Saves then land in
+    # /userdata/system/umu/compatdata/.../drive_c instead of the Batocera bottle.
+    #
+    # A bind mount makes pfx a real directory view of Batocera's WINEPREFIX:
+    # every write through compatdata/pfx is physically a write to the bottle.
+    PFX_MOUNT="$PREFIX/pfx"
+
+    # Clean legacy v3.x pfx symlinks. In particular pfx -> . must never survive.
+    if [ -L "$PFX_MOUNT" ]; then
+        log "legacy_pfx_symlink=$(readlink "$PFX_MOUNT" 2>/dev/null || true)"
+        rm -f "$PFX_MOUNT"
+    fi
+
+    # If an old standard compatdata left a real pfx directory, preserve it once
+    # rather than destroying user data, then create a clean mountpoint.
+    if [ -d "$PFX_MOUNT" ]; then
+        if grep -qs " $PFX_MOUNT " /proc/mounts 2>/dev/null; then
+            umount "$PFX_MOUNT" 2>>"$LOG" || true
+        elif [ "$(find "$PFX_MOUNT" -mindepth 1 -maxdepth 1 2>/dev/null | head -1)" ]; then
+            mv "$PFX_MOUNT" "$PREFIX/pfx.pre-v34-$stamp"
+        fi
+    fi
+    mkdir -p "$PFX_MOUNT"
+
+    # The bottle must be writable. This also validates Batocera's merged
+    # wine-bottle view for .wsquashfs without hard-coding v42/v43 paths.
+    if ! touch "$EMBEDDED_PREFIX/.umu-write-test-$$" 2>>"$LOG"; then
+        log "ERROR: Batocera WINEPREFIX is not writable: $EMBEDDED_PREFIX"
+        exit 74
+    fi
+    rm -f "$EMBEDDED_PREFIX/.umu-write-test-$$"
+
+    if ! mount --bind "$EMBEDDED_PREFIX" "$PFX_MOUNT" 2>>"$LOG"; then
+        log "ERROR: bind mount failed: $EMBEDDED_PREFIX -> $PFX_MOUNT"
+        exit 75
+    fi
+    PFX_BOUND=1
+
+    # Prevent Proton's initial default_pfx population over an existing bottle.
+    # Keep the guard in the compatdata root and also in the mounted pfx for
+    # compatibility with Proton variants that inspect either location.
+    touch "$PREFIX/creation_sync_guard"
+    touch "$PFX_MOUNT/creation_sync_guard"
+    touch "$PREFIX/tracked_files"
+    rm -f "$PREFIX/.umu-standard-prefix"
+else
+    touch "$PREFIX/.umu-standard-prefix"
+fi
+
+export HOME="$UMU_HOME"
+export XDG_CACHE_HOME="$UMU_CACHE"
+export WINEPREFIX="$PREFIX"
+export PROTONPATH="$RUNNER_DIR"
+export GAMEID="${UMU_GAMEID:-umu-default}"
+export UMU_LOG="${UMU_LOG:-debug}"
+
+log "launch_kind=application"
+log "mode=umu-$MODE"
+log "exe=$exe"
+log "exe_abs=$EXE_ABS"
+log "embedded_prefix=$EMBEDDED_PREFIX"
+log "prefix_source=$PREFIX_SOURCE"
+log "compatdata=$PREFIX"
+log "pfx_target=$([ -n "$EMBEDDED_PREFIX" ] && printf '%s' "$EMBEDDED_PREFIX" || readlink "$PREFIX/pfx" 2>/dev/null || true)"
+log "pfx_bind=${PFX_BOUND:-0}"
+log "compressed_overlay=${COMPRESSED_OVERLAY:-0}"
+log "compressed_overlay_alias=${ALIAS_MOUNT:-}"
+log "identity=$ident"
+log "GAMEID=$GAMEID"
+log "PROTONPATH=$PROTONPATH"
+log "UMU_RUN=$UMU_RUN"
+
+# v3.6.1: pressure-vessel inherits the caller cwd. For compressed games we must
+# enter the alias path before starting UMU, otherwise bwrap still tries to chdir
+# back into /var/run/wine/... and aborts even though EXE itself is under /userdata.
+if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+    UMU_CWD="${UMU_CWD:-$ALIAS_MOUNT}"
+    if [ ! -d "$UMU_CWD" ]; then
+        log "ERROR: translated UMU cwd does not exist: $UMU_CWD"
+        exit 77
+    fi
+    log "original_pwd=$PWD"
+    log "umu_cwd=$UMU_CWD"
+    if ! cd "$UMU_CWD"; then
+        log "ERROR: cannot cd to translated UMU cwd: $UMU_CWD"
+        exit 77
+    fi
+fi
+
+if [ ! -s "$UMU_RUN" ]; then
+    log "ERROR: umu-run missing or empty: $UMU_RUN"
+    exit 127
+fi
+if [ ! -s "$RUNNER_DIR/proton" ]; then
+    log "ERROR: proton missing or empty: $RUNNER_DIR/proton"
+    exit 127
+fi
+
+UMU_EXE="$exe"
+if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+    UMU_EXE="$EXE_ABS"
+fi
+log "umu_exe=$UMU_EXE"
+python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
+rc=$?
+# Leave the bind-mounted alias before EXIT cleanup so normal umount is not kept
+# busy merely by this wrapper shell's current working directory.
+if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+    cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
+fi
+log "exit=$rc"
+exit "$rc"

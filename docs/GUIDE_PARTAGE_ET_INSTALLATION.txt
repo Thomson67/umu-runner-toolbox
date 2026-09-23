@@ -1,0 +1,115 @@
+BATOCERA - UMU RUNNER TOOLBOX v0.5.2b
+====================================
+
+La UMU Runner Toolbox permet d'installer des runners GE-Proton utilisant UMU
+et le runtime Steam sous Batocera. Elle est prevue pour les jeux .pc, les
+prefixes .wine, les jeux .wsquashfs et les wine-bottles.
+
+INSTALLATION DE LA TOOLBOX
+==========================
+
+Methode locale
+--------------
+1. Copier l'archive de la Toolbox sur Batocera, par exemple via :
+
+   \\BATOCERA\share\system
+
+2. Ouvrir un terminal avec F1 -> Applications -> xterm, ou se connecter en SSH :
+
+   ssh root@batocera
+
+   Le mot de passe Batocera par defaut est : linux
+
+3. Extraire l'archive, entrer dans son dossier puis lancer :
+
+   chmod +x install.sh
+   ./install.sh
+
+4. Redemarrer EmulationStation/Batocera si necessaire. La Toolbox apparait dans
+   le systeme Ports sous le nom "UMU Runner Toolbox".
+
+Methode une ligne (hebergement public)
+--------------------------------------
+Le projet est prepare pour permettre un deploiement par une seule commande curl
+lorsque la Toolbox sera publiee sur un depot ou un hebergement public. L'URL
+exacte sera ajoutee a cette documentation au moment de la publication.
+
+UTILISATION
+===========
+
+Le menu principal est volontairement simple :
+
+  1. Installer un runner GE-Proton UMU
+  2. Supprimer un runner UMU
+  3. Exporter / partager un runner
+  4. Maintenance et diagnostic
+  5. Documentation / A propos
+  0. Quitter
+
+INSTALLER UN RUNNER
+-------------------
+Choisir "Installer un runner GE-Proton UMU", selectionner la release voulue et
+laisser la Toolbox telecharger et preparer GE-Proton avec l'integration UMU.
+
+Dans EmulationStation, ouvrir ensuite les options avancees du jeu Windows et
+selectionner le runner GE-Proton-...-UMU installe.
+
+PROTECTION AUTOMATIQUE
+----------------------
+Les protections techniques ne demandent normalement aucune action manuelle.
+Avant un jeu UMU, la Toolbox/integration verifie les manifests des runners geres
+et protege tous les runners UMU en lecture seule pendant l'execution. Le prefixe
+du jeu reste modifiable normalement.
+
+Cela permet de continuer a tester plusieurs GE-Proton-UMU sur un meme prefixe,
+tout en conservant aussi les runners standards Batocera, Wine-TKG et Kron4ek.
+
+EXPORTER / PARTAGER
+-------------------
+Le sous-menu propose :
+
+1. Package partageable/autonome (recommande)
+   Pour une personne qui ne possede pas encore l'infrastructure UMU. Le package
+   contient le runner, son manifest, un installateur et les controles SHA.
+
+2. Runner seul (.tar.xz)
+   Pour une sauvegarde ou un transfert vers une Batocera deja preparee avec UMU.
+
+MAINTENANCE ET DIAGNOSTIC
+-------------------------
+Ce sous-menu regroupe les fonctions avancees : verification d'integrite, etat
+de la protection, reparation/mise a niveau de l'integration et diagnostic UMU.
+Il n'est normalement pas necessaire de l'utiliser pour lancer les jeux.
+
+MANETTES PS4 / PS5
+==================
+Certains jeux avec DualShock/DualSense peuvent necessiter HIDRAW. Si une manette
+Sony n'est pas reconnue, activez HIDRAW dans les parametres avances du jeu puis
+relancez-le. Ne l'activez pas systematiquement si le jeu fonctionne deja.
+
+EN CAS DE PROBLEME
+==================
+Utiliser : Maintenance et diagnostic -> Diagnostic UMU complet.
+Les logs se trouvent dans :
+
+  /userdata/system/logs/umu-toolbox/
+  /userdata/system/logs/umu-runner/
+
+IMPORTANT
+=========
+- La Toolbox est un outil communautaire pour Batocera.
+- Supprimer un runner depuis la Toolbox ne supprime pas vos jeux ni sauvegardes.
+- Un runner dont le manifest est modifie est refuse au lancement/export afin de
+  ne pas propager une installation contaminee.
+- La compatibilite reste variable selon les jeux et les versions de Proton.
+
+
+NOUVEAUTE v0.5.2b - NETTOYAGE UMU
+--------------------------------
+Dans Maintenance et diagnostic, l'option "Nettoyer les donnees de tests UMU" analyse et peut vider compatdata et merged-prefixes uniquement lorsqu'aucun lancement UMU n'est actif. Les caches graphiques Mesa/RADV sont proposes separement et restent facultatifs. umu-run, steamrt4, protonfixes, les sauvegardes UMU, les runners et les donnees de jeux Batocera ne sont pas supprimes.
+
+v0.5.2b - RANGEMENT DES FICHIERS
+--------------------------------
+La Toolbox reside desormais dans /userdata/system/umu/toolbox et ses exports
+dans /userdata/system/umu/exports. L'installateur migre automatiquement une
+ancienne installation /userdata/system/umu-runner-toolbox.
