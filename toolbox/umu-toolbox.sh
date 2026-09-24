@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.5.2b"
+TOOLBOX_VERSION="0.6.5"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -10,6 +10,9 @@ UMU_RUN="$UMU_DIR/umu-run"
 UMU_BACKUP="$UMU_DIR/backups"
 LOG_DIR="/userdata/system/logs/umu-toolbox"
 PORTS="/userdata/roms/ports"
+PORT="$PORTS/UMU Runner Toolbox.sh"
+PORT_KEYS="$PORTS/UMU Runner Toolbox.sh.keys"
+OLD_ROOT="/userdata/system/umu-runner-toolbox"
 RUNNER_STAGING_ROOT="$ROOT/staging"
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
@@ -109,6 +112,12 @@ require_net() {
 
 root_bridge() {
     printf '%s' "$OVERLAY/umu-batocera/umu-root-runner.py"
+}
+
+umu_run_works() {
+    [ -s "$UMU_RUN" ] || return 1
+    [ -x "$UMU_RUN" ] || return 1
+    python3 "$(root_bridge)" "$UMU_RUN" --version >/dev/null 2>&1
 }
 
 umu_version() {
@@ -248,7 +257,7 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
     mkdir -p "$(runner_info_dir "$r")"
     cat > "$(runner_state_path "$r")" <<EOF
 GE_PROTON=${choice%-UMU}
-UMU_INTEGRATION=3.7.1
+UMU_INTEGRATION=3.7.4
 TOOLBOX_VERSION=$TOOLBOX_VERSION
 STATUS=validated
 VALIDATED_AT=$(date -Is 2>/dev/null || date)
@@ -260,7 +269,7 @@ EOF
 show_status() {
     local uv runtime runners
     uv="$(umu_version)"
-    if [ -d "$UMU_DIR/home/.local/share/umu/steamrt4" ]; then
+    if find "$UMU_DIR/home/.local/share/umu" -maxdepth 1 -type d -name 'steamrt*' -print -quit 2>/dev/null | grep -q .; then
         runtime="present"
     else
         runtime="absent (sera telecharge par UMU au besoin)"
@@ -275,10 +284,10 @@ show_status() {
 
     msg "Etat de l'installation" \
 "Toolbox : v$TOOLBOX_VERSION
-Couche Batocera UMU : v3.7.1
+Couche Batocera UMU : v3.7.4
 
 UMU : $uv
-steamrt4 : $runtime
+Steam Runtime UMU : $runtime
 
 Runners UMU installes :
 $runners
@@ -289,6 +298,116 @@ NON MANAGE : aucune reference encore creee
 
 Logs Toolbox :
 $LOG_DIR"
+}
+
+install_umu_if_missing() {
+    if [ -s "$UMU_RUN" ] && [ -x "$UMU_RUN" ] && umu_run_works; then
+        if [ ! -L "$UMU_DIR/umu_run.py" ]; then
+            rm -f "$UMU_DIR/umu_run.py"
+            ln -s umu-run "$UMU_DIR/umu_run.py"
+        fi
+        return 0
+    fi
+
+    require_net || return 1
+    clear
+    echo "UMU n'est pas installe correctement."
+    echo "Installation automatique de la derniere release officielle..."
+
+    local tmp json tag asset checksum newrun
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/umu-install.XXXXXX")"
+    json="$tmp/release.json"
+    if ! curl -fsSL --max-time 30 "https://api.github.com/repos/$UMU_REPO/releases/latest" -o "$json"; then
+        rm -rf "$tmp"
+        msg "Installation UMU impossible" "Impossible de recuperer la derniere release officielle UMU.\n\nLe runner ne sera pas installe tant que umu-run n'est pas disponible."
+        return 1
+    fi
+
+    tag="$(python3 - "$json" <<'PY2'
+import json,sys
+d=json.load(open(sys.argv[1]))
+print(d.get('tag_name',''))
+PY2
+)"
+    asset="$(python3 - "$json" <<'PY2'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for a in d.get('assets',[]):
+    u=a.get('browser_download_url','')
+    if u.endswith('zipapp.tar'):
+        print(u); break
+PY2
+)"
+    checksum="$(python3 - "$json" <<'PY2'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for a in d.get('assets',[]):
+    u=a.get('browser_download_url','')
+    if u.endswith('umu-run.sha512sum'):
+        print(u); break
+PY2
+)"
+    if [ -z "$tag" ] || [ -z "$asset" ]; then
+        rm -rf "$tmp"
+        msg "Installation UMU impossible" "La derniere release UMU ne contient pas l'archive zipapp attendue."
+        return 1
+    fi
+    if ! curl -fL --progress-bar "$asset" -o "$tmp/umu-launcher.tar"; then
+        rm -rf "$tmp"
+        msg "Installation UMU impossible" "Echec du telechargement de UMU $tag."
+        return 1
+    fi
+    mkdir -p "$tmp/extracted"
+    if ! tar -xf "$tmp/umu-launcher.tar" -C "$tmp/extracted"; then
+        rm -rf "$tmp"
+        msg "Installation UMU impossible" "Impossible d'extraire UMU $tag."
+        return 1
+    fi
+    newrun="$(find "$tmp/extracted" -type f -name umu-run -print -quit)"
+    if [ -z "$newrun" ] || [ ! -s "$newrun" ]; then
+        rm -rf "$tmp"
+        msg "Installation UMU impossible" "umu-run est absent de l'archive UMU $tag."
+        return 1
+    fi
+    if [ -n "$checksum" ]; then
+        if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
+            rm -rf "$tmp"
+            msg "Installation UMU impossible" "Impossible de telecharger le checksum SHA512 de UMU."
+            return 1
+        fi
+        cp "$newrun" "$tmp/umu-run"
+        if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
+            rm -rf "$tmp"
+            msg "Installation UMU impossible" "Le checksum SHA512 de UMU est invalide."
+            return 1
+        fi
+    fi
+    if ! python3 "$(root_bridge)" "$newrun" --version >/dev/null 2>&1; then
+        rm -rf "$tmp"
+        msg "Installation UMU impossible" "La nouvelle copie de umu-run ne passe pas le test d'execution Batocera. Aucun remplacement n'a ete effectue."
+        return 1
+    fi
+
+    mkdir -p "$UMU_BACKUP"
+    if [ -s "$UMU_RUN" ]; then
+        cp -a "$UMU_RUN" "$UMU_BACKUP/umu-run-broken-$(date '+%Y%m%d-%H%M%S')"
+    fi
+    cp -a "$newrun" "$UMU_RUN"
+    chmod +x "$UMU_RUN"
+    rm -f "$UMU_DIR/umu_run.py"
+    ln -s umu-run "$UMU_DIR/umu_run.py"
+    printf '%s\n' "$tag" > "$UMU_DIR/.umu_version"
+    rm -rf "$tmp"
+    log "UMU installed automatically: $tag"
+    return 0
+}
+
+ensure_umu_for_runner() {
+    if install_umu_if_missing; then
+        return 0
+    fi
+    msg "Installation du runner annulee" "UMU est indispensable pour installer et lancer un runner GE-Proton-UMU.\n\nAucun runner n'a ete installe."
+    return 1
 }
 
 fetch_latest_umu_json() {
@@ -727,6 +846,11 @@ Continuer ?"; then
         return
     fi
 
+    if ! ensure_umu_for_runner; then
+        rm -rf "$tmp"
+        return
+    fi
+
     local stage="$RUNNER_STAGING_ROOT/${tag}-UMU.$(date '+%Y%m%d-%H%M%S').$$"
     mkdir -p "$stage/download" "$stage/extracted"
     local tarname sumname
@@ -790,7 +914,7 @@ Continuer ?"; then
     mkdir -p "$candidate/umu-batocera"
     cat > "$candidate/umu-batocera/runner-info" <<EOF
 GE_PROTON=$tag
-UMU_INTEGRATION=3.7.1
+UMU_INTEGRATION=3.7.4
 TOOLBOX_VERSION=$TOOLBOX_VERSION
 INSTALL_SOURCE=github-release
 SOURCE_URL=$tarurl
@@ -853,9 +977,9 @@ list_runners() {
 upgrade_integration() {
     local runners r base changed=0 skipped="" upgraded=""
     runners="$(installed_runners)"
-    [ -n "$runners" ] || { msg "Integration v3.7.1" "Aucun runner UMU installe."; return; }
+    [ -n "$runners" ] || { msg "Integration v3.7.4" "Aucun runner UMU installe."; return; }
 
-    if ! yesno "Installer l'integration v3.7.1" \
+    if ! yesno "Installer l'integration v3.7.4" \
 "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.
 
 Les fichiers Wine/Proton upstream ne sont pas remplaces.
@@ -887,14 +1011,14 @@ Continuer ?"; then return; fi
             continue
         fi
         if [ -f "$(runner_state_path "$base")" ]; then
-            sed -i 's/^UMU_INTEGRATION=.*/UMU_INTEGRATION=3.7.1/' "$(runner_state_path "$base")" 2>/dev/null || true
+            sed -i 's/^UMU_INTEGRATION=.*/UMU_INTEGRATION=3.7.4/' "$(runner_state_path "$base")" 2>/dev/null || true
             sed -i "s/^TOOLBOX_VERSION=.*/TOOLBOX_VERSION=$TOOLBOX_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
         fi
-        upgraded="$upgraded$r : v3.7.1 OK\n"
+        upgraded="$upgraded$r : v3.7.4 OK\n"
         changed=$((changed+1))
     done <<< "$runners"
 
-    msg "Integration v3.7.1" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nLa v3.7.1 protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
+    msg "Integration v3.7.4" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nLa v3.7.4 protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
 }
 
 scan_prefix_refs() {
@@ -919,7 +1043,7 @@ scan_prefix_refs() {
     local report="Prefixe : $p\nLiens absolus vers des runners : $total\n\n"
     while read -r n target; do report="$report$n lien(s) -> $(basename "$target")\n"; done < "$out"
     rm -f "$out"
-    msg "References inter-runners" "$report\nUn prefixe multi-runner reste autorise. La v3.7.1 empeche ces liens d'ecrire dans les distributions UMU."
+    msg "References inter-runners" "$report\nUn prefixe multi-runner reste autorise. La v3.7.4 empeche ces liens d'ecrire dans les distributions UMU."
 }
 
 runtime_protection_status() {
@@ -933,7 +1057,7 @@ runtime_protection_status() {
             report="$report[normal] $r (sera protege RO au lancement UMU)\n"
         fi
     done <<< "$(installed_runners)"
-    msg "Protection runtime" "${report:-Aucun runner UMU.}\n\nNormal hors jeu = attendu. La v3.7.1 cree les bind-mounts RO au lancement et les retire a la fin."
+    msg "Protection runtime" "${report:-Aucun runner UMU.}\n\nNormal hors jeu = attendu. La v3.7.4 cree les bind-mounts RO au lancement et les retire a la fin."
 }
 
 verify_install() {
@@ -1223,7 +1347,7 @@ COMPATIBILITE
 
 IMPORTANT
 ---------
-Le runner contient l'integration Batocera/UMU v3.7.1 et son manifest d'integrite.
+Le runner contient l'integration Batocera/UMU v3.7.4 et son manifest d'integrite.
 Les runners UMU sont proteges en lecture seule pendant les lancements UMU afin qu'un prefixe reutilise avec plusieurs versions de Proton ne puisse pas modifier un autre runner.
 Les runners standards Batocera (Proton, Wine-TKG, Kron4ek...) ne sont pas remplaces par ce package.
 
@@ -1376,6 +1500,113 @@ clean_umu_test_data() {
     fi
 }
 
+toolbox_files_cleanup() {
+    rm -rf -- "$ROOT" "$OLD_ROOT"
+    rm -f -- "$PORT" "$PORT_KEYS"
+}
+
+umu_uninstall_active() {
+    if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py' >/dev/null 2>&1; then
+        return 0
+    fi
+    if pgrep -f "$CUSTOM_DIR/GE-Proton[0-9].*-UMU" >/dev/null 2>&1; then
+        return 0
+    fi
+    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|compatdata)|/userdata/system/wine/custom/GE-Proton[^ ]*-UMU'; then
+        return 0
+    fi
+    return 1
+}
+
+uninstall_toolbox_only() {
+    if umu_game_active; then
+        msg "Desinstallation refusee" "Un lancement UMU ou un montage de prefixe est encore actif.\n\nFermez d'abord le jeu puis recommencez."
+        return
+    fi
+    if ! yesno "Desinstaller la Toolbox" "La Toolbox va etre supprimee.\n\nSeront conserves :\n- UMU et son runtime ;\n- les runners *-UMU ;\n- les prefixes, compatdata et sauvegardes.\n\nLe Port et son fichier Pad2Key seront egalement retires.\n\nContinuer ?"; then
+        return
+    fi
+    toolbox_files_cleanup
+    log "toolbox_uninstall=toolbox_only"
+    msg "Toolbox desinstallee" "La Toolbox, son Port et son mapping Pad2Key ont ete supprimes.\n\nUMU et les runners UMU sont conserves."
+}
+
+uninstall_umu_and_runners() {
+    local runners
+    runners="$(installed_runners)"
+    if umu_uninstall_active; then
+        msg "Desinstallation refusee" "Un processus UMU/Wine utilisant un runner UMU ou un montage associe est encore actif.\n\nFermez d'abord le jeu puis recommencez."
+        return
+    fi
+    if [ -n "$runners" ]; then
+        runners="$(printf '%s\n' "$runners" | sed 's/^/- /')"
+    else
+        runners="- Aucun runner *-UMU detecte"
+    fi
+    if ! yesno "Desinstaller UMU + runners" "Cette operation va supprimer :\n\nUMU et ses donnees :\n- umu-run\n- runtime Steam Runtime UMU\n- compatdata / merged-prefixes\n- home / cache / exports\n- sauvegardes UMU\n\nRunners qui seront supprimes :\n$runners\n\nLa Toolbox sera CONSERVEE.\nLes runners classiques ne seront PAS touches.\n\nContinuer ?"; then
+        return
+    fi
+    if umu_uninstall_active; then
+        msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n'a ete effectuee."
+        return
+    fi
+    while IFS= read -r r; do
+        [ -n "$r" ] || continue
+        case "$r" in
+            GE-Proton[0-9]*-[0-9]*-UMU) rm -rf -- "$CUSTOM_DIR/$r" ;;
+        esac
+    done <<< "$(installed_runners)"
+    if [ -d "$UMU_DIR" ]; then
+        find "$UMU_DIR" -mindepth 1 -maxdepth 1 ! -name "$(basename "$ROOT")" -exec rm -rf -- {} +
+    fi
+    mkdir -p "$UMU_DIR"
+    log "umu_uninstall=umu_and_runners"
+    msg "UMU desinstalle" "UMU et les runners *-UMU ont ete supprimes.\n\nLa Toolbox a ete conservee.\n\nLes runners classiques Batocera n'ont pas ete touches."
+}
+
+uninstall_everything() {
+    if umu_uninstall_active; then
+        msg "Desinstallation refusee" "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d'abord le jeu puis recommencez."
+        return
+    fi
+    if ! yesno "Desinstallation complete" "Cette operation va supprimer :\n\n- la Toolbox ;\n- le Port et son mapping Pad2Key ;\n- UMU ;\n- le runtime Steam Runtime UMU ;\n- tous les runners *-UMU ;\n- les prefixes et donnees UMU ;\n- les sauvegardes UMU ;\n- les exports UMU.\n\nLes runners classiques Wine/Proton/TKG/Kron4ek ne seront PAS touches.\n\nCette operation est destructive. Continuer ?"; then
+        return
+    fi
+    if umu_uninstall_active; then
+        msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n'a ete effectuee."
+        return
+    fi
+    while IFS= read -r r; do
+        [ -n "$r" ] || continue
+        case "$r" in
+            GE-Proton[0-9]*-[0-9]*-UMU) rm -rf -- "$CUSTOM_DIR/$r" ;;
+        esac
+    done <<< "$(installed_runners)"
+    toolbox_files_cleanup
+    if [ -d "$UMU_DIR" ]; then
+        rm -rf -- "$UMU_DIR"
+    fi
+    log "uninstall=complete"
+    msg "Desinstallation complete" "La Toolbox, UMU et les runners *-UMU ont ete supprimes.\n\nLes runners classiques et vos fichiers de jeux externes n'ont pas ete touches."
+}
+
+uninstall_menu() {
+    while true; do
+        local choice
+        choice="$(menu_choice "Desinstallation" \
+            "1" "Desinstaller uniquement la Toolbox" \
+            "2" "Desinstaller UMU + tous les runners UMU" \
+            "3" "Desinstaller Toolbox + UMU + runners" \
+            "0" "Retour")" || return
+        case "$choice" in
+            1) uninstall_toolbox_only ;;
+            2) uninstall_umu_and_runners ;;
+            3) uninstall_everything ;;
+            0|"") return ;;
+        esac
+    done
+}
+
 maintenance_menu() {
     while true; do
         local choice
@@ -1385,6 +1616,7 @@ maintenance_menu() {
             "3" "Reparer / mettre a niveau l'integration UMU" \
             "4" "Nettoyer les donnees de tests UMU" \
             "5" "Diagnostic UMU complet" \
+            "6" "Desinstallation" \
             "0" "Retour")" || return
         case "$choice" in
             1) list_runners ;;
@@ -1392,6 +1624,7 @@ maintenance_menu() {
             3) upgrade_integration ;;
             4) clean_umu_test_data ;;
             5) verify_install ;;
+            6) uninstall_menu ;;
             0|"") return ;;
         esac
     done

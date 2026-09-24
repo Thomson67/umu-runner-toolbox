@@ -1,4 +1,4 @@
-BATOCERA - UMU RUNNER TOOLBOX v0.5.2b
+BATOCERA - UMU RUNNER TOOLBOX v0.6.5
 ====================================
 
 La UMU Runner Toolbox permet d'installer des runners GE-Proton utilisant UMU
@@ -104,11 +104,11 @@ IMPORTANT
 - La compatibilite reste variable selon les jeux et les versions de Proton.
 
 
-NOUVEAUTE v0.5.2b - NETTOYAGE UMU
+NOUVEAUTE v0.6.5 - NETTOYAGE UMU
 --------------------------------
-Dans Maintenance et diagnostic, l'option "Nettoyer les donnees de tests UMU" analyse et peut vider compatdata et merged-prefixes uniquement lorsqu'aucun lancement UMU n'est actif. Les caches graphiques Mesa/RADV sont proposes separement et restent facultatifs. umu-run, steamrt4, protonfixes, les sauvegardes UMU, les runners et les donnees de jeux Batocera ne sont pas supprimes.
+Dans Maintenance et diagnostic, l'option "Nettoyer les donnees de tests UMU" analyse et peut vider compatdata et merged-prefixes uniquement lorsqu'aucun lancement UMU n'est actif. Les caches graphiques Mesa/RADV sont proposes separement et restent facultatifs. umu-run, Steam Runtime UMU, protonfixes, les sauvegardes UMU, les runners et les donnees de jeux Batocera ne sont pas supprimes.
 
-v0.5.2b - RANGEMENT DES FICHIERS
+v0.6.5 - RANGEMENT DES FICHIERS
 --------------------------------
 La Toolbox reside desormais dans /userdata/system/umu/toolbox et ses exports
 dans /userdata/system/umu/exports. L'installateur migre automatiquement une
