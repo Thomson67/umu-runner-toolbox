@@ -2,40 +2,41 @@
 
 UMU Runner Toolbox facilite l'installation, la gestion, le diagnostic et le partage de runners **GE-Proton + UMU** sous Batocera.
 
-Version stable actuelle : **v0.5.2b**  
-Integration runner : **v3.7.1**
+Version stable actuelle : **v0.6.5**  
+Integration runner : **v3.7.4**
 
 ## Fonctionnalites principales
 
-- installation de runners GE-Proton-UMU ;
-- suppression controlee des runners UMU ;
+- installation et suppression controlee de runners GE-Proton-UMU ;
+- installation/mise a jour de `umu-run` avec verification SHA512 ;
 - verification d'integrite par manifest ;
 - protection en lecture seule des runners `*-UMU` pendant les lancements UMU ;
 - export d'un runner ou creation d'un package partageable ;
-- diagnostic et maintenance UMU ;
-- nettoyage securise des donnees temporaires de tests UMU ;
-- prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` avec les versions recentes de GE-Proton lorsque Batocera active HIDRAW et que le winebus du runner le supporte.
+- diagnostic, maintenance et nettoyage securise des donnees temporaires UMU ;
+- Pad2Key natif Batocera pour piloter la Toolbox depuis Ports ;
+- prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est active et que le winebus du runner le supporte ;
+- compatibilite Batocera 41 : contournement de l'absence de `_lzma` pour Steam Runtime et generation automatique du cache `ldconfig` requis par pressure-vessel.
 
 La Toolbox ne modifie pas les runners standards Batocera, Wine-TKG ou Kron4ek.
 
-## Compatibilite
+## Compatibilite validee
 
-L'integration a ete concue pour les jeux Batocera Windows utilisant notamment :
+La v0.6.5 a ete testee avec succes sur **Batocera v41** apres redemarrage avec :
 
-- `.pc` ;
-- `.wine` ;
-- `.wsquashfs` et les overlays Batocera ;
-- `wine-bottles` ;
-- les sauvegardes externes sous `/userdata/saves`.
+- `GE-Proton10-25-UMU` ;
+- `GE-Proton11-5-UMU`.
 
-## Installation locale
+Elle conserve le chemin UMU natif lorsque l'hote fournit deja les composants requis, afin de ne pas modifier inutilement les versions plus recentes de Batocera.
 
-Copier ou extraire le projet sur Batocera, puis en root :
+## Installation en une commande
+
+En root sur Batocera :
 
 ```bash
-chmod +x install.sh
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/Thomson67/umu-runner-toolbox/main/install.sh | bash
 ```
+
+Le bootstrap telecharge la derniere release stable, verifie son SHA-256, extrait le package puis lance son installateur local.
 
 La Toolbox est ensuite disponible dans :
 
@@ -55,9 +56,14 @@ Les exports sont ranges sous :
 /userdata/system/umu/exports
 ```
 
-## Installation distante
+## Installation locale
 
-L'installation en une commande sera ajoutee apres validation du mecanisme de publication GitHub Releases. Aucune URL distante n'est volontairement figee dans cette premiere publication du depot.
+Telecharger l'archive de release, l'extraire puis lancer en root :
+
+```bash
+chmod +x install.sh
+./install.sh
+```
 
 ## Documentation
 
