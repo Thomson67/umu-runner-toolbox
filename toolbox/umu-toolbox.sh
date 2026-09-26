@@ -1660,62 +1660,57 @@ maintenance_menu() {
 
 update_toolbox() {
     require_net || return
-    local version_url archive_url latest tmp archive extracted repo_root newroot backup ts
-    version_url="https://raw.githubusercontent.com/$TOOLBOX_REPO/$TOOLBOX_BRANCH/VERSION"
-    archive_url="https://github.com/$TOOLBOX_REPO/archive/refs/heads/$TOOLBOX_BRANCH.tar.gz"
-    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
-    if ! latest="$(curl -fsSL --connect-timeout 10 --max-time 30 "$version_url" | tr -d '\r\n[:space:]')"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Impossible de lire la version distante sur GitHub.\n\nAucune modification n'a ete effectuee."; return; fi
-    if ! printf '%s' "$latest" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
-}
+    local base latest_url tag latest asset checksum download_base tmp pkg root newroot backup ts
 
-main_menu() {
-    while true; do
-        local choice
-        choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
-            "1" "Installer un runner GE-Proton UMU" \
-            "2" "Supprimer un runner UMU" \
-            "3" "Exporter / partager un runner" \
-            "4" "Maintenance et diagnostic" \
-            "5" "Mettre a jour la Toolbox" \
-            "6" "Documentation / A propos" \
-            "0" "Quitter")" || exit 0
-        case "$choice" in
-            1) install_ge ;;
-            2) delete_installed_runner ;;
-            3) export_menu ;;
-            4) maintenance_menu ;;
-            5) update_toolbox ;;
-            6) documentation_about ;;
-            0|"") clear; exit 0 ;;
-        esac
-    done
-}
-main_menu
-; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Version distante invalide : $latest"; return; fi
-    if [ "$latest" = "$TOOLBOX_VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"; return; fi
+    base="https://github.com/$TOOLBOX_REPO"
+    latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
+        msg "Mise a jour Toolbox" "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee."
+        return
+    }
+    tag="$(basename "$latest_url")"
+    case "$tag" in v*) latest="\${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+
+    if [ "$latest" = "$TOOLBOX_VERSION" ]; then
+        msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
+        return
+    fi
     if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
 import sys
 def v(s): return tuple(int(x) for x in s.split('.'))
 sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
 PYVER
-    then rm -rf "$tmp"; msg "Mise a jour Toolbox" "La version distante ($latest) n'est pas plus recente que $TOOLBOX_VERSION."; return; fi
-    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLa nouvelle version sera telechargee et controlee avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then rm -rf "$tmp"; return; fi
-    archive="$tmp/toolbox.tar.gz"; clear; echo "Telechargement de UMU Runner Toolbox v$latest..."
-    if ! curl -fL --progress-bar --connect-timeout 10 "$archive_url" -o "$archive"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Echec du telechargement.\n\nAucune modification n'a ete effectuee."; return; fi
-    if ! tar -tzf "$archive" >/dev/null 2>&1; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "L'archive telechargee est invalide."; return; fi
-    extracted="$tmp/extracted"; mkdir -p "$extracted"
-    if ! tar -xzf "$archive" -C "$extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Impossible d'extraire l'archive."; return; fi
-    repo_root="$(find "$extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
-    if [ -z "$repo_root" ] || [ ! -s "$repo_root/VERSION" ] || [ ! -s "$repo_root/toolbox/umu-toolbox.sh" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure de mise a jour invalide."; return; fi
-    if [ "$(tr -d '\r\n[:space:]' < "$repo_root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "La version de l'archive ne correspond pas a VERSION."; return; fi
-    if ! bash -n "$repo_root/toolbox/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version echoue au controle de syntaxe."; return; fi
-    if [ -s "$repo_root/toolbox/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$repo_root/toolbox/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
-    newroot="$UMU_DIR/.toolbox-update.$"; rm -rf "$newroot"
-    if ! cp -a "$repo_root/toolbox" "$newroot"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de preparer la nouvelle Toolbox."; return; fi
+    then
+        msg "Mise a jour Toolbox" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        return
+    fi
+
+    asset="UMU-Runner-Toolbox-$tag.zip"
+    checksum="$asset.sha256"
+    download_base="$base/releases/download/$tag"
+
+    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Extraction du package impossible."; return; fi
+
+    pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    root="$pkg/toolbox"
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure du package invalide."; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+
+    newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
     if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de conserver config/."; return; }; fi
+
     ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
-    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de sauvegarder la Toolbox actuelle."; return; fi
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Sauvegarde de la Toolbox actuelle impossible."; return; fi
     if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Echec du remplacement. Une restauration automatique a ete tentee."; return; fi
+
     chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
     rm -rf "$tmp"
     if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
