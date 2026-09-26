@@ -93,7 +93,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.7.4 ====="
+log "===== Batocera UMU runner v3.7.5 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -467,8 +467,65 @@ export HOME="$UMU_HOME"
 export XDG_CACHE_HOME="$UMU_CACHE"
 export WINEPREFIX="$PREFIX"
 export PROTONPATH="$RUNNER_DIR"
-export GAMEID="${UMU_GAMEID:-umu-default}"
-export UMU_LOG="${UMU_LOG:-debug}"
+
+UMU_RESOLVER="/userdata/system/umu/toolbox/umu-gameid-resolver.py"
+UMU_DATABASE="/userdata/system/umu/toolbox/data/umu-database.csv"
+if [ ! -s "$UMU_RESOLVER" ] || [ ! -s "$UMU_DATABASE" ]; then
+    UMU_RESOLVER="$RUNNER_DIR/umu-batocera/umu-gameid-resolver.py"
+    UMU_DATABASE="$RUNNER_DIR/umu-batocera/data/umu-database.csv"
+fi
+UMU_GAME_PATH=""
+UMU_RESOLVER_MATCH="FALLBACK"
+UMU_RESOLVER_PATH_MATCH=""
+UMU_RESOLVER_TITLE=""
+UMU_RESOLVER_DB_TITLE=""
+UMU_RESOLVER_POLICY="NONE"
+export GAMEID="umu-default"
+export STORE=""
+
+if [ -n "\${IDENTITY_ANCHOR:-}" ]; then
+    UMU_GAME_PATH="/userdata/roms/windows/$IDENTITY_ANCHOR"
+elif [ -n "\${anchor:-}" ]; then
+    UMU_GAME_PATH="/userdata/roms/windows/$anchor"
+fi
+
+if [ -s "$UMU_RESOLVER" ] && [ -n "$UMU_GAME_PATH" ]; then
+    UMU_RESOLVER_OUT="$(python3 "$UMU_RESOLVER" "$UMU_GAME_PATH" --database "$UMU_DATABASE" --protonfixes "$RUNNER_DIR/protonfixes" 2>>"$LOG")"
+    UMU_RESOLVER_RC=$?
+    if [ "$UMU_RESOLVER_RC" -eq 0 ]; then
+        while IFS='=' read -r resolver_key resolver_value; do
+            case "$resolver_key" in
+                GAMEID|STORE|MATCH|PATH_MATCH|TITLE|DB_TITLE|STORE_POLICY)
+                    resolver_value="$(printf '%s\n' "$resolver_value" | python3 -c 'import ast,sys; s=sys.stdin.read().rstrip("\n"); print(ast.literal_eval(s))' 2>>"$LOG")" || continue ;;
+                *) continue ;;
+            esac
+            case "$resolver_key" in
+                GAMEID) GAMEID="$resolver_value" ;;
+                STORE) STORE="$resolver_value" ;;
+                MATCH) UMU_RESOLVER_MATCH="$resolver_value" ;;
+                PATH_MATCH) UMU_RESOLVER_PATH_MATCH="$resolver_value" ;;
+                TITLE) UMU_RESOLVER_TITLE="$resolver_value" ;;
+                DB_TITLE) UMU_RESOLVER_DB_TITLE="$resolver_value" ;;
+                STORE_POLICY) UMU_RESOLVER_POLICY="$resolver_value" ;;
+            esac
+        done <<< "$UMU_RESOLVER_OUT"
+        export GAMEID STORE
+    else
+        log "[UMU-Resolver] resolver failed rc=$UMU_RESOLVER_RC; using umu-default"
+    fi
+else
+    log "[UMU-Resolver] resolver unavailable or game identity missing; using umu-default"
+fi
+log "[UMU-Resolver] game_path=$UMU_GAME_PATH"
+log "[UMU-Resolver] title=$UMU_RESOLVER_TITLE"
+log "[UMU-Resolver] db_title=$UMU_RESOLVER_DB_TITLE"
+log "[UMU-Resolver] match=$UMU_RESOLVER_MATCH"
+log "[UMU-Resolver] path_match=$UMU_RESOLVER_PATH_MATCH"
+log "[UMU-Resolver] GAMEID=$GAMEID"
+log "[UMU-Resolver] STORE=$STORE"
+log "[UMU-Resolver] store_policy=$UMU_RESOLVER_POLICY"
+
+export UMU_LOG="\${UMU_LOG:-debug}"
 
 log "launch_kind=application"
 log "mode=umu-$MODE"

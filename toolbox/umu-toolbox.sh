@@ -1,7 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.6.5"
+TOOLBOX_VERSION="0.7.0"
+INTEGRATION_VERSION="3.7.5"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -17,6 +18,16 @@ RUNNER_STAGING_ROOT="$ROOT/staging"
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
 UMU_REPO="Open-Wine-Components/umu-launcher"
+TOOLBOX_REPO="Thomson67/umu-runner-toolbox"
+TOOLBOX_BRANCH="main"
+
+# Versions observed incompatible with this Batocera + UMU integration.
+ge_tag_blocked() {
+    case "$1" in
+        GE-Proton10-30|GE-Proton10-31|GE-Proton10-32|GE-Proton10-33|GE-Proton10-34) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 mkdir -p "$CUSTOM_DIR" "$UMU_DIR" "$UMU_BACKUP" "$LOG_DIR" "$RUNNER_STAGING_ROOT"
 
@@ -154,6 +165,8 @@ manifest_files() {
         bin/wine64 \
         bin/wineserver \
         umu-batocera/umu-root-runner.py \
+        umu-batocera/umu-gameid-resolver.py \
+        umu-batocera/data/umu-database.csv \
         files/bin/wine \
         files/bin/wineserver \
         files/lib/wine/x86_64-unix/ntdll.so \
@@ -257,7 +270,7 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
     mkdir -p "$(runner_info_dir "$r")"
     cat > "$(runner_state_path "$r")" <<EOF
 GE_PROTON=${choice%-UMU}
-UMU_INTEGRATION=3.7.4
+UMU_INTEGRATION=$INTEGRATION_VERSION
 TOOLBOX_VERSION=$TOOLBOX_VERSION
 STATUS=validated
 VALIDATED_AT=$(date -Is 2>/dev/null || date)
@@ -278,13 +291,15 @@ show_status() {
     local rr
     while IFS= read -r rr; do
         [ -n "$rr" ] || continue
-        runners="${runners}${rr}  [$(runner_integrity_label "$CUSTOM_DIR/$rr")]\n"
+        local rr_state="$(runner_integrity_label "$CUSTOM_DIR/$rr")"
+        if ge_tag_blocked "${rr%-UMU}"; then rr_state="$rr_state / NON PRIS EN CHARGE (10-30..10-34)"; fi
+        runners="${runners}${rr}  [$rr_state]\n"
     done <<< "$(installed_runners)"
     [ -n "$runners" ] || runners="(aucun)"
 
     msg "Etat de l'installation" \
 "Toolbox : v$TOOLBOX_VERSION
-Couche Batocera UMU : v3.7.4
+Couche Batocera UMU : v$INTEGRATION_VERSION
 
 UMU : $uv
 Steam Runtime UMU : $runtime
@@ -756,6 +771,8 @@ install_ge() {
     menu_file="$tmp/menu.tsv"
     build_ge_menu "$pages" "$menu_file"
 
+    sed -i '/^GE-Proton10-3[0-4]\\t/d' "$menu_file"
+
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
         msg "Erreur GE-Proton" "Aucune release x86_64 compatible n'a ete trouvee."
@@ -808,6 +825,12 @@ install_ge() {
         line="$(resolve_ge_tag "$tag" "$tag_json")"
     else
         line="$(awk -F '\t' -v t="$tag" '$1==t {print; exit}' "$menu_file")"
+    fi
+
+    if ge_tag_blocked "$tag"; then
+        rm -rf "$tmp"
+        msg "Runner non pris en charge" "$tag est volontairement bloque par cette version de la Toolbox.\n\nGE-Proton10-30 a GE-Proton10-34 ont ete constates non fonctionnels avec cette integration Batocera + UMU (echec de lancement / exit 245).\n\nGE-Proton10-29 et les versions 11.x ne sont pas concernes."
+        return
     fi
 
     if [ -z "$line" ]; then
@@ -914,7 +937,7 @@ Continuer ?"; then
     mkdir -p "$candidate/umu-batocera"
     cat > "$candidate/umu-batocera/runner-info" <<EOF
 GE_PROTON=$tag
-UMU_INTEGRATION=3.7.4
+UMU_INTEGRATION=$INTEGRATION_VERSION
 TOOLBOX_VERSION=$TOOLBOX_VERSION
 INSTALL_SOURCE=github-release
 SOURCE_URL=$tarurl
@@ -968,24 +991,29 @@ list_runners() {
     local out="" r
     while IFS= read -r r; do
         [ -n "$r" ] || continue
-        out="${out}${r}  [$(runner_integrity_label "$CUSTOM_DIR/$r")]\n"
+        local r_state="$(runner_integrity_label "$CUSTOM_DIR/$r")"
+        if ge_tag_blocked "${r%-UMU}"; then r_state="$r_state / NON PRIS EN CHARGE (10-30..10-34)"; fi
+        out="${out}${r}  [$r_state]\n"
     done <<< "$(installed_runners)"
     [ -n "$out" ] || out="(aucun runner UMU installe)"
     msg "Runners GE-Proton + UMU" "$out"
 }
 
 upgrade_integration() {
+    local auto="${1:-0}"
     local runners r base changed=0 skipped="" upgraded=""
     runners="$(installed_runners)"
-    [ -n "$runners" ] || { msg "Integration v3.7.4" "Aucun runner UMU installe."; return; }
+    [ -n "$runners" ] || { msg "Integration v$INTEGRATION_VERSION" "Aucun runner UMU installe."; return; }
 
-    if ! yesno "Installer l'integration v3.7.4" \
+    if [ "$auto" != "1" ]; then
+        if ! yesno "Installer l'integration v$INTEGRATION_VERSION" \
 "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.
 
 Les fichiers Wine/Proton upstream ne sont pas remplaces.
 Les runners deja MODIFIES sont refuses.
 
 Continuer ?"; then return; fi
+    fi
 
     while IFS= read -r r; do
         [ -n "$r" ] || continue
@@ -1003,6 +1031,9 @@ Continuer ?"; then return; fi
         cp -a "$OVERLAY/bin/wine64" "$base/bin/wine64" || continue
         cp -a "$OVERLAY/bin/wineserver" "$base/bin/wineserver" || continue
         cp -a "$OVERLAY/umu-batocera/umu-root-runner.py" "$base/umu-batocera/umu-root-runner.py" || continue
+        cp -a "$OVERLAY/umu-batocera/umu-gameid-resolver.py" "$base/umu-batocera/umu-gameid-resolver.py" || continue
+        mkdir -p "$base/umu-batocera/data"
+        cp -a "$OVERLAY/umu-batocera/data/umu-database.csv" "$base/umu-batocera/data/umu-database.csv" || continue
         chmod +x "$base/bin/wine" "$base/bin/wine64" "$base/bin/wineserver" "$base/umu-batocera/umu-root-runner.py" 2>/dev/null || true
         # Trusted migration: old manifest was verified immediately before replacing
         # only Toolbox-owned integration files. Re-hash the complete monitored set.
@@ -1011,14 +1042,14 @@ Continuer ?"; then return; fi
             continue
         fi
         if [ -f "$(runner_state_path "$base")" ]; then
-            sed -i 's/^UMU_INTEGRATION=.*/UMU_INTEGRATION=3.7.4/' "$(runner_state_path "$base")" 2>/dev/null || true
+            sed -i "s/^UMU_INTEGRATION=.*/UMU_INTEGRATION=$INTEGRATION_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
             sed -i "s/^TOOLBOX_VERSION=.*/TOOLBOX_VERSION=$TOOLBOX_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
         fi
-        upgraded="$upgraded$r : v3.7.4 OK\n"
+        upgraded="$upgraded$r : v$INTEGRATION_VERSION OK\n"
         changed=$((changed+1))
     done <<< "$runners"
 
-    msg "Integration v3.7.4" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nLa v3.7.4 protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
+    msg "Integration v$INTEGRATION_VERSION" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
 }
 
 scan_prefix_refs() {
@@ -1043,7 +1074,7 @@ scan_prefix_refs() {
     local report="Prefixe : $p\nLiens absolus vers des runners : $total\n\n"
     while read -r n target; do report="$report$n lien(s) -> $(basename "$target")\n"; done < "$out"
     rm -f "$out"
-    msg "References inter-runners" "$report\nUn prefixe multi-runner reste autorise. La v3.7.4 empeche ces liens d'ecrire dans les distributions UMU."
+    msg "References inter-runners" "$report\nUn prefixe multi-runner reste autorise. La v$INTEGRATION_VERSION empeche ces liens d'ecrire dans les distributions UMU."
 }
 
 runtime_protection_status() {
@@ -1057,7 +1088,7 @@ runtime_protection_status() {
             report="$report[normal] $r (sera protege RO au lancement UMU)\n"
         fi
     done <<< "$(installed_runners)"
-    msg "Protection runtime" "${report:-Aucun runner UMU.}\n\nNormal hors jeu = attendu. La v3.7.4 cree les bind-mounts RO au lancement et les retire a la fin."
+    msg "Protection runtime" "${report:-Aucun runner UMU.}\n\nNormal hors jeu = attendu. La v$INTEGRATION_VERSION cree les bind-mounts RO au lancement et les retire a la fin."
 }
 
 verify_install() {
@@ -1347,7 +1378,7 @@ COMPATIBILITE
 
 IMPORTANT
 ---------
-Le runner contient l'integration Batocera/UMU v3.7.4 et son manifest d'integrite.
+Le runner contient l'integration Batocera/UMU v$INTEGRATION_VERSION et son manifest d'integrite.
 Les runners UMU sont proteges en lecture seule pendant les lancements UMU afin qu'un prefixe reutilise avec plusieurs versions de Proton ne puisse pas modifier un autre runner.
 Les runners standards Batocera (Proton, Wine-TKG, Kron4ek...) ne sont pas remplaces par ce package.
 
@@ -1630,6 +1661,73 @@ maintenance_menu() {
     done
 }
 
+update_toolbox() {
+    require_net || return
+    local base latest_url tag latest asset checksum download_base tmp pkg root newroot backup ts
+
+    base="https://github.com/$TOOLBOX_REPO"
+    latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
+        msg "Mise a jour Toolbox" "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee."
+        return
+    }
+    tag="$(basename "$latest_url")"
+    case "$tag" in v*) latest="${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+
+    if [ "$latest" = "$TOOLBOX_VERSION" ]; then
+        msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
+        return
+    fi
+    if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
+import sys
+def v(s): return tuple(int(x) for x in s.split('.'))
+sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
+PYVER
+    then
+        msg "Mise a jour Toolbox" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        return
+    fi
+
+    asset="UMU-Runner-Toolbox-$tag.zip"
+    checksum="$asset.sha256"
+    download_base="$base/releases/download/$tag"
+
+    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Extraction du package impossible."; return; fi
+
+    pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    root="$pkg/toolbox"
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure du package invalide."; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+
+    newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
+    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de conserver config/."; return; }; fi
+
+    ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Sauvegarde de la Toolbox actuelle impossible."; return; fi
+    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Echec du remplacement. Une restauration automatique a ete tentee."; return; fi
+
+    chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
+    rm -rf "$tmp"
+    if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
+    exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
+}
+
+post_update_integration() {
+    [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
+    local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
+    unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
+    msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL'integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et intègres.\n\nLes runners non geres ou modifies seront ignores."
+    upgrade_integration 1
+}
+
 documentation_about() {
     msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
 }
@@ -1642,16 +1740,19 @@ main_menu() {
             "2" "Supprimer un runner UMU" \
             "3" "Exporter / partager un runner" \
             "4" "Maintenance et diagnostic" \
-            "5" "Documentation / A propos" \
+            "5" "Mettre a jour la Toolbox" \
+            "6" "Documentation / A propos" \
             "0" "Quitter")" || exit 0
         case "$choice" in
             1) install_ge ;;
             2) delete_installed_runner ;;
             3) export_menu ;;
             4) maintenance_menu ;;
-            5) documentation_about ;;
+            5) update_toolbox ;;
+            6) documentation_about ;;
             0|"") clear; exit 0 ;;
         esac
     done
 }
+post_update_integration
 main_menu
