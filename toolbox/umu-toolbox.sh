@@ -1668,7 +1668,7 @@ update_toolbox() {
         return
     }
     tag="$(basename "$latest_url")"
-    case "$tag" in v*) latest="\${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+    case "$tag" in v*) latest="${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
 
     if [ "$latest" = "$TOOLBOX_VERSION" ]; then
         msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
@@ -1729,14 +1729,16 @@ main_menu() {
             "2" "Supprimer un runner UMU" \
             "3" "Exporter / partager un runner" \
             "4" "Maintenance et diagnostic" \
-            "5" "Documentation / A propos" \
+            "5" "Mettre a jour la Toolbox" \
+            "6" "Documentation / A propos" \
             "0" "Quitter")" || exit 0
         case "$choice" in
             1) install_ge ;;
             2) delete_installed_runner ;;
             3) export_menu ;;
             4) maintenance_menu ;;
-            5) documentation_about ;;
+            5) update_toolbox ;;
+            6) documentation_about ;;
             0|"") clear; exit 0 ;;
         esac
     done
