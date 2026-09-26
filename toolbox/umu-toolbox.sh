@@ -166,7 +166,7 @@ manifest_files() {
         bin/wineserver \
         umu-batocera/umu-root-runner.py \
         umu-batocera/umu-gameid-resolver.py \
-        umu-batocera/data/umu-database.csv.gz \
+        umu-batocera/data/umu-database.csv \
         files/bin/wine \
         files/bin/wineserver \
         files/lib/wine/x86_64-unix/ntdll.so \
@@ -1030,7 +1030,7 @@ Continuer ?"; then return; fi
         cp -a "$OVERLAY/umu-batocera/umu-root-runner.py" "$base/umu-batocera/umu-root-runner.py" || continue
         cp -a "$OVERLAY/umu-batocera/umu-gameid-resolver.py" "$base/umu-batocera/umu-gameid-resolver.py" || continue
         mkdir -p "$base/umu-batocera/data"
-        cp -a "$OVERLAY/umu-batocera/data/umu-database.csv.gz" "$base/umu-batocera/data/umu-database.csv.gz" || continue
+        cp -a "$OVERLAY/umu-batocera/data/umu-database.csv" "$base/umu-batocera/data/umu-database.csv" || continue
         chmod +x "$base/bin/wine" "$base/bin/wine64" "$base/bin/wineserver" "$base/umu-batocera/umu-root-runner.py" 2>/dev/null || true
         # Trusted migration: old manifest was verified immediately before replacing
         # only Toolbox-owned integration files. Re-hash the complete monitored set.
