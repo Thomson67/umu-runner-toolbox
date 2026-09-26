@@ -1000,17 +1000,20 @@ list_runners() {
 }
 
 upgrade_integration() {
+    local auto="${1:-0}"
     local runners r base changed=0 skipped="" upgraded=""
     runners="$(installed_runners)"
     [ -n "$runners" ] || { msg "Integration v$INTEGRATION_VERSION" "Aucun runner UMU installe."; return; }
 
-    if ! yesno "Installer l'integration v$INTEGRATION_VERSION" \
+    if [ "$auto" != "1" ]; then
+        if ! yesno "Installer l'integration v$INTEGRATION_VERSION" \
 "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.
 
 Les fichiers Wine/Proton upstream ne sont pas remplaces.
 Les runners deja MODIFIES sont refuses.
 
 Continuer ?"; then return; fi
+    fi
 
     while IFS= read -r r; do
         [ -n "$r" ] || continue
@@ -1039,7 +1042,7 @@ Continuer ?"; then return; fi
             continue
         fi
         if [ -f "$(runner_state_path "$base")" ]; then
-            sed -i 's/^UMU_INTEGRATION=.*/UMU_INTEGRATION=$INTEGRATION_VERSION/' "$(runner_state_path "$base")" 2>/dev/null || true
+            sed -i "s/^UMU_INTEGRATION=.*/UMU_INTEGRATION=$INTEGRATION_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
             sed -i "s/^TOOLBOX_VERSION=.*/TOOLBOX_VERSION=$TOOLBOX_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
         fi
         upgraded="$upgraded$r : v$INTEGRATION_VERSION OK\n"
@@ -1714,7 +1717,15 @@ PYVER
     chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
     rm -rf "$tmp"
     if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
-    exec "$ROOT/umu-toolbox.sh"
+    exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
+}
+
+post_update_integration() {
+    [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
+    local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
+    unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
+    msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL'integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et intègres.\n\nLes runners non geres ou modifies seront ignores."
+    upgrade_integration 1
 }
 
 documentation_about() {
@@ -1743,4 +1754,5 @@ main_menu() {
         esac
     done
 }
+post_update_integration
 main_menu
