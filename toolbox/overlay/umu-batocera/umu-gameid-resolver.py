@@ -13,6 +13,7 @@ from pathlib import Path
 DEFAULT_GAMELIST = Path("/userdata/roms/windows/gamelist.xml")
 DEFAULT_DB = Path("/userdata/system/umu/toolbox/data/umu-database.csv")
 DEFAULT_PROTONFIXES = Path("/userdata/system/wine/custom/GE-Proton10-25-UMU/protonfixes")
+DEFAULT_OVERRIDES = Path("/userdata/system/umu/toolbox/config/gameid-overrides.csv")
 
 def normalize_title(value: str) -> str:
     value = value or ""
@@ -117,8 +118,28 @@ def choose_store(gameid: str, stores, protonfixes: Path):
         return "","MULTI_STORE_FIX_DIFFERENT"
     return stores[0],"MULTI_STORE_NO_GAMEFIX"
 
-def resolve(game_path,gamelist,database,protonfixes):
+def load_overrides(path: Path):
+    if not path.is_file(): return []
+    rows=[]
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            game_path=canonical_game_path(row.get("path","")); title=(row.get("title") or "").strip()
+            gameid=(row.get("gameid") or "").strip(); store=(row.get("store") or "").strip().casefold()
+            if gameid: rows.append({"path":game_path,"title":title,"gameid":gameid,"store":store})
+    return rows
+
+def find_override(game, overrides):
+    by_path=[r for r in overrides if r["path"] and r["path"] == game["path"]]
+    if len(by_path)==1: return by_path[0]
+    by_title=[r for r in overrides if r["title"] and normalize_title(r["title"]) == normalize_title(game["title"])]
+    return by_title[0] if len(by_title)==1 else None
+
+def resolve(game_path,gamelist,database,protonfixes,overrides):
     game,path_match=find_batocera_game(game_path,load_gamelist(gamelist))
+    override=find_override(game,load_overrides(overrides))
+    if override:
+        return {"GAMEID":override["gameid"],"STORE":override["store"],"MATCH":"MANUAL_OVERRIDE","PATH_MATCH":path_match,"TITLE":game["title"],"DB_TITLE":"","STORE_POLICY":"MANUAL"}
+
     matches,match_type=find_database_matches(game["title"],load_umu_database(database))
     result={"GAMEID":"umu-default","STORE":"","MATCH":match_type,"PATH_MATCH":path_match,"TITLE":game["title"],"DB_TITLE":"","STORE_POLICY":"NONE"}
     if not matches: return result
@@ -135,9 +156,9 @@ def shell_escape(value):
 
 def main():
     p=argparse.ArgumentParser(description="Résolveur GAMEID/STORE UMU pour Batocera")
-    p.add_argument("game"); p.add_argument("--gamelist",type=Path,default=DEFAULT_GAMELIST); p.add_argument("--database",type=Path,default=DEFAULT_DB); p.add_argument("--protonfixes",type=Path,default=DEFAULT_PROTONFIXES)
+    p.add_argument("game"); p.add_argument("--gamelist",type=Path,default=DEFAULT_GAMELIST); p.add_argument("--database",type=Path,default=DEFAULT_DB); p.add_argument("--protonfixes",type=Path,default=DEFAULT_PROTONFIXES); p.add_argument("--overrides",type=Path,default=DEFAULT_OVERRIDES)
     a=p.parse_args()
-    try: result=resolve(a.game,a.gamelist,a.database,a.protonfixes)
+    try: result=resolve(a.game,a.gamelist,a.database,a.protonfixes,a.overrides)
     except Exception as exc:
         print(f"ERROR={shell_escape(str(exc))}",file=sys.stderr); return 2
     for key in ("GAMEID","STORE","MATCH","PATH_MATCH","TITLE","DB_TITLE","STORE_POLICY"):
