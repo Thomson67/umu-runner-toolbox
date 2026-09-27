@@ -95,7 +95,7 @@ Dans la majorité des cas, aucune configuration manuelle de `GAMEID` ou `STORE` 
 
 ## Associations manuelles GAMEID / STORE
 
-Si la détection automatique ne trouve pas un jeu de manière fiable, la Toolbox permet désormais de créer une association manuelle depuis **Maintenance et diagnostic -> Gérer les associations GAMEID / STORE**. Le jeu est sélectionné directement depuis `gamelist.xml`, puis le `GAMEID` et le `STORE` peuvent être renseignés.
+Si la détection automatique ne trouve pas un jeu de manière fiable, la Toolbox permet désormais de créer une association manuelle depuis **Maintenance et diagnostic -> Gérer les associations GAMEID / STORE**. Le jeu est sélectionné directement depuis `gamelist.xml`, puis le `GAMEID` et le `STORE` peuvent être renseignés. Le GAMEID peut être un identifiant `umu-*` ou un **AppID Steam numérique** ; un identifiant numérique permet à ProtonFixes de rechercher directement un fix dans `gamefixes-steam`.
 
 L'association manuelle est prioritaire sur la détection automatique. Elle peut être supprimée à tout moment pour revenir au fonctionnement automatique. Les associations sont conservées dans `config/gameid-overrides.csv`, dossier déjà préservé lors des mises à jour de la Toolbox.
 
