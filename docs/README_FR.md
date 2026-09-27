@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton + UMU** sous Batocera.
 
-Version stable actuelle : **v0.7.0**  
-Version de l'intégration runner : **v3.7.5**
+Version stable actuelle : **v0.7.1**  
+Version de l'intégration runner : **v3.7.6**
 
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
@@ -92,6 +92,14 @@ GAMEID=umu-default
 Le jeu peut donc toujours être lancé, mais sans identification spécifique exploitable par ProtonFixes. Les conteneurs `.wine` et `.wsquashfs` portant le même nom sont reconnus comme des représentations équivalentes du même jeu lors de la recherche dans le gamelist.
 
 Dans la majorité des cas, aucune configuration manuelle de `GAMEID` ou `STORE` n'est nécessaire.
+
+## Associations manuelles GAMEID / STORE
+
+Si la détection automatique ne trouve pas un jeu de manière fiable, la Toolbox permet désormais de créer une association manuelle depuis **Maintenance et diagnostic -> Gérer les associations GAMEID / STORE**. Le jeu est sélectionné directement depuis `gamelist.xml`, puis le `GAMEID` et le `STORE` peuvent être renseignés.
+
+L'association manuelle est prioritaire sur la détection automatique. Elle peut être supprimée à tout moment pour revenir au fonctionnement automatique. Les associations sont conservées dans `config/gameid-overrides.csv`, dossier déjà préservé lors des mises à jour de la Toolbox.
+
+Le menu de maintenance permet également de nettoyer séparément les logs UMU Runner et Toolbox, avec affichage de l'espace occupé et conservation du log Toolbox de la session en cours.
 
 ## Intégrité et protection des runners
 
