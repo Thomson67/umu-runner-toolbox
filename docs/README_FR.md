@@ -93,6 +93,10 @@ Le jeu peut donc toujours être lancé, mais sans identification spécifique exp
 
 Dans la majorité des cas, aucune configuration manuelle de `GAMEID` ou `STORE` n'est nécessaire.
 
+## Résolution automatique via les ProtonFixes Steam
+
+Lorsqu'un titre est absent de la base UMU, le resolver peut désormais examiner les `gamefixes-steam/*.py` de ProtonFixes installés localement. Il lit uniquement la docstring du module, sans exécuter le fix pendant la détection, puis n'accepte automatiquement un AppID Steam que si **un seul** titre de ProtonFix correspond exactement après normalisation au titre Batocera. En cas d'absence ou d'ambiguïté, aucun AppID n'est forcé. Une détection sûre est journalisée sous `AUTO_STEAM_MATCH`.
+
 ## Associations manuelles GAMEID / STORE
 
 Si la détection automatique ne trouve pas un jeu de manière fiable, la Toolbox permet désormais de créer une association manuelle depuis **Maintenance et diagnostic -> Gérer les associations GAMEID / STORE**. Le jeu est sélectionné directement depuis `gamelist.xml`, puis le `GAMEID` et le `STORE` peuvent être renseignés. Le GAMEID peut être un identifiant `umu-*` ou un **AppID Steam numérique** ; un identifiant numérique permet à ProtonFixes de rechercher directement un fix dans `gamefixes-steam`.
