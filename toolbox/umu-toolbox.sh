@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.7.0"
-INTEGRATION_VERSION="3.7.5"
+TOOLBOX_VERSION="0.7.1"
+INTEGRATION_VERSION="3.7.6"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -15,6 +15,9 @@ PORT="$PORTS/UMU Runner Toolbox.sh"
 PORT_KEYS="$PORTS/UMU Runner Toolbox.sh.keys"
 OLD_ROOT="/userdata/system/umu-runner-toolbox"
 RUNNER_STAGING_ROOT="$ROOT/staging"
+GAMEID_OVERRIDES="$ROOT/config/gameid-overrides.csv"
+WINDOWS_GAMELIST="/userdata/roms/windows/gamelist.xml"
+RUNNER_LOG_DIR="/userdata/system/logs/umu-runner"
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
 UMU_REPO="Open-Wine-Components/umu-launcher"
@@ -1638,6 +1641,87 @@ uninstall_menu() {
     done
 }
 
+
+clean_umu_logs() {
+    local tb rb total
+    if umu_game_active; then
+        msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."
+        return
+    fi
+    mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
+    tb="$(dir_bytes "$LOG_DIR")"; rb="$(dir_bytes "$RUNNER_LOG_DIR")"; total=$((tb + rb))
+    [ "$total" -gt 0 ] || { msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."; return; }
+    if ! yesno "Nettoyer les logs UMU" "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?"; then return; fi
+    find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
+    find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" ! -samefile "$LOG" -delete 2>/dev/null || true
+    log "umu_logs_cleanup=done bytes_before=$total"
+    msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."
+}
+
+gameid_override_menu() {
+    local helper="$ROOT/umu-gameid-manager.py" action selected idx title path gameid store list choice tab
+    tab="$(printf '\t')"
+    [ -s "$helper" ] || { msg "Associations GAMEID / STORE" "Gestionnaire GAMEID absent : $helper"; return; }
+    while true; do
+        action="$(menu_choice "Associations GAMEID / STORE" "1" "Ajouter / modifier une association" "2" "Supprimer une association" "3" "Afficher les associations" "0" "Retour")" || return
+        case "$action" in
+          1)
+            [ -s "$WINDOWS_GAMELIST" ] || { msg "Erreur" "gamelist Windows introuvable :\n$WINDOWS_GAMELIST"; continue; }
+            list="$(mktemp "$RUNNER_STAGING_ROOT/gameids.XXXXXX")" || continue
+            python3 "$helper" games > "$list" || { rm -f "$list"; msg "Erreur" "Impossible de lire le gamelist."; continue; }
+            if command -v dialog >/dev/null 2>&1; then
+                local opts=() i n p
+                while IFS="$tab" read -r i n p; do opts+=("$i" "$n"); done < "$list"
+                choice="$(dialog --stdout --title "Choisir un jeu Windows" --menu "Selectionnez le jeu a associer." 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
+            else
+                cat "$list"; printf "\nNumero : "; read -r choice
+            fi
+            selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
+            [ -n "$selected" ] || continue
+            IFS="$tab" read -r idx title path <<< "$selected"
+            gameid="$(input_box "GAMEID manuel" "Jeu : $title\n\nGAMEID : umu-xxxxx ou AppID Steam numerique (exemple : 208650)" "")" || continue
+            case "$gameid" in
+                umu-*) ;;
+                *[!0-9]*|"") msg "GAMEID invalide" "Utilisez un ID umu-xxxxx ou un AppID Steam numerique."; continue ;;
+                *) ;;
+            esac
+            store="$(input_box "STORE manuel" "Jeu : $title\nGAMEID : $gameid\n\nStore (steam, gog, epic...). Laisser vide si non requis." "")" || continue
+            if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
+                log "gameid_override=set title=$title gameid=$gameid store=$store"
+                msg "Association enregistree" "Jeu : $title\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."
+            else
+                msg "Erreur" "Impossible d enregistrer l association."
+            fi
+            ;;
+          2)
+            list="$(python3 "$helper" list 2>/dev/null)"
+            [ -n "$list" ] || { msg "Associations GAMEID / STORE" "Aucune association manuelle."; continue; }
+            if command -v dialog >/dev/null 2>&1; then
+                local dopts=() di dt dg ds dp label
+                while IFS="$tab" read -r di dt dg ds dp; do
+                    label="$dt [$dg / $ds]"; dopts+=("$di" "$label")
+                done <<< "$list"
+                choice="$(dialog --stdout --title "Supprimer une association" --menu "Choisissez l association a supprimer." 28 105 18 "${dopts[@]}")" || continue
+            else
+                printf "%s\n" "$list"; printf "\nNumero : "; read -r choice
+            fi
+            if python3 "$helper" delete --index "$choice"; then
+                log "gameid_override=deleted index=$choice"
+                msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."
+            else
+                msg "Erreur" "Suppression impossible."
+            fi
+            ;;
+          3)
+            list="$(python3 "$helper" list 2>/dev/null)"
+            [ -n "$list" ] || list="Aucune association manuelle."
+            msg "Associations GAMEID / STORE" "$list"
+            ;;
+          0|"") return ;;
+        esac
+    done
+}
+
 maintenance_menu() {
     while true; do
         local choice
@@ -1646,16 +1730,20 @@ maintenance_menu() {
             "2" "Verifier la protection des runners" \
             "3" "Reparer / mettre a niveau l'integration UMU" \
             "4" "Nettoyer les donnees de tests UMU" \
-            "5" "Diagnostic UMU complet" \
-            "6" "Desinstallation" \
+            "5" "Nettoyer les logs UMU" \
+            "6" "Gerer les associations GAMEID / STORE" \
+            "7" "Diagnostic UMU complet" \
+            "8" "Desinstallation" \
             "0" "Retour")" || return
         case "$choice" in
             1) list_runners ;;
             2) runtime_protection_status ;;
             3) upgrade_integration ;;
             4) clean_umu_test_data ;;
-            5) verify_install ;;
-            6) uninstall_menu ;;
+            5) clean_umu_logs ;;
+            6) gameid_override_menu ;;
+            7) verify_install ;;
+            8) uninstall_menu ;;
             0|"") return ;;
         esac
     done
@@ -1705,6 +1793,7 @@ PYVER
     if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
     if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
     if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-manager.py" ] && ! python3 -m py_compile "$root/umu-gameid-manager.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le gestionnaire GAMEID de la nouvelle version est invalide."; return; fi
 
     newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
     cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
@@ -1729,7 +1818,8 @@ post_update_integration() {
 }
 
 documentation_about() {
-    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU, caches graphiques et logs ;
+- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
 }
 
 main_menu() {

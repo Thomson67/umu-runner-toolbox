@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.7.0**  
-Runner integration version: **v3.7.5**
+Current stable version: **v0.7.1**  
+Runner integration version: **v3.7.6**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
@@ -41,6 +41,16 @@ The resolver:
 This allows ProtonFixes to load game-specific fixes when available without requiring users to manually maintain `GAMEID` or `STORE` values.
 
 Both `.wine` and `.wsquashfs` containers are recognized as equivalent representations of the same Batocera game when resolving the gamelist entry.
+
+## Automatic Steam ProtonFix fallback
+
+When a title is absent from the UMU database, the resolver can inspect the locally installed `gamefixes-steam/*.py` ProtonFixes. It reads only the module docstring, never executes the fix during detection, and accepts an automatic Steam AppID only when exactly one ProtonFix title matches the normalized Batocera title. Ambiguous or missing matches remain on the safe fallback. Successful detections are logged as `AUTO_STEAM_MATCH`.
+
+## Manual GAMEID / STORE overrides
+
+If automatic resolution cannot identify a game reliably, the Toolbox can store a persistent manual `GAMEID` / `STORE` association (either an `umu-*` ID or a numeric Steam AppID) from **Maintenance and diagnostics**. Manual associations take priority over automatic detection and can be removed at any time to return to automatic resolution. They are stored in `config/gameid-overrides.csv` and preserved across Toolbox updates.
+
+The maintenance menu can also clean UMU Runner and Toolbox logs while preserving the current Toolbox session log.
 
 ## Runner integrity and protection
 
