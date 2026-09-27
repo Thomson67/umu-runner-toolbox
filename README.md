@@ -42,6 +42,10 @@ This allows ProtonFixes to load game-specific fixes when available without requi
 
 Both `.wine` and `.wsquashfs` containers are recognized as equivalent representations of the same Batocera game when resolving the gamelist entry.
 
+## Automatic Steam ProtonFix fallback
+
+When a title is absent from the UMU database, the resolver can inspect the locally installed `gamefixes-steam/*.py` ProtonFixes. It reads only the module docstring, never executes the fix during detection, and accepts an automatic Steam AppID only when exactly one ProtonFix title matches the normalized Batocera title. Ambiguous or missing matches remain on the safe fallback. Successful detections are logged as `AUTO_STEAM_MATCH`.
+
 ## Manual GAMEID / STORE overrides
 
 If automatic resolution cannot identify a game reliably, the Toolbox can store a persistent manual `GAMEID` / `STORE` association (either an `umu-*` ID or a numeric Steam AppID) from **Maintenance and diagnostics**. Manual associations take priority over automatic detection and can be removed at any time to return to automatic resolution. They are stored in `config/gameid-overrides.csv` and preserved across Toolbox updates.
