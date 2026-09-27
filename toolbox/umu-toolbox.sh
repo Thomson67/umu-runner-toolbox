@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.7.1"
+TOOLBOX_VERSION="0.8.0"
 INTEGRATION_VERSION="3.7.6"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
@@ -1658,65 +1658,117 @@ clean_umu_logs() {
     msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."
 }
 
-gameid_override_menu() {
-    local helper="$ROOT/umu-gameid-manager.py" action selected idx title path gameid store list choice tab
+associate_game() {
+    local helper="$ROOT/umu-gameid-manager.py" title="$1" path="$2" tab candidates choice selected idx cscore ctitle gameid cstores store storeopts
     tab="$(printf '\t')"
-    [ -s "$helper" ] || { msg "Associations GAMEID / STORE" "Gestionnaire GAMEID absent : $helper"; return; }
+    candidates="$(mktemp "$RUNNER_STAGING_ROOT/gameid-candidates.XXXXXX")" || return
+    python3 "$helper" candidates --title "$title" --limit 12 > "$candidates" || { rm -f "$candidates"; msg "Erreur" "Impossible de rechercher les correspondances GAMEID."; return; }
+    [ -s "$candidates" ] || { rm -f "$candidates"; msg "Aucune correspondance" "Aucun GAMEID candidat trouve pour :\n$title"; return; }
+    if command -v dialog >/dev/null 2>&1; then
+        local copts=() ci
+        while IFS="$tab" read -r ci cscore ctitle gameid cstores; do
+            [ -n "$ci" ] && [ -n "$ctitle" ] || continue
+            copts+=("$ci" "$ctitle  [$gameid]  score=$cscore")
+        done < "$candidates"
+        choice="$(dialog --stdout --title "Correspondances" --menu "Jeu Batocera : $title\n\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
+    else
+        cat "$candidates"; printf "\nNumero : "; read -r choice
+    fi
+    selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$candidates")"; rm -f "$candidates"
+    [ -n "$selected" ] || return
+    IFS="$tab" read -r idx cscore ctitle gameid cstores <<< "$selected"
+    store=""
+    if [ -n "$cstores" ]; then
+        IFS=',' read -r -a storeopts <<< "$cstores"
+        if [ "${#storeopts[@]}" -eq 1 ]; then store="${storeopts[0]}"
+        elif command -v dialog >/dev/null 2>&1; then
+            local sopts=() st
+            for st in "${storeopts[@]}"; do [ -n "$st" ] && sopts+=("$st" "$st"); done
+            store="$(dialog --stdout --title "Choisir le store" --menu "Correspondance : $ctitle\nGAMEID : $gameid\n\nSelectionnez le store associe." 24 100 14 "${sopts[@]}")" || return
+        else printf 'Stores disponibles : %s\nStore : ' "$cstores"; read -r store; fi
+    fi
+    if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
+        log "gameid_override=set title=$title matched_title=$ctitle score=$cscore gameid=$gameid store=$store"
+        msg "Association enregistree" "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."
+    else msg "Erreur" "Impossible d enregistrer l association."; fi
+}
+
+global_game_scan() {
+    local helper="$ROOT/umu-gameid-manager.py" scan tab kind total clear ambiguous none overrides list choice selected idx status score title path best gid remaining
+    tab="$(printf '\t')"; scan="$(mktemp "$RUNNER_STAGING_ROOT/gameid-scan.XXXXXX")" || return
+    clear; echo "Analyse de tous les jeux Windows..."
+    python3 "$helper" scan > "$scan" || { rm -f "$scan"; msg "Analyse impossible" "Impossible d analyser le gamelist et les bases de correspondance."; return; }
+    IFS="$tab" read -r kind total clear ambiguous none overrides < "$scan"
+    list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
+    tail -n +2 "$scan" > "$list"; rm -f "$scan"
+    if [ "$ambiguous" -eq 0 ]; then
+        rm -f "$list"; msg "Analyse globale" "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu."; return
+    fi
     while true; do
-        action="$(menu_choice "Associations GAMEID / STORE" "1" "Ajouter / modifier une association" "2" "Supprimer une association" "3" "Afficher les associations" "0" "Retour")" || return
+        remaining="$(awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS" {n++} END{print n+0}' "$list")"
+        if [ "$remaining" -eq 0 ]; then
+            rm -f "$list"
+            msg "Analyse globale" "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance."
+            return
+        fi
+        if command -v dialog >/dev/null 2>&1; then
+            local opts=() rec ri rs rscore rt rp rb rg label
+            while IFS="$tab" read -r rec ri rs rscore rt rp rb rg; do
+                [ "$rec" = "ITEM" ] || continue
+                [ "$rs" = "AMBIGUOUS" ] || continue
+                label="[AMBIGU] $rt -> $rb [$rg] score=$rscore"
+                opts+=("$ri" "$label")
+            done < "$list"
+            choice="$(dialog --stdout --title "Compatibilite des jeux - analyse globale" --menu "Jeux : $total | clairs : $clear | ambigus restants : $remaining/$ambiguous | sans match : $none | manuels : $overrides\n\nSelectionnez un jeu a examiner. Annuler pour revenir." 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
+        else
+            awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS"' "$list"
+            printf "\nNumero : "; read -r choice
+            [ -n "$choice" ] || { rm -f "$list"; return; }
+        fi
+        selected="$(awk -F "$tab" -v n="$choice" '$1=="ITEM" && $2==n && $3=="AMBIGUOUS" {print; exit}' "$list")"
+        [ -n "$selected" ] || continue
+        IFS="$tab" read -r kind idx status score title path best gid <<< "$selected"
+        associate_game "$title" "$path"
+        if python3 "$helper" list 2>/dev/null | awk -F "$tab" -v p="$path" '$5==p {found=1} END{exit(found?0:1)}'; then
+            tmp_review="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review-next.XXXXXX")" || { rm -f "$list"; return; }
+            awk -F "$tab" -v n="$idx" '!( $1=="ITEM" && $2==n )' "$list" > "$tmp_review"
+            mv "$tmp_review" "$list"
+            overrides=$((overrides + 1))
+        fi
+    done
+}
+
+gameid_override_menu() {
+    local helper="$ROOT/umu-gameid-manager.py" action selected idx title path list choice tab
+    tab="$(printf '\t')"
+    [ -s "$helper" ] || { msg "Compatibilite des jeux" "Gestionnaire GAMEID absent : $helper"; return; }
+    while true; do
+        action="$(menu_choice "Compatibilite des jeux" "1" "Analyser tous les jeux" "2" "Associer / modifier un jeu" "3" "Afficher les associations manuelles" "4" "Supprimer une association" "0" "Retour")" || return
         case "$action" in
-          1)
+          1) global_game_scan ;;
+          2)
             [ -s "$WINDOWS_GAMELIST" ] || { msg "Erreur" "gamelist Windows introuvable :\n$WINDOWS_GAMELIST"; continue; }
             list="$(mktemp "$RUNNER_STAGING_ROOT/gameids.XXXXXX")" || continue
             python3 "$helper" games > "$list" || { rm -f "$list"; msg "Erreur" "Impossible de lire le gamelist."; continue; }
             if command -v dialog >/dev/null 2>&1; then
-                local opts=() i n p
-                while IFS="$tab" read -r i n p; do opts+=("$i" "$n"); done < "$list"
+                local opts=() i n gp
+                while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
                 choice="$(dialog --stdout --title "Choisir un jeu Windows" --menu "Selectionnez le jeu a associer." 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
-            else
-                cat "$list"; printf "\nNumero : "; read -r choice
-            fi
+            else cat "$list"; printf "\nNumero : "; read -r choice; fi
             selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
             IFS="$tab" read -r idx title path <<< "$selected"
-            gameid="$(input_box "GAMEID manuel" "Jeu : $title\n\nGAMEID : umu-xxxxx ou AppID Steam numerique (exemple : 208650)" "")" || continue
-            case "$gameid" in
-                umu-*) ;;
-                *[!0-9]*|"") msg "GAMEID invalide" "Utilisez un ID umu-xxxxx ou un AppID Steam numerique."; continue ;;
-                *) ;;
-            esac
-            store="$(input_box "STORE manuel" "Jeu : $title\nGAMEID : $gameid\n\nStore (steam, gog, epic...). Laisser vide si non requis." "")" || continue
-            if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
-                log "gameid_override=set title=$title gameid=$gameid store=$store"
-                msg "Association enregistree" "Jeu : $title\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."
-            else
-                msg "Erreur" "Impossible d enregistrer l association."
-            fi
-            ;;
-          2)
-            list="$(python3 "$helper" list 2>/dev/null)"
-            [ -n "$list" ] || { msg "Associations GAMEID / STORE" "Aucune association manuelle."; continue; }
+            associate_game "$title" "$path" ;;
+          3)
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="Aucune association manuelle."; msg "Associations manuelles" "$list" ;;
+          4)
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { msg "Associations manuelles" "Aucune association manuelle."; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
-                while IFS="$tab" read -r di dt dg ds dp; do
-                    label="$dt [$dg / $ds]"; dopts+=("$di" "$label")
-                done <<< "$list"
+                while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
                 choice="$(dialog --stdout --title "Supprimer une association" --menu "Choisissez l association a supprimer." 28 105 18 "${dopts[@]}")" || continue
-            else
-                printf "%s\n" "$list"; printf "\nNumero : "; read -r choice
-            fi
-            if python3 "$helper" delete --index "$choice"; then
-                log "gameid_override=deleted index=$choice"
-                msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."
-            else
-                msg "Erreur" "Suppression impossible."
-            fi
-            ;;
-          3)
-            list="$(python3 "$helper" list 2>/dev/null)"
-            [ -n "$list" ] || list="Aucune association manuelle."
-            msg "Associations GAMEID / STORE" "$list"
-            ;;
+            else printf "%s\n" "$list"; printf "\nNumero : "; read -r choice; fi
+            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; else msg "Erreur" "Suppression impossible."; fi ;;
           0|"") return ;;
         esac
     done
@@ -1731,9 +1783,8 @@ maintenance_menu() {
             "3" "Reparer / mettre a niveau l'integration UMU" \
             "4" "Nettoyer les donnees de tests UMU" \
             "5" "Nettoyer les logs UMU" \
-            "6" "Gerer les associations GAMEID / STORE" \
-            "7" "Diagnostic UMU complet" \
-            "8" "Desinstallation" \
+            "6" "Diagnostic UMU complet" \
+            "7" "Desinstallation" \
             "0" "Retour")" || return
         case "$choice" in
             1) list_runners ;;
@@ -1741,9 +1792,7 @@ maintenance_menu() {
             3) upgrade_integration ;;
             4) clean_umu_test_data ;;
             5) clean_umu_logs ;;
-            6) gameid_override_menu ;;
-            7) verify_install ;;
-            8) uninstall_menu ;;
+            6) verify_install ;;\n            7) uninstall_menu ;;
             0|"") return ;;
         esac
     done
@@ -1809,6 +1858,17 @@ PYVER
     exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
 }
 
+sync_pad2key_mapping() {
+    local src="$ROOT/ports/UMU Runner Toolbox.sh.keys"
+    [ -s "$src" ] || return 0
+    mkdir -p "$PORTS"
+    if [ ! -s "$PORT_KEYS" ] || ! cmp -s "$src" "$PORT_KEYS"; then
+        cp -f "$src" "$PORT_KEYS" 2>/dev/null || return 1
+        log "pad2key_mapping=synchronized target=$PORT_KEYS"
+    fi
+    return 0
+}
+
 post_update_integration() {
     [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
     local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
@@ -1829,9 +1889,10 @@ main_menu() {
             "1" "Installer un runner GE-Proton UMU" \
             "2" "Supprimer un runner UMU" \
             "3" "Exporter / partager un runner" \
-            "4" "Maintenance et diagnostic" \
-            "5" "Mettre a jour la Toolbox" \
-            "6" "Documentation / A propos" \
+            "4" "Compatibilite des jeux" \
+            "5" "Maintenance et diagnostic" \
+            "6" "Mettre a jour la Toolbox" \
+            "7" "Documentation / A propos" \
             "0" "Quitter")" || exit 0
         case "$choice" in
             1) install_ge ;;
