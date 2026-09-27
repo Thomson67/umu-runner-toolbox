@@ -42,6 +42,12 @@ This allows ProtonFixes to load game-specific fixes when available without requi
 
 Both `.wine` and `.wsquashfs` containers are recognized as equivalent representations of the same Batocera game when resolving the gamelist entry.
 
+## Manual GAMEID / STORE overrides
+
+If automatic resolution cannot identify a game reliably, the Toolbox can store a persistent manual `GAMEID` / `STORE` association from **Maintenance and diagnostics**. Manual associations take priority over automatic detection and can be removed at any time to return to automatic resolution. They are stored in `config/gameid-overrides.csv` and preserved across Toolbox updates.
+
+The maintenance menu can also clean UMU Runner and Toolbox logs while preserving the current Toolbox session log.
+
 ## Runner integrity and protection
 
 Managed GE-Proton-UMU runners receive an integrity manifest when they are prepared by the Toolbox.
