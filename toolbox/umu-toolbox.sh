@@ -1675,8 +1675,8 @@ gameid_override_menu() {
             selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
             IFS="$tab" read -r idx title path <<< "$selected"
-            gameid="$(input_box "GAMEID manuel" "Jeu : $title\n\nGAMEID UMU (exemple : umu-208650)" "")" || continue
-            case "$gameid" in umu-*) ;; *) msg "GAMEID invalide" "Le GAMEID doit commencer par umu-."; continue ;; esac
+            gameid="$(input_box "GAMEID manuel" "Jeu : $title\n\nGAMEID : umu-xxxxx ou AppID Steam numerique (exemple : 208650)" "")" || continue
+            case "$gameid" in umu-*|[0-9]*) ;; *) msg "GAMEID invalide" "Utilisez un ID umu-xxxxx ou un AppID Steam numerique."; continue ;; esac
             store="$(input_box "STORE manuel" "Jeu : $title\nGAMEID : $gameid\n\nStore (steam, gog, epic...). Laisser vide si non requis." "")" || continue
             if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
                 log "gameid_override=set title=$title gameid=$gameid store=$store"
