@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.7.0**  
-Runner integration version: **v3.7.5**
+Current stable version: **v0.7.1**  
+Runner integration version: **v3.7.6**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
