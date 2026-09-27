@@ -1672,7 +1672,7 @@ gameid_override_menu() {
             else
                 cat "$list"; printf "\nNumero : "; read -r choice
             fi
-            selected="$(awk -F '\t' -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
+            selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
             IFS="$tab" read -r idx title path <<< "$selected"
             gameid="$(input_box "GAMEID manuel" "Jeu : $title\n\nGAMEID UMU (exemple : umu-208650)" "")" || continue
@@ -1785,6 +1785,7 @@ PYVER
     if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
     if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
     if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-manager.py" ] && ! python3 -m py_compile "$root/umu-gameid-manager.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le gestionnaire GAMEID de la nouvelle version est invalide."; return; fi
 
     newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
     cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
@@ -1809,7 +1810,8 @@ post_update_integration() {
 }
 
 documentation_about() {
-    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU, caches graphiques et logs ;
+- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
 }
 
 main_menu() {
