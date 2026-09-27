@@ -37,7 +37,7 @@ def main():
     if a.cmd=="list":
         for i,r in enumerate(data,1): print("\t".join([str(i),r.get("title",""),r.get("gameid",""),r.get("store",""),r.get("path","")]))
     elif a.cmd=="set":
-        if not a.gameid.startswith("umu-"): raise SystemExit("GAMEID must start with umu-")
+        if not (a.gameid.startswith("umu-") or a.gameid.isdigit()): raise SystemExit("GAMEID must be an umu-* ID or a numeric Steam AppID")
         data=[r for r in data if r.get("path","")!=a.path]
         data.append({"path":a.path,"title":a.title,"gameid":a.gameid,"store":a.store.strip().casefold()})
         data.sort(key=lambda r:r["title"].casefold()); write(a.overrides,data)
