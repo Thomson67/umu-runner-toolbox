@@ -104,7 +104,7 @@ def steam_fix_title(path: Path):
         title=(ast.get_docstring(module, clean=True) or "").splitlines()[0].strip()
     except (OSError, UnicodeError, SyntaxError):
         return ""
-    title=re.sub(r"^game\\s+fix\\s+for\\s+", "", title, flags=re.IGNORECASE).strip()
+    title=re.sub(r"^game\s+fix\s+for\s+", "", title, flags=re.IGNORECASE).strip()
     return title
 
 def find_steam_gamefix_match(title: str, protonfixes: Path):
