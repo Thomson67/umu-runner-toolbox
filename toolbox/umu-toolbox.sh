@@ -1641,6 +1641,423 @@ uninstall_menu() {
     done
 }
 
+
+clean_umu_logs() {
+    local tb rb total
+    mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
+    tb="$(dir_bytes "$LOG_DIR")"; rb="$(dir_bytes "$RUNNER_LOG_DIR")"; total=$((tb + rb))
+    [ "$total" -gt 0 ] || { msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."; return; }
+    if ! yesno "Nettoyer les logs UMU" "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?"; then return; fi
+    find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
+    find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" ! -samefile "$LOG" -delete 2>/dev/null || true
+    log "umu_logs_cleanup=done bytes_before=$total"
+    msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."
+}
+
+gameid_override_menu() {
+    local helper="$ROOT/umu-gameid-manager.py" action selected idx title path gameid store list choice
+    [ -s "$helper" ] || { msg "Associations GAMEID / STORE" "Gestionnaire GAMEID absent : $helper"; return; }
+    while true; do
+        action="$(menu_choice "Associations GAMEID / STORE" "1" "Ajouter / modifier une association" "2" "Supprimer une association" "3" "Afficher les associations" "0" "Retour")" || return
+        case "$action" in
+          1)
+            [ -s "$WINDOWS_GAMELIST" ] || { msg "Erreur" "gamelist Windows introuvable :\n$WINDOWS_GAMELIST"; continue; }
+            list="$(mktemp "$RUNNER_STAGING_ROOT/gameids.XXXXXX")" || continue
+            python3 "$helper" games > "$list" || { rm -f "$list"; msg "Erreur" "Impossible de lire le gamelist."; continue; }
+            if command -v dialog >/dev/null 2>&1; then
+                local opts=() i n p
+                while IFS=
+    while true; do
+        local choice
+        choice="$(menu_choice "Maintenance et diagnostic" \
+            "1" "Verifier l'integrite des runners" \
+            "2" "Verifier la protection des runners" \
+            "3" "Reparer / mettre a niveau l'integration UMU" \
+            "4" "Nettoyer les donnees de tests UMU" \
+            "5" "Nettoyer les logs UMU" \
+            "6" "Gerer les associations GAMEID / STORE" \
+            "7" "Diagnostic UMU complet" \
+            "8" "Desinstallation" \
+            "0" "Retour")" || return
+        case "$choice" in
+            1) list_runners ;;
+            2) runtime_protection_status ;;
+            3) upgrade_integration ;;
+            4) clean_umu_test_data ;;
+            5) clean_umu_logs ;;
+            6) gameid_override_menu ;;
+            7) verify_install ;;
+            8) uninstall_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+
+update_toolbox() {
+    require_net || return
+    local base latest_url tag latest asset checksum download_base tmp pkg root newroot backup ts
+
+    base="https://github.com/$TOOLBOX_REPO"
+    latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
+        msg "Mise a jour Toolbox" "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee."
+        return
+    }
+    tag="$(basename "$latest_url")"
+    case "$tag" in v*) latest="${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+
+    if [ "$latest" = "$TOOLBOX_VERSION" ]; then
+        msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
+        return
+    fi
+    if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
+import sys
+def v(s): return tuple(int(x) for x in s.split('.'))
+sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
+PYVER
+    then
+        msg "Mise a jour Toolbox" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        return
+    fi
+
+    asset="UMU-Runner-Toolbox-$tag.zip"
+    checksum="$asset.sha256"
+    download_base="$base/releases/download/$tag"
+
+    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Extraction du package impossible."; return; fi
+
+    pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    root="$pkg/toolbox"
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure du package invalide."; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+
+    newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
+    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de conserver config/."; return; }; fi
+
+    ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Sauvegarde de la Toolbox actuelle impossible."; return; fi
+    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Echec du remplacement. Une restauration automatique a ete tentee."; return; fi
+
+    chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
+    rm -rf "$tmp"
+    if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
+    exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
+}
+
+post_update_integration() {
+    [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
+    local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
+    unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
+    msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL'integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et intègres.\n\nLes runners non geres ou modifies seront ignores."
+    upgrade_integration 1
+}
+
+documentation_about() {
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+}
+
+main_menu() {
+    while true; do
+        local choice
+        choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
+            "1" "Installer un runner GE-Proton UMU" \
+            "2" "Supprimer un runner UMU" \
+            "3" "Exporter / partager un runner" \
+            "4" "Maintenance et diagnostic" \
+            "5" "Mettre a jour la Toolbox" \
+            "6" "Documentation / A propos" \
+            "0" "Quitter")" || exit 0
+        case "$choice" in
+            1) install_ge ;;
+            2) delete_installed_runner ;;
+            3) export_menu ;;
+            4) maintenance_menu ;;
+            5) update_toolbox ;;
+            6) documentation_about ;;
+            0|"") clear; exit 0 ;;
+        esac
+    done
+}
+post_update_integration
+main_menu
+\t' read -r i n p; do opts+=("$i" "$n"); done < "$list"
+                choice="$(dialog --stdout --title "Choisir un jeu Windows" --menu "Selectionnez le jeu a associer." 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
+            else
+                cat "$list"; printf "\nNumero : "; read -r choice
+            fi
+            selected="$(awk -F '\t' -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
+            [ -n "$selected" ] || continue; IFS=
+    while true; do
+        local choice
+        choice="$(menu_choice "Maintenance et diagnostic" \
+            "1" "Verifier l'integrite des runners" \
+            "2" "Verifier la protection des runners" \
+            "3" "Reparer / mettre a niveau l'integration UMU" \
+            "4" "Nettoyer les donnees de tests UMU" \
+            "5" "Diagnostic UMU complet" \
+            "6" "Desinstallation" \
+            "0" "Retour")" || return
+        case "$choice" in
+            1) list_runners ;;
+            2) runtime_protection_status ;;
+            3) upgrade_integration ;;
+            4) clean_umu_test_data ;;
+            5) verify_install ;;
+            6) uninstall_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+
+update_toolbox() {
+    require_net || return
+    local base latest_url tag latest asset checksum download_base tmp pkg root newroot backup ts
+
+    base="https://github.com/$TOOLBOX_REPO"
+    latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
+        msg "Mise a jour Toolbox" "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee."
+        return
+    }
+    tag="$(basename "$latest_url")"
+    case "$tag" in v*) latest="${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+
+    if [ "$latest" = "$TOOLBOX_VERSION" ]; then
+        msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
+        return
+    fi
+    if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
+import sys
+def v(s): return tuple(int(x) for x in s.split('.'))
+sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
+PYVER
+    then
+        msg "Mise a jour Toolbox" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        return
+    fi
+
+    asset="UMU-Runner-Toolbox-$tag.zip"
+    checksum="$asset.sha256"
+    download_base="$base/releases/download/$tag"
+
+    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Extraction du package impossible."; return; fi
+
+    pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    root="$pkg/toolbox"
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure du package invalide."; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+
+    newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
+    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de conserver config/."; return; }; fi
+
+    ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Sauvegarde de la Toolbox actuelle impossible."; return; fi
+    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Echec du remplacement. Une restauration automatique a ete tentee."; return; fi
+
+    chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
+    rm -rf "$tmp"
+    if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
+    exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
+}
+
+post_update_integration() {
+    [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
+    local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
+    unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
+    msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL'integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et intègres.\n\nLes runners non geres ou modifies seront ignores."
+    upgrade_integration 1
+}
+
+documentation_about() {
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+}
+
+main_menu() {
+    while true; do
+        local choice
+        choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
+            "1" "Installer un runner GE-Proton UMU" \
+            "2" "Supprimer un runner UMU" \
+            "3" "Exporter / partager un runner" \
+            "4" "Maintenance et diagnostic" \
+            "5" "Mettre a jour la Toolbox" \
+            "6" "Documentation / A propos" \
+            "0" "Quitter")" || exit 0
+        case "$choice" in
+            1) install_ge ;;
+            2) delete_installed_runner ;;
+            3) export_menu ;;
+            4) maintenance_menu ;;
+            5) update_toolbox ;;
+            6) documentation_about ;;
+            0|"") clear; exit 0 ;;
+        esac
+    done
+}
+post_update_integration
+main_menu
+\t' read -r idx title path <<< "$selected"
+            gameid="$(input_box "GAMEID manuel" "Jeu : $title\n\nGAMEID UMU (exemple : umu-208650)" "")" || continue
+            case "$gameid" in umu-*) ;; *) msg "GAMEID invalide" "Le GAMEID doit commencer par umu-."; continue ;; esac
+            store="$(input_box "STORE manuel" "Jeu : $title\nGAMEID : $gameid\n\nStore (steam, gog, epic...). Laisser vide si non requis." "")" || continue
+            if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then log "gameid_override=set title=$title gameid=$gameid store=$store"; msg "Association enregistree" "Jeu : $title\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."; else msg "Erreur" "Impossible d enregistrer l association."; fi
+            ;;
+          2)
+            list="$(python3 "$helper" list 2>/dev/null)"
+            [ -n "$list" ] || { msg "Associations GAMEID / STORE" "Aucune association manuelle."; continue; }
+            if command -v dialog >/dev/null 2>&1; then
+                local dopts=() di dt dg ds dp
+                while IFS=
+    while true; do
+        local choice
+        choice="$(menu_choice "Maintenance et diagnostic" \
+            "1" "Verifier l'integrite des runners" \
+            "2" "Verifier la protection des runners" \
+            "3" "Reparer / mettre a niveau l'integration UMU" \
+            "4" "Nettoyer les donnees de tests UMU" \
+            "5" "Diagnostic UMU complet" \
+            "6" "Desinstallation" \
+            "0" "Retour")" || return
+        case "$choice" in
+            1) list_runners ;;
+            2) runtime_protection_status ;;
+            3) upgrade_integration ;;
+            4) clean_umu_test_data ;;
+            5) verify_install ;;
+            6) uninstall_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+
+update_toolbox() {
+    require_net || return
+    local base latest_url tag latest asset checksum download_base tmp pkg root newroot backup ts
+
+    base="https://github.com/$TOOLBOX_REPO"
+    latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
+        msg "Mise a jour Toolbox" "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee."
+        return
+    }
+    tag="$(basename "$latest_url")"
+    case "$tag" in v*) latest="${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+
+    if [ "$latest" = "$TOOLBOX_VERSION" ]; then
+        msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
+        return
+    fi
+    if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
+import sys
+def v(s): return tuple(int(x) for x in s.split('.'))
+sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
+PYVER
+    then
+        msg "Mise a jour Toolbox" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        return
+    fi
+
+    asset="UMU-Runner-Toolbox-$tag.zip"
+    checksum="$asset.sha256"
+    download_base="$base/releases/download/$tag"
+
+    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee."; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Extraction du package impossible."; return; fi
+
+    pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    root="$pkg/toolbox"
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure du package invalide."; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
+
+    newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
+    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de conserver config/."; return; }; fi
+
+    ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Sauvegarde de la Toolbox actuelle impossible."; return; fi
+    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Echec du remplacement. Une restauration automatique a ete tentee."; return; fi
+
+    chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
+    rm -rf "$tmp"
+    if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
+    exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
+}
+
+post_update_integration() {
+    [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
+    local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
+    unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
+    msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL'integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et intègres.\n\nLes runners non geres ou modifies seront ignores."
+    upgrade_integration 1
+}
+
+documentation_about() {
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU et caches graphiques facultatifs.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+}
+
+main_menu() {
+    while true; do
+        local choice
+        choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
+            "1" "Installer un runner GE-Proton UMU" \
+            "2" "Supprimer un runner UMU" \
+            "3" "Exporter / partager un runner" \
+            "4" "Maintenance et diagnostic" \
+            "5" "Mettre a jour la Toolbox" \
+            "6" "Documentation / A propos" \
+            "0" "Quitter")" || exit 0
+        case "$choice" in
+            1) install_ge ;;
+            2) delete_installed_runner ;;
+            3) export_menu ;;
+            4) maintenance_menu ;;
+            5) update_toolbox ;;
+            6) documentation_about ;;
+            0|"") clear; exit 0 ;;
+        esac
+    done
+}
+post_update_integration
+main_menu
+\t' read -r di dt dg ds dp; do dopts+=("$di" "$dt [$dg / ${ds:--}]"); done <<< "$list"
+                choice="$(dialog --stdout --title "Supprimer une association" --menu "Choisissez l association a supprimer." 28 105 18 "${dopts[@]}")" || continue
+            else
+                printf "%s\n" "$list"; printf "\nNumero : "; read -r choice
+            fi
+            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; else msg "Erreur" "Suppression impossible."; fi
+            ;;
+          3)
+            list="$(python3 "$helper" list 2>/dev/null)"
+            [ -n "$list" ] || list="Aucune association manuelle."
+            msg "Associations GAMEID / STORE" "$list"
+            ;;
+          0|"") return ;;
+        esac
+    done
+}
+
 maintenance_menu() {
     while true; do
         local choice
