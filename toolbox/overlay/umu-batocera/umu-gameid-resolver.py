@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import ast
 import csv
 import hashlib
 import gzip
@@ -97,6 +98,31 @@ def find_database_matches(title: str, rows):
     key=normalize_title(title); normalized=[r for r in rows if r["normalized"] == key]
     return (normalized,"NORMALIZED") if normalized else ([],"NO_MATCH")
 
+def steam_fix_title(path: Path):
+    try:
+        module=ast.parse(path.read_text(encoding="utf-8"))
+        title=(ast.get_docstring(module, clean=True) or "").splitlines()[0].strip()
+    except (OSError, UnicodeError, SyntaxError):
+        return ""
+    title=re.sub(r"^game\\s+fix\\s+for\\s+", "", title, flags=re.IGNORECASE).strip()
+    return title
+
+def find_steam_gamefix_match(title: str, protonfixes: Path):
+    root=protonfixes / "gamefixes-steam"
+    if not root.is_dir(): return None, "STEAM_FIX_DIR_MISSING"
+    key=normalize_title(title); matches=[]
+    for path in root.glob("*.py"):
+        if not path.stem.isdigit(): continue
+        fix_title=steam_fix_title(path)
+        if fix_title and normalize_title(fix_title) == key:
+            matches.append((path.stem,fix_title))
+    unique={appid:fix_title for appid,fix_title in matches}
+    if len(unique)==1:
+        appid,fix_title=next(iter(unique.items()))
+        return {"gameid":appid,"title":fix_title}, "AUTO_STEAM_MATCH"
+    if len(unique)>1: return None, "AMBIGUOUS_STEAM_MATCH"
+    return None, "NO_STEAM_MATCH"
+
 def gamefix_path(root: Path, gameid: str, store: str):
     return root / ("gamefixes-umu" if store == "none" else f"gamefixes-{store}") / f"{gameid}.py"
 
@@ -142,7 +168,13 @@ def resolve(game_path,gamelist,database,protonfixes,overrides):
 
     matches,match_type=find_database_matches(game["title"],load_umu_database(database))
     result={"GAMEID":"umu-default","STORE":"","MATCH":match_type,"PATH_MATCH":path_match,"TITLE":game["title"],"DB_TITLE":"","STORE_POLICY":"NONE"}
-    if not matches: return result
+    if not matches:
+        steam_match,steam_policy=find_steam_gamefix_match(game["title"],protonfixes)
+        if steam_match:
+            result.update({"GAMEID":steam_match["gameid"],"STORE":"steam","MATCH":"AUTO_STEAM_MATCH","DB_TITLE":steam_match["title"],"STORE_POLICY":"STEAM_GAMEFIX_EXACT_NORMALIZED"})
+        elif steam_policy == "AMBIGUOUS_STEAM_MATCH":
+            result["MATCH"]="AMBIGUOUS_STEAM_MATCH"; result["STORE_POLICY"]="AMBIGUOUS_STEAM_GAMEFIX"
+        return result
     gameids=sorted({r["gameid"] for r in matches})
     if len(gameids)!=1:
         result["MATCH"]=result["STORE_POLICY"]="AMBIGUOUS_ID"; return result
