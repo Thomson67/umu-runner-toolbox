@@ -1,6 +1,6 @@
 # UMU Runner Toolbox for Batocera
 
-**UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton + UMU** runners on Batocera.
+[Documentation française](docs/README_FR.md)\n\n**UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton + UMU** runners on Batocera.
 
 Current stable version: **v0.7.0**  
 Runner integration version: **v3.7.5**
