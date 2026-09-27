@@ -1898,12 +1898,14 @@ main_menu() {
             1) install_ge ;;
             2) delete_installed_runner ;;
             3) export_menu ;;
-            4) maintenance_menu ;;
-            5) update_toolbox ;;
-            6) documentation_about ;;
+            4) gameid_override_menu ;;
+            5) maintenance_menu ;;
+            6) update_toolbox ;;
+            7) documentation_about ;;
             0|"") clear; exit 0 ;;
         esac
     done
 }
+sync_pad2key_mapping || log "pad2key_mapping=sync_failed"
 post_update_integration
 main_menu
