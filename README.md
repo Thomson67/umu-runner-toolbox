@@ -4,7 +4,7 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.7.1**  
+Current stable version: **v0.8.0**  
 Runner integration version: **v3.7.6**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
@@ -18,7 +18,7 @@ It is designed to make UMU-based Proton runners easy to use from Batocera while 
 - Automatically protect all `*-UMU` runners as read-only while an UMU game is running.
 - Export a runner or build a self-contained package for sharing.
 - Run UMU diagnostics and safely clean temporary UMU test data.
-- Automatically resolve `GAMEID` and `STORE` from the Batocera Windows gamelist for ProtonFixes.
+- Automatically resolve `GAMEID` and `STORE` from the Batocera Windows gamelist for ProtonFixes.\n- Game Compatibility menu with assisted matching, global ambiguity scan and persistent manual associations.
 - Update the Toolbox directly from GitHub Releases with SHA-256 verification and automatic backup.
 - Native Batocera Pad2Key support, so the Toolbox can be controlled directly from Ports.
 - Support `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled and supported by the runner winebus.
@@ -48,7 +48,7 @@ When a title is absent from the UMU database, the resolver can inspect the local
 
 ## Manual GAMEID / STORE overrides
 
-If automatic resolution cannot identify a game reliably, the Toolbox can store a persistent manual `GAMEID` / `STORE` association (either an `umu-*` ID or a numeric Steam AppID) from **Maintenance and diagnostics**. Manual associations take priority over automatic detection and can be removed at any time to return to automatic resolution. They are stored in `config/gameid-overrides.csv` and preserved across Toolbox updates.
+The main menu now includes **Game Compatibility**. It can scan the Windows gamelist for ambiguous matches, propose ranked candidates from the bundled UMU database and installed Steam ProtonFixes, then offer the stores linked to the selected candidate. Manual associations take priority over automatic detection and can be removed at any time to return to automatic resolution. They are stored in `config/gameid-overrides.csv` and preserved across Toolbox updates.\n\nThe compatibility UI considers `.wsquashfs`, `.wine`, `.pc` and `.wtgz` game entries. Raw `.exe` entries are ignored to avoid indexing technical Wine executables. Global scans count unmatched games in the summary but only present ambiguous matches for review; after saving an association, the same scan result remains open so several ambiguous games can be processed in sequence.
 
 The maintenance menu can also clean UMU Runner and Toolbox logs while preserving the current Toolbox session log.
 
