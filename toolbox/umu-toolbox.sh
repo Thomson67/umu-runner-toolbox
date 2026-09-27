@@ -1792,7 +1792,8 @@ maintenance_menu() {
             3) upgrade_integration ;;
             4) clean_umu_test_data ;;
             5) clean_umu_logs ;;
-            6) verify_install ;;\n            7) uninstall_menu ;;
+            6) verify_install ;;
+            7) uninstall_menu ;;
             0|"") return ;;
         esac
     done
