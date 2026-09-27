@@ -1644,6 +1644,10 @@ uninstall_menu() {
 
 clean_umu_logs() {
     local tb rb total
+    if umu_game_active; then
+        msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."
+        return
+    fi
     mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
     tb="$(dir_bytes "$LOG_DIR")"; rb="$(dir_bytes "$RUNNER_LOG_DIR")"; total=$((tb + rb))
     [ "$total" -gt 0 ] || { msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."; return; }
