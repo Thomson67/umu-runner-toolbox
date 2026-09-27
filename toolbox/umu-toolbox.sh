@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.7.0"
-INTEGRATION_VERSION="3.7.5"
+TOOLBOX_VERSION="0.7.1"
+INTEGRATION_VERSION="3.7.6"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -15,6 +15,9 @@ PORT="$PORTS/UMU Runner Toolbox.sh"
 PORT_KEYS="$PORTS/UMU Runner Toolbox.sh.keys"
 OLD_ROOT="/userdata/system/umu-runner-toolbox"
 RUNNER_STAGING_ROOT="$ROOT/staging"
+GAMEID_OVERRIDES="$ROOT/config/gameid-overrides.csv"
+WINDOWS_GAMELIST="/userdata/roms/windows/gamelist.xml"
+RUNNER_LOG_DIR="/userdata/system/logs/umu-runner"
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
 UMU_REPO="Open-Wine-Components/umu-launcher"
