@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.9.0"
+TOOLBOX_VERSION="0.9.1"
 INTEGRATION_VERSION="3.8.0"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
@@ -1232,55 +1232,70 @@ list_runners() {
 
 upgrade_integration() {
     local auto="${1:-0}"
-    local runners r base changed=0 skipped="" upgraded=""
+    local runners r base changed=0 skipped="" upgraded="" failed="" tmpstage
     runners="$(installed_runners)"
     [ -n "$runners" ] || { msg "Integration v$INTEGRATION_VERSION" "Aucun runner UMU installe."; return; }
+
+    if umu_process_active; then
+        log "integration_upgrade=deferred reason=umu_process_activity"
+        msg "Integration v$INTEGRATION_VERSION" \
+"Migration reportee : un processus UMU/Wine est encore actif.
+
+Aucun runner n'a ete modifie.
+
+Fermez le jeu (ou utilisez le diagnostic de protection si une ancienne session est bloquee), puis relancez :
+Maintenance > Reparer / mettre a niveau l'integration UMU."
+        return 2
+    fi
 
     if [ "$auto" != "1" ]; then
         if ! yesno "Installer l'integration v$INTEGRATION_VERSION" \
 "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.
 
-Les fichiers Wine/Proton upstream ne sont pas remplaces.
-Les runners deja MODIFIES sont refuses.
+Les runners non geres ou modifies seront ignores.
 
-Continuer ?"; then return; fi
+Continuer ?"; then
+            return
+        fi
     fi
 
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         base="$CUSTOM_DIR/$r"
-        if [ ! -s "$(runner_manifest_path "$base")" ]; then
-            skipped="$skipped$r : NON MANAGE\n"
-            continue
+        if [ ! -s "$(runner_manifest_path "$base")" ]; then skipped="$skipped$r : NON MANAGE\n"; continue; fi
+        if ! verify_runner_manifest "$base"; then skipped="$skipped$r : MODIFIE (refuse)\n"; continue; fi
+        if runner_has_runtime_mount "$base"; then skipped="$skipped$r : PROTECTION RUNTIME ACTIVE/ORPHELINE (migration reportee)\n"; continue; fi
+
+        tmpstage="$(mktemp -d "$RUNNER_STAGING_ROOT/integration.XXXXXX")" || { failed="$failed$r : impossible de creer le staging\n"; continue; }
+        mkdir -p "$tmpstage/bin" "$tmpstage/umu-batocera/data"
+        if ! cp -a "$OVERLAY/bin/wine" "$tmpstage/bin/wine" ||
+           ! cp -a "$OVERLAY/bin/wine64" "$tmpstage/bin/wine64" ||
+           ! cp -a "$OVERLAY/bin/wineserver" "$tmpstage/bin/wineserver" ||
+           ! cp -a "$OVERLAY/umu-batocera/umu-root-runner.py" "$tmpstage/umu-batocera/umu-root-runner.py" ||
+           ! cp -a "$OVERLAY/umu-batocera/umu-gameid-resolver.py" "$tmpstage/umu-batocera/umu-gameid-resolver.py" ||
+           ! cp -a "$OVERLAY/umu-batocera/data/umu-database.csv" "$tmpstage/umu-batocera/data/umu-database.csv"; then
+            failed="$failed$r : preparation des fichiers d'integration impossible\n"; rm -rf "$tmpstage"; continue
         fi
-        if ! verify_runner_manifest "$base"; then
-            skipped="$skipped$r : MODIFIE (refuse)\n"
-            continue
-        fi
-        mkdir -p "$base/umu-batocera"
-        cp -a "$OVERLAY/bin/wine" "$base/bin/wine" || continue
-        cp -a "$OVERLAY/bin/wine64" "$base/bin/wine64" || continue
-        cp -a "$OVERLAY/bin/wineserver" "$base/bin/wineserver" || continue
-        cp -a "$OVERLAY/umu-batocera/umu-root-runner.py" "$base/umu-batocera/umu-root-runner.py" || continue
-        cp -a "$OVERLAY/umu-batocera/umu-gameid-resolver.py" "$base/umu-batocera/umu-gameid-resolver.py" || continue
         mkdir -p "$base/umu-batocera/data"
-        cp -a "$OVERLAY/umu-batocera/data/umu-database.csv" "$base/umu-batocera/data/umu-database.csv" || continue
-        chmod +x "$base/bin/wine" "$base/bin/wine64" "$base/bin/wineserver" "$base/umu-batocera/umu-root-runner.py" 2>/dev/null || true
-        # Trusted migration: old manifest was verified immediately before replacing
-        # only Toolbox-owned integration files. Re-hash the complete monitored set.
-        if ! write_manifest "$base"; then
-            skipped="$skipped$r : erreur manifest apres migration\n"
-            continue
+        if ! cp -a "$tmpstage/bin/wine" "$base/bin/wine" ||
+           ! cp -a "$tmpstage/bin/wine64" "$base/bin/wine64" ||
+           ! cp -a "$tmpstage/bin/wineserver" "$base/bin/wineserver" ||
+           ! cp -a "$tmpstage/umu-batocera/umu-root-runner.py" "$base/umu-batocera/umu-root-runner.py" ||
+           ! cp -a "$tmpstage/umu-batocera/umu-gameid-resolver.py" "$base/umu-batocera/umu-gameid-resolver.py" ||
+           ! cp -a "$tmpstage/umu-batocera/data/umu-database.csv" "$base/umu-batocera/data/umu-database.csv"; then
+            failed="$failed$r : ecriture des fichiers d'integration impossible\n"; rm -rf "$tmpstage"; continue
         fi
+        rm -rf "$tmpstage"
+        chmod +x "$base/bin/wine" "$base/bin/wine64" "$base/bin/wineserver" "$base/umu-batocera/umu-root-runner.py" 2>/dev/null || true
+        if ! write_manifest "$base"; then failed="$failed$r : erreur manifest apres migration\n"; continue; fi
         if [ -f "$(runner_state_path "$base")" ]; then
             sed -i "s/^UMU_INTEGRATION=.*/UMU_INTEGRATION=$INTEGRATION_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
             sed -i "s/^TOOLBOX_VERSION=.*/TOOLBOX_VERSION=$TOOLBOX_VERSION/" "$(runner_state_path "$base")" 2>/dev/null || true
         fi
-        upgraded="$upgraded$r : v$INTEGRATION_VERSION OK\n"
-        changed=$((changed+1))
+        upgraded="$upgraded$r : v$INTEGRATION_VERSION OK\n"; changed=$((changed+1))
     done <<< "$runners"
-
-    msg "Integration v$INTEGRATION_VERSION" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
+    log "integration_upgrade=done changed=$changed"
+    msg "Integration v$INTEGRATION_VERSION" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nErreurs :\n${failed:-Aucune}\n\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
 }
 
 scan_prefix_refs() {
@@ -1308,20 +1323,63 @@ scan_prefix_refs() {
     msg "References inter-runners" "$report\nUn prefixe multi-runner reste autorise. La v$INTEGRATION_VERSION empeche ces liens d'ecrire dans les distributions UMU."
 }
 
-runtime_protection_status() {
-    local report="" r opts
-    while IFS= read -r r; do
-        [ -n "$r" ] || continue
-        opts="$(findmnt -n -o OPTIONS -T "$CUSTOM_DIR/$r" 2>/dev/null || true)"
-        if mountpoint -q "$CUSTOM_DIR/$r" 2>/dev/null; then
-            case ",$opts," in *,ro,*) report="$report[RO] $r\n" ;; *) report="$report[RW MOUNT] $r\n" ;; esac
-        else
-            report="$report[normal] $r (sera protege RO au lancement UMU)\n"
-        fi
-    done <<< "$(installed_runners)"
-    msg "Protection runtime" "${report:-Aucun runner UMU.}\n\nNormal hors jeu = attendu. La v$INTEGRATION_VERSION cree les bind-mounts RO au lancement et les retire a la fin."
+umu_process_active() {
+    # Process-only check for operations that modify runner files.
+    # Stale runtime mounts without a live process are handled separately.
+    if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py|/userdata/system/wine/custom/(GE-Proton|GDK-Proton)[^ ]*-UMU/(bin/wine|proton|files/bin/wineserver)' >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
 }
 
+runner_has_runtime_mount() {
+    local target="$1"
+    findmnt -rn -o TARGET 2>/dev/null | grep -Fxq "$target"
+}
+
+orphan_runner_protections() {
+    local r target opts report="" found=0
+    if umu_process_active; then
+        msg "Protections runtime" "Un processus UMU/Wine est encore actif.\n\nLes protections des runners sont donc considerees comme actives et ne seront pas demontees."
+        return 2
+    fi
+    while IFS= read -r r; do
+        [ -n "$r" ] || continue; target="$CUSTOM_DIR/$r"
+        if runner_has_runtime_mount "$target"; then
+            opts="$(findmnt -rn -o OPTIONS -M "$target" 2>/dev/null || true)"
+            case ",$opts," in *,ro,*) report="$report$r [RO]\n"; found=$((found+1)) ;; esac
+        fi
+    done <<< "$(installed_runners)"
+    if [ "$found" -eq 0 ]; then msg "Protections runtime" "Aucune protection RO orpheline detectee."; return 0; fi
+    if ! yesno "Protections RO orphelines" "Aucun lancement UMU actif n'est detecte, mais $found runner(s) reste(nt) monte(s) en lecture seule :\n\n$report\nCela peut arriver apres un crash ou un kill force.\n\nDemonter uniquement ces protections RO orphelines ?"; then return 0; fi
+    if umu_process_active; then msg "Nettoyage annule" "Une activite UMU a ete detectee. Aucun montage n'a ete retire."; return 2; fi
+    local cleaned=0 failed=""
+    while IFS= read -r r; do
+        [ -n "$r" ] || continue; target="$CUSTOM_DIR/$r"
+        if runner_has_runtime_mount "$target"; then
+            opts="$(findmnt -rn -o OPTIONS -M "$target" 2>/dev/null || true)"
+            case ",$opts," in *,ro,*) if umount "$target" 2>>"$LOG"; then cleaned=$((cleaned+1)); log "orphan_runner_protection_unmounted=$target"; else failed="$failed$r\n"; fi ;; esac
+        fi
+    done <<< "$(installed_runners)"
+    msg "Protections runtime" "Protections RO orphelines retirees : $cleaned\n\nEchecs :\n${failed:-Aucun}"
+}
+
+runtime_protection_status() {
+    local report="" r opts active=0
+    umu_process_active && active=1 || true
+    while IFS= read -r r; do
+        [ -n "$r" ] || continue
+        if runner_has_runtime_mount "$CUSTOM_DIR/$r"; then
+            opts="$(findmnt -rn -o OPTIONS -M "$CUSTOM_DIR/$r" 2>/dev/null || true)"
+            case ",$opts," in
+                *,ro,*) if [ "$active" -eq 1 ]; then report="$report[RO ACTIF] $r\n"; else report="$report[RO ORPHELIN] $r\n"; fi ;;
+                *) report="$report[MONTAGE RW] $r\n" ;;
+            esac
+        else report="$report[normal] $r (sera protege RO au lancement UMU)\n"; fi
+    done <<< "$(installed_runners)"
+    if [ "$active" -eq 1 ]; then report="$report\nActivite UMU detectee : les protections RO sont attendues."; else report="$report\nAucune activite UMU detectee. Une ligne [RO ORPHELIN] peut etre nettoyee avec l'option Maintenance dediee."; fi
+    msg "Protection runtime" "${report:-Aucun runner UMU.}"
+}
 verify_install() {
     local report=""
     if [ -s "$UMU_RUN" ]; then
@@ -2037,7 +2095,8 @@ maintenance_menu() {
             "4" "Nettoyer les donnees runtime UMU" \
             "5" "Nettoyer les logs UMU" \
             "6" "Diagnostic UMU complet" \
-            "7" "Desinstallation" \
+            "7" "Nettoyer les protections RO orphelines" \
+            "8" "Desinstallation" \
             "0" "Retour")" || return
         case "$choice" in
             1) list_runners ;;
@@ -2046,7 +2105,8 @@ maintenance_menu() {
             4) clean_umu_runtime_data ;;
             5) clean_umu_logs ;;
             6) verify_install ;;
-            7) uninstall_menu ;;
+            7) orphan_runner_protections ;;
+            8) uninstall_menu ;;
             0|"") return ;;
         esac
     done
