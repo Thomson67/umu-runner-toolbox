@@ -119,7 +119,7 @@ The Toolbox can update itself from GitHub Releases. The update package and SHA-2
 
 Runner integration upgrades are applied only to managed runners that pass the required integrity checks.
 
-Installing or updating Toolbox v0.9.0 also migrates the integration of existing healthy managed runners to v3.8.0. Modified runners that fail their integrity manifest are left untouched.
+Installing or updating Toolbox v0.9.1 also migrates the integration of existing healthy managed runners to v3.8.0. Modified runners that fail their integrity manifest are left untouched. If a live UMU/Wine process is detected, migration is safely deferred; Maintenance can also identify and remove orphaned read-only runner protections left after a forced termination.
 
 ## Compatibility
 
