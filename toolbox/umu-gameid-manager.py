@@ -52,15 +52,20 @@ def steam_candidates(runners):
     out={}
     if not runners.is_dir(): return out
     seen=set()
-    for p in runners.glob('GE-Proton*-UMU/protonfixes/gamefixes-steam/*.py'):
-        if not p.stem.isdigit() or p.stem in seen: continue
-        seen.add(p.stem)
-        try:
-            tree=ast.parse(p.read_text(encoding='utf-8',errors='replace'))
-            title=(ast.get_docstring(tree) or '').splitlines()[0].strip()
-        except Exception: continue
-        title=re.sub(r'^game\s+fix\s+for\s+','',title,flags=re.I).strip()
-        if title: out[(p.stem,title)]={'steam'}
+    patterns=(
+        'GE-Proton*-UMU/protonfixes/gamefixes-steam/*.py',
+        'GDK-Proton*-UMU/protonfixes/gamefixes-steam/*.py',
+    )
+    for pattern in patterns:
+        for p in runners.glob(pattern):
+            if not p.stem.isdigit() or p.stem in seen: continue
+            seen.add(p.stem)
+            try:
+                tree=ast.parse(p.read_text(encoding='utf-8',errors='replace'))
+                title=(ast.get_docstring(tree) or '').splitlines()[0].strip()
+            except Exception: continue
+            title=re.sub(r'^game\s+fix\s+for\s+','',title,flags=re.I).strip()
+            if title: out[(p.stem,title)]={'steam'}
     return out
 
 def candidate_list(title,db,runners,limit=12):

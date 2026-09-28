@@ -2,23 +2,23 @@
 
 [README in English](../README.md)
 
-**UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton + UMU** sous Batocera.
+**UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton et GDK-Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.8.0**  
+Version stable actuelle : **v0.7.1**  
 Version de l'intégration runner : **v3.7.6**
 
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
 ## Fonctionnalités principales
 
-- Installation et suppression contrôlée de runners GE-Proton-UMU.
+- Installation et suppression contrôlée de runners GE-Proton-UMU et GDK-Proton-UMU.
 - Installation et mise à jour de `umu-run` avec vérification SHA-512.
 - Téléchargement de GE-Proton avec contrôle du checksum SHA-512 upstream.
 - Vérification de l'intégrité des runners gérés grâce à un manifest.
 - Protection automatique en lecture seule des runners `*-UMU` pendant un lancement UMU.
 - Export d'un runner ou création d'un package autonome partageable.
 - Diagnostic UMU et nettoyage sécurisé des données temporaires.
-- Résolution automatique de `GAMEID` et `STORE` depuis le gamelist Windows de Batocera pour ProtonFixes.\n- Menu **Compatibilité des jeux** avec recherche assistée, scan global des ambiguïtés et associations manuelles persistantes.
+- Résolution automatique de `GAMEID` et `STORE` depuis le gamelist Windows de Batocera pour ProtonFixes.
 - Mise à jour de la Toolbox depuis GitHub Releases avec contrôle SHA-256 et sauvegarde préalable.
 - Support Pad2Key pour piloter la Toolbox directement depuis Ports.
 - Prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé et supporté.
@@ -65,7 +65,9 @@ chmod +x install.sh
 
 L'installation doit être lancée en `root`.
 
-## Installer un runner GE-Proton-UMU
+## Installer un runner Proton-UMU
+
+Le menu d’installation propose désormais deux familles : **GE-Proton** et **GDK-Proton**. Chaque version est installée dans son propre dossier `*-UMU` et n’écrase jamais un runner existant.
 
 Lancer **UMU Runner Toolbox** depuis Ports puis choisir l'installation d'un runner GE-Proton UMU. La Toolbox télécharge la version sélectionnée, contrôle son checksum upstream, ajoute l'intégration Batocera/UMU et crée son manifest d'intégrité.
 
@@ -99,7 +101,7 @@ Lorsqu'un titre est absent de la base UMU, le resolver peut désormais examiner 
 
 ## Associations manuelles GAMEID / STORE
 
-Le menu principal propose désormais **Compatibilité des jeux**. Il permet d'analyser globalement le `gamelist.xml`, d'identifier les correspondances ambiguës et de proposer une liste de candidats classés provenant de la base UMU et des ProtonFixes Steam installés. Après sélection du candidat, seuls les stores associés sont proposés. L'utilisateur choisit donc la correspondance sans devoir saisir manuellement un GAMEID.\n\nL'analyse globale comptabilise les jeux sans correspondance dans son bilan mais ne présente à corriger que les cas ambigus. Après l'enregistrement d'une association, la liste du scan courant reste ouverte afin de pouvoir traiter immédiatement les autres ambiguïtés. La partie Compatibilité considère uniquement les entrées `.wsquashfs`, `.wine`, `.pc` et `.wtgz` ; les `.exe` bruts sont ignorés afin d'éviter les exécutables techniques Wine présents dans certains gamelists.
+Si la détection automatique ne trouve pas un jeu de manière fiable, la Toolbox permet désormais de créer une association manuelle depuis **Maintenance et diagnostic -> Gérer les associations GAMEID / STORE**. Le jeu est sélectionné directement depuis `gamelist.xml`, puis le `GAMEID` et le `STORE` peuvent être renseignés. Le GAMEID peut être un identifiant `umu-*` ou un **AppID Steam numérique** ; un identifiant numérique permet à ProtonFixes de rechercher directement un fix dans `gamefixes-steam`.
 
 L'association manuelle est prioritaire sur la détection automatique. Elle peut être supprimée à tout moment pour revenir au fonctionnement automatique. Les associations sont conservées dans `config/gameid-overrides.csv`, dossier déjà préservé lors des mises à jour de la Toolbox.
 
@@ -183,7 +185,7 @@ Un runner modifié qui échoue au contrôle d'intégrité n'est pas considéré 
 
 La suppression d'un runner depuis la Toolbox ne supprime pas les jeux ni leurs sauvegardes.
 
-Le script `uninstall.sh` retire uniquement la Toolbox : son dossier, son lanceur Ports et une éventuelle ancienne installation pré-v0.5.2b. Il conserve volontairement les runners GE-Proton-UMU déjà installés, UMU, les jeux, les Wine bottles et les sauvegardes.
+Le script `uninstall.sh` retire uniquement la Toolbox : son dossier, son lanceur Ports et une éventuelle ancienne installation pré-v0.5.2b. Il conserve volontairement les runners GE-Proton-UMU et GDK-Proton-UMU déjà installés, UMU, les jeux, les Wine bottles et les sauvegardes.
 
 ## À retenir
 

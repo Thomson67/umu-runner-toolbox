@@ -93,7 +93,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.7.5 ====="
+log "===== Batocera UMU runner v3.8.0 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -264,11 +264,22 @@ PFX_BOUND=0
 ALIAS_BOUND=0
 PFX_MOUNT=""
 ALIAS_MOUNT=""
+GAMEVIEW_BOUND=0
+GAMEVIEW_TARGET=""
+GAMEVIEW_MOUNTPOINT_CREATED=0
 
 cleanup_runtime_mounts() {
     if [ "${PFX_BOUND:-0}" -eq 1 ] && [ -n "${PFX_MOUNT:-}" ]; then
         umount "$PFX_MOUNT" 2>>"$LOG" || umount -l "$PFX_MOUNT" 2>>"$LOG" || true
         PFX_BOUND=0
+    fi
+    if [ "${GAMEVIEW_BOUND:-0}" -eq 1 ] && [ -n "${GAMEVIEW_TARGET:-}" ]; then
+        umount "$GAMEVIEW_TARGET" 2>>"$LOG" || umount -l "$GAMEVIEW_TARGET" 2>>"$LOG" || true
+        GAMEVIEW_BOUND=0
+        if [ "${GAMEVIEW_MOUNTPOINT_CREATED:-0}" -eq 1 ]; then
+            rmdir "$GAMEVIEW_TARGET" 2>>"$LOG" || true
+        fi
+        log "runtime_gameview_unmounted=$GAMEVIEW_TARGET"
     fi
     if [ "${ALIAS_BOUND:-0}" -eq 1 ] && [ -n "${ALIAS_MOUNT:-}" ]; then
         umount "$ALIAS_MOUNT" 2>>"$LOG" || umount -l "$ALIAS_MOUNT" 2>>"$LOG" || true
@@ -342,6 +353,109 @@ case "$(printf '%s' "$ORIGINAL_WINEPREFIX" | tr '[:upper:]' '[:lower:]')" in
         ;;
 esac
 
+# v3.8: keep Proton's pfx on a real filesystem, but keep the game
+# completely outside that pfx.  The game view is a bind of Batocera's *merged*
+# OverlayFS game directory (lower + upper), exposed under /userdata so UMU /
+# pressure-vessel can launch it without using /run or /var/run paths.
+# This preserves the game's existing start.bat, relative paths and Batocera
+# overlay semantics while keeping Proton's PFX off OverlayFS.
+OVERLAY_UPPERDIR=""
+OVERLAY_LOWERDIR=""
+MATERIALIZED_PREFIX=""
+GAMEVIEW=""
+if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+    OVERLAY_MOUNT_OPTS="$(findmnt -n -o OPTIONS -T "$ORIGINAL_PREFIX_CANON" 2>/dev/null || true)"
+    case ",$OVERLAY_MOUNT_OPTS," in
+        *,upperdir=*) OVERLAY_UPPERDIR="${OVERLAY_MOUNT_OPTS#*upperdir=}"; OVERLAY_UPPERDIR="${OVERLAY_UPPERDIR%%,*}" ;;
+    esac
+    case ",$OVERLAY_MOUNT_OPTS," in
+        *,lowerdir=*) OVERLAY_LOWERDIR="${OVERLAY_MOUNT_OPTS#*lowerdir=}"; OVERLAY_LOWERDIR="${OVERLAY_LOWERDIR%%,*}"; OVERLAY_LOWERDIR="${OVERLAY_LOWERDIR%%:*}" ;;
+    esac
+    log "runtime_lowerdir=$OVERLAY_LOWERDIR"
+    log "runtime_upperdir=$OVERLAY_UPPERDIR"
+    [ -d "$OVERLAY_LOWERDIR" ] || { log "ERROR: compressed-prefix lowerdir missing: $OVERLAY_LOWERDIR"; exit 78; }
+    [ -d "$OVERLAY_UPPERDIR" ] || { log "ERROR: compressed-prefix upperdir missing: $OVERLAY_UPPERDIR"; exit 78; }
+
+    case "$EXE_ABS" in
+        "$ALIAS_MOUNT"/drive_c/*/*)
+            REL_EXE="${EXE_ABS#"$ALIAS_MOUNT"/}"
+            AFTER_DRIVEC="${REL_EXE#drive_c/}"
+            GAME_DIR="${AFTER_DRIVEC%%/*}"
+            GAME_REL="drive_c/$GAME_DIR"
+            EXE_IN_GAME="${REL_EXE#"$GAME_REL"/}"
+            ;;
+        *)
+            log "ERROR: compressed-prefix cannot safely derive game directory from EXE: $EXE_ABS"
+            exit 79
+            ;;
+    esac
+
+    # Materialize the merged Wine prefix, excluding the complete game directory.
+    RUNTIME_KEY="$(printf 'compressed-pfx|%s|%s' "$compressed_anchor" "$RUNNER_DIR" | cksum | awk '{print $1}')"
+    MATERIALIZED_PREFIX="/userdata/system/umu/materialized-prefixes/${alias_safe}-${RUNTIME_KEY}"
+    mkdir -p "$(dirname "$MATERIALIZED_PREFIX")"
+    rm -rf "$MATERIALIZED_PREFIX"
+    mkdir -p "$MATERIALIZED_PREFIX/drive_c"
+
+    COPY_START="$(date +%s)"
+    log "runtime_copy_begin=$(date -Is 2>/dev/null || date)"
+    for COPY_ITEM in "$ALIAS_MOUNT"/* "$ALIAS_MOUNT"/.[!.]* "$ALIAS_MOUNT"/..?*; do
+        [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
+        [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
+        cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/" 2>>"$LOG" || {
+            log "ERROR: compressed-prefix prefix-root copy failed: $COPY_ITEM"; exit 80;
+        }
+    done
+    for COPY_ITEM in "$ALIAS_MOUNT/drive_c"/* "$ALIAS_MOUNT/drive_c"/.[!.]* "$ALIAS_MOUNT/drive_c"/..?*; do
+        [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
+        [ "$(basename "$COPY_ITEM")" = "$GAME_DIR" ] && continue
+        cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/drive_c/" 2>>"$LOG" || {
+            log "ERROR: compressed-prefix drive_c copy failed: $COPY_ITEM"; exit 80;
+        }
+    done
+    COPY_END="$(date +%s)"
+    COPY_SECONDS=$((COPY_END-COPY_START))
+    COPY_SIZE="$(du -sh "$MATERIALIZED_PREFIX" 2>/dev/null | awk '{print $1}')"
+    log "runtime_copy_end=$(date -Is 2>/dev/null || date)"
+    log "runtime_copy_seconds=$COPY_SECONDS"
+    log "runtime_materialized_size=$COPY_SIZE"
+    log "runtime_real_prefix=$MATERIALIZED_PREFIX"
+    log "runtime_excluded_game=$GAME_REL"
+
+    # Bind Batocera's MERGED game directory outside the pfx. Unlike earlier split-prefix test this
+    # source is ALIAS_MOUNT (the live OverlayFS view), never the SquashFS lowerdir.
+    GAME_SOURCE="$ALIAS_MOUNT/$GAME_REL"
+    [ -d "$GAME_SOURCE" ] || { log "ERROR: compressed-prefix merged game directory missing: $GAME_SOURCE"; exit 81; }
+    GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${alias_safe}-${RUNTIME_KEY}"
+    GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
+    mkdir -p "$GAMEVIEW"
+    GAMEVIEW_TARGET="$GAMEVIEW"
+    GAMEVIEW_MOUNTPOINT_CREATED=1
+    if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
+        log "ERROR: compressed-prefix merged gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 81;
+    fi
+    GAMEVIEW_BOUND=1
+
+    EXE_ABS="$GAMEVIEW/$EXE_IN_GAME"
+    case "${UMU_CWD:-$ALIAS_MOUNT}" in
+        "$ALIAS_MOUNT/$GAME_REL") UMU_CWD="$GAMEVIEW" ;;
+        "$ALIAS_MOUNT/$GAME_REL"/*)
+            REL_CWD="${UMU_CWD#"$ALIAS_MOUNT/$GAME_REL"/}"
+            UMU_CWD="$GAMEVIEW/$REL_CWD"
+            ;;
+        *) UMU_CWD="$GAMEVIEW" ;;
+    esac
+    EFFECTIVE_WINEPREFIX="$MATERIALIZED_PREFIX"
+    log "runtime_game_source=$GAME_SOURCE"
+    log "runtime_gameview=$GAMEVIEW"
+    log "runtime_gameview_fstype=$(findmnt -n -o FSTYPE -T "$GAMEVIEW" 2>/dev/null || true)"
+    log "runtime_gameview_bind=1"
+    log "runtime_pfx_overlay_bypassed=1"
+    log "runtime_exe=$EXE_ABS"
+    log "runtime_exe_exists=$([ -e "$EXE_ABS" ] && echo 1 || echo 0)"
+    log "runtime_cwd=$UMU_CWD"
+fi
+
 # pressure-vessel does not automatically expose arbitrary /userdata paths.
 # Batocera users commonly redirect saves with absolute symlinks into
 # /userdata/saves/windows.  Share that tree read/write so those symlinks remain
@@ -399,6 +513,9 @@ if [ -n "$EMBEDDED_PREFIX" ]; then
     # lives in the Batocera wine-bottle via pfx -> WINEPREFIX.
     anchor="${IDENTITY_ANCHOR:-$(basename "$EMBEDDED_PREFIX")}"
     ident="embedded|$anchor"
+    if [ "$COMPRESSED_OVERLAY" -eq 1 ] && [ -n "${GAMEVIEW:-}" ]; then
+        ident="compressed|$anchor|$(basename "$RUNNER_DIR")"
+    fi
     prefix_stem="${anchor%.wine}"
     GAME_SAFE="$(printf '%s' "$prefix_stem" | tr -c 'A-Za-z0-9._-' '_')"
 else
@@ -438,16 +555,29 @@ if [ -n "$EMBEDDED_PREFIX" ]; then
     fi
     mkdir -p "$PFX_MOUNT"
 
+    # v3.8: for compressed Batocera prefixes, keep the /userdata alias
+    # only for EXE/CWD visibility inside pressure-vessel. Do NOT stack the pfx
+    # bind on top of that alias bind. Bind Proton's compatdata/pfx from the real
+    # materialized prefix. Recent GE/GDK runners can otherwise fail when the PFX
+    # itself is an OverlayFS view, even though the same game works as .wine.
+    PFX_BIND_SOURCE="$EMBEDDED_PREFIX"
+    if [ "$COMPRESSED_OVERLAY" -eq 1 ] && [ -n "${MATERIALIZED_PREFIX:-}" ]; then
+        PFX_BIND_SOURCE="$MATERIALIZED_PREFIX"
+    elif [ "$COMPRESSED_OVERLAY" -eq 1 ] && [ -n "$ORIGINAL_PREFIX_CANON" ]; then
+        PFX_BIND_SOURCE="$ORIGINAL_PREFIX_CANON"
+    fi
+    log "pfx_bind_source=$PFX_BIND_SOURCE"
+
     # The bottle must be writable. This also validates Batocera's merged
     # wine-bottle view for .wsquashfs without hard-coding v42/v43 paths.
-    if ! touch "$EMBEDDED_PREFIX/.umu-write-test-$$" 2>>"$LOG"; then
-        log "ERROR: Batocera WINEPREFIX is not writable: $EMBEDDED_PREFIX"
+    if ! touch "$PFX_BIND_SOURCE/.umu-write-test-$$" 2>>"$LOG"; then
+        log "ERROR: Batocera WINEPREFIX is not writable: $PFX_BIND_SOURCE"
         exit 74
     fi
-    rm -f "$EMBEDDED_PREFIX/.umu-write-test-$$"
+    rm -f "$PFX_BIND_SOURCE/.umu-write-test-$$"
 
-    if ! mount --bind "$EMBEDDED_PREFIX" "$PFX_MOUNT" 2>>"$LOG"; then
-        log "ERROR: bind mount failed: $EMBEDDED_PREFIX -> $PFX_MOUNT"
+    if ! mount --bind "$PFX_BIND_SOURCE" "$PFX_MOUNT" 2>>"$LOG"; then
+        log "ERROR: bind mount failed: $PFX_BIND_SOURCE -> $PFX_MOUNT"
         exit 75
     fi
     PFX_BOUND=1
@@ -483,9 +613,12 @@ UMU_RESOLVER_POLICY="NONE"
 export GAMEID="umu-default"
 export STORE=""
 
-if [ -n "\${IDENTITY_ANCHOR:-}" ]; then
+# v3.7.14: use the resolved bottle/game identity, not a literal escaped
+# parameter expression.  The previous \${...} tests were always non-empty,
+# so ordinary .wine launches incorrectly resolved to /userdata/roms/windows/.
+if [ -n "${IDENTITY_ANCHOR:-}" ]; then
     UMU_GAME_PATH="/userdata/roms/windows/$IDENTITY_ANCHOR"
-elif [ -n "\${anchor:-}" ]; then
+elif [ -n "${anchor:-}" ]; then
     UMU_GAME_PATH="/userdata/roms/windows/$anchor"
 fi
 
@@ -534,7 +667,7 @@ log "exe_abs=$EXE_ABS"
 log "embedded_prefix=$EMBEDDED_PREFIX"
 log "prefix_source=$PREFIX_SOURCE"
 log "compatdata=$PREFIX"
-log "pfx_target=$([ -n "$EMBEDDED_PREFIX" ] && printf '%s' "$EMBEDDED_PREFIX" || readlink "$PREFIX/pfx" 2>/dev/null || true)"
+log "pfx_target=$([ -n "${PFX_BIND_SOURCE:-}" ] && printf '%s' "$PFX_BIND_SOURCE" || { [ -n "$EMBEDDED_PREFIX" ] && printf '%s' "$EMBEDDED_PREFIX" || readlink "$PREFIX/pfx" 2>/dev/null || true; })"
 log "pfx_bind=${PFX_BOUND:-0}"
 log "compressed_overlay=${COMPRESSED_OVERLAY:-0}"
 log "compressed_overlay_alias=${ALIAS_MOUNT:-}"
@@ -574,6 +707,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
+# v3.8: real materialized pfx + external merged Batocera gameview.
 python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
 rc=$?
 # Leave the bind-mounted alias before EXIT cleanup so normal umount is not kept
