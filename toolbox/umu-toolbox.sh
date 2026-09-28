@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.8.0"
-INTEGRATION_VERSION="3.7.6"
+TOOLBOX_VERSION="0.9.0"
+INTEGRATION_VERSION="3.8.0"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -20,16 +20,16 @@ WINDOWS_GAMELIST="/userdata/roms/windows/gamelist.xml"
 RUNNER_LOG_DIR="/userdata/system/logs/umu-runner"
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
+GDK_REPO="Weather-OS/GDK-Proton"
 UMU_REPO="Open-Wine-Components/umu-launcher"
 TOOLBOX_REPO="Thomson67/umu-runner-toolbox"
 TOOLBOX_BRANCH="main"
 
-# Versions observed incompatible with this Batocera + UMU integration.
+# GE-Proton10-30..10-34 were previously blocked while compressed Batocera
+# prefixes were passed directly to Proton as OverlayFS. Integration v3.8 keeps
+# Proton's PFX on a real filesystem, so no GE 10-3x blacklist is required.
 ge_tag_blocked() {
-    case "$1" in
-        GE-Proton10-30|GE-Proton10-31|GE-Proton10-32|GE-Proton10-33|GE-Proton10-34) return 0 ;;
-        *) return 1 ;;
-    esac
+    return 1
 }
 
 mkdir -p "$CUSTOM_DIR" "$UMU_DIR" "$UMU_BACKUP" "$LOG_DIR" "$RUNNER_STAGING_ROOT"
@@ -143,7 +143,8 @@ umu_version() {
 }
 
 installed_runners() {
-    find "$CUSTOM_DIR" -mindepth 1 -maxdepth 1 -type d -name 'GE-Proton*-UMU' -printf '%f\n' 2>/dev/null | sort -V
+    find "$CUSTOM_DIR" -mindepth 1 -maxdepth 1 -type d \
+        \( -name 'GE-Proton*-UMU' -o -name 'GDK-Proton*-UMU' \) -printf '%f\n' 2>/dev/null | sort -V
 }
 
 
@@ -235,7 +236,7 @@ protect_runner() {
     local runners choice r state
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Creer une reference" "Aucun runner GE-Proton-UMU installe."
+        msg "Creer une reference" "Aucun runner Proton-UMU gere installe."
         return
     fi
 
@@ -248,7 +249,7 @@ protect_runner() {
 
     if command -v dialog >/dev/null 2>&1; then
         choice="$(dialog --stdout --title "Creer une reference d'integrite" \
-            --menu "v0.4 : une reference existante n'est JAMAIS remplacee." \
+            --menu "Une reference existante n'est JAMAIS remplacee." \
             22 90 14 "${opts[@]}")" || return
     else
         clear; printf '%s\n' "$runners"; echo; printf "Runner : "; read -r choice
@@ -260,7 +261,7 @@ protect_runner() {
         msg "Reference verrouillee" \
 "$choice possede deja une empreinte d'integrite.
 
-La v0.4 refuse de la recalculer afin qu'un runner contamine ne puisse jamais devenir la nouvelle reference saine.
+La Toolbox refuse de la recalculer afin qu'un runner contamine ne puisse jamais devenir la nouvelle reference saine.
 
 Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
         return
@@ -271,8 +272,16 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
         return
     fi
     mkdir -p "$(runner_info_dir "$r")"
+    local family runner_name
+    runner_name="${choice%-UMU}"
+    case "$choice" in
+        GE-Proton*-UMU) family="GE-Proton" ;;
+        GDK-Proton*-UMU) family="GDK-Proton" ;;
+        *) family="Proton" ;;
+    esac
     cat > "$(runner_state_path "$r")" <<EOF
-GE_PROTON=${choice%-UMU}
+RUNNER=$runner_name
+RUNNER_FAMILY=$family
 UMU_INTEGRATION=$INTEGRATION_VERSION
 TOOLBOX_VERSION=$TOOLBOX_VERSION
 STATUS=validated
@@ -295,7 +304,6 @@ show_status() {
     while IFS= read -r rr; do
         [ -n "$rr" ] || continue
         local rr_state="$(runner_integrity_label "$CUSTOM_DIR/$rr")"
-        if ge_tag_blocked "${rr%-UMU}"; then rr_state="$rr_state / NON PRIS EN CHARGE (10-30..10-34)"; fi
         runners="${runners}${rr}  [$rr_state]\n"
     done <<< "$(installed_runners)"
     [ -n "$runners" ] || runners="(aucun)"
@@ -424,7 +432,7 @@ ensure_umu_for_runner() {
     if install_umu_if_missing; then
         return 0
     fi
-    msg "Installation du runner annulee" "UMU est indispensable pour installer et lancer un runner GE-Proton-UMU.\n\nAucun runner n'a ete installe."
+    msg "Installation du runner annulee" "UMU est indispensable pour installer et lancer un runner Proton-UMU.\n\nAucun runner n'a ete installe."
     return 1
 }
 
@@ -756,6 +764,226 @@ if tarurl:
     print(f"{tag}\t{tarurl}\t{sumurl}")
 PY
 }
+fetch_gdk_releases() {
+    local out="$1"
+    curl -fsSL --max-time 25 \
+        "https://api.github.com/repos/$GDK_REPO/releases?per_page=100" -o "$out"
+}
+
+build_gdk_menu() {
+    local json="$1"
+    local menu="$2"
+    python3 - "$json" > "$menu" <<'PY_GDK'
+import json,sys,re
+rels=json.load(open(sys.argv[1],encoding="utf-8"))
+rows=[]
+for rel in rels if isinstance(rels,list) else []:
+    if rel.get("draft") or rel.get("prerelease"):
+        continue
+    release_name=rel.get("name","") or ""
+    tag=rel.get("tag_name","") or ""
+    m=re.search(r"GDK-Proton(\d+)-(\d+)",release_name)
+    if not m:
+        m=re.fullmatch(r"release(\d+)-(\d+)",tag)
+    if not m:
+        continue
+    major,minor=int(m.group(1)),int(m.group(2))
+    runner=f"GDK-Proton{major}-{minor}"
+    candidates=[]
+    for a in rel.get("assets",[]):
+        name=a.get("name","")
+        if not name.endswith(".tar.gz"):
+            continue
+        priority=0 if name==f"{runner}.tar.gz" else 1 if name==f"GE-Proton{major}-{minor}.tar.gz" else 9
+        if priority < 9:
+            digest=a.get("digest") or ""
+            sha=digest.split(":",1)[1] if digest.startswith("sha256:") else ""
+            candidates.append((priority,a.get("browser_download_url",""),sha))
+    if candidates:
+        _,url,sha=sorted(candidates)[0]
+        rows.append(((major,minor),runner,url,sha))
+for _,name,url,sha in sorted(rows,reverse=True):
+    print(f"{name}\t{url}\t{sha}")
+PY_GDK
+}
+
+install_gdk() {
+    require_net || return
+    local tmp json menu_file
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/gdk-list.XXXXXX")"
+    json="$tmp/releases.json"
+    clear
+    echo "Chargement des releases GDK-Proton..."
+    if ! fetch_gdk_releases "$json"; then
+        rm -rf "$tmp"
+        msg "Erreur GDK-Proton" "Impossible de recuperer les releases GDK-Proton."
+        return
+    fi
+    menu_file="$tmp/menu.tsv"
+    build_gdk_menu "$json" "$menu_file"
+    if [ ! -s "$menu_file" ]; then
+        rm -rf "$tmp"
+        msg "Erreur GDK-Proton" "Aucune release GDK-Proton compatible n'a ete trouvee."
+        return
+    fi
+
+    local opts=() name tarurl sha state
+    while IFS=$'\t' read -r name tarurl sha; do
+        [ -n "$name" ] || continue
+        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
+            state="INSTALLE / PROTEGE CONTRE ECRASEMENT"
+        else
+            state="disponible"
+        fi
+        opts+=("$name" "$state")
+    done < "$menu_file"
+
+    if command -v dialog >/dev/null 2>&1; then
+        name="$(dialog --stdout --title "Installer GDK-Proton + UMU" \
+          --menu "Installation immutable : un runner existant ne sera jamais remplace." \
+          22 96 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
+    else
+        clear
+        cut -f1 "$menu_file"
+        echo
+        printf "Version a installer : "
+        read -r name
+    fi
+    [ -n "$name" ] || { rm -rf "$tmp"; return; }
+
+    local line target
+    line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    tarurl="$(printf '%s' "$line" | cut -f2)"
+    sha="$(printf '%s' "$line" | cut -f3)"
+    target="$CUSTOM_DIR/${name}-UMU"
+
+    if [ -e "$target" ]; then
+        rm -rf "$tmp"
+        msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."
+        return
+    fi
+
+    if ! yesno "Installer $name-UMU" \
+"Le runner sera construit dans une zone temporaire puis controle avant installation.
+
+Destination :
+$target
+
+Continuer ?"; then
+        rm -rf "$tmp"
+        return
+    fi
+    if ! ensure_umu_for_runner; then
+        rm -rf "$tmp"
+        return
+    fi
+
+    local stage tarname extracted candidate actual
+    stage="$RUNNER_STAGING_ROOT/${name}-UMU.$(date '+%Y%m%d-%H%M%S').$$"
+    mkdir -p "$stage/download" "$stage/extracted"
+    tarname="$(basename "$tarurl")"
+
+    clear
+    echo "Telechargement de $name..."
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
+        rm -rf "$tmp" "$stage"
+        msg "Erreur GDK-Proton" "Echec du telechargement."
+        return
+    fi
+
+    if [ -n "$sha" ]; then
+        echo "Verification SHA256 GitHub..."
+        actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
+        if [ "$actual" != "$sha" ]; then
+            rm -rf "$tmp" "$stage"
+            msg "Erreur GDK-Proton" "Checksum SHA256 GitHub invalide. Rien n'a ete installe."
+            return
+        fi
+    else
+        log "WARNING GitHub asset digest absent for $name"
+    fi
+
+    echo "Extraction en staging..."
+    if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
+        rm -rf "$tmp" "$stage"
+        msg "Erreur GDK-Proton" "Extraction impossible."
+        return
+    fi
+
+    extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] ||
+       [ ! -s "$extracted/files/bin/wine" ] ||
+       [ ! -s "$extracted/files/bin/wineserver" ]; then
+        rm -rf "$tmp" "$stage"
+        msg "Erreur GDK-Proton" "Structure GDK-Proton inattendue. Rien n'a ete installe."
+        return
+    fi
+
+    candidate="$stage/candidate"
+    mv "$extracted" "$candidate"
+    cp -a "$OVERLAY/." "$candidate/"
+    chmod +x "$candidate/proton" "$candidate/bin/wine" "$candidate/bin/wine64" \
+        "$candidate/bin/wineserver" "$candidate/umu-batocera/umu-root-runner.py" 2>/dev/null || true
+
+    mkdir -p "$candidate/umu-batocera"
+    cat > "$candidate/umu-batocera/runner-info" <<EOF
+RUNNER=$name
+RUNNER_FAMILY=GDK-Proton
+UMU_INTEGRATION=$INTEGRATION_VERSION
+TOOLBOX_VERSION=$TOOLBOX_VERSION
+INSTALL_SOURCE=github-release
+SOURCE_REPO=$GDK_REPO
+SOURCE_URL=$tarurl
+SOURCE_SHA256=${sha:-unavailable}
+STATUS=experimental
+INSTALLED_AT=$(date -Is 2>/dev/null || date)
+EOF
+
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then
+        rm -rf "$tmp" "$stage"
+        msg "Erreur GDK-Proton" "Controle d'integrite du runner prepare impossible."
+        return
+    fi
+
+    if [ -e "$target" ]; then
+        rm -rf "$tmp" "$stage"
+        msg "Conflit" "$target est apparu pendant l'installation."
+        return
+    fi
+
+    echo "Installation atomique de $name-UMU..."
+    if ! mv "$candidate" "$target"; then
+        rm -rf "$tmp" "$stage"
+        msg "Erreur GDK-Proton" "Impossible de finaliser l'installation."
+        return
+    fi
+
+    rm -rf "$tmp" "$stage"
+    log "Installed immutable ${name}-UMU provider=GDK-Proton"
+    msg "Runner installe" \
+"$name-UMU est installe comme NOUVEAU runner.
+
+Famille : GDK-Proton
+Statut : EXPERIMENTAL
+Integrite : PROTEGEE"
+}
+
+install_runner_menu() {
+    while true; do
+        local choice
+        choice="$(menu_choice "Installer un runner Proton UMU" \
+            "1" "GE-Proton" \
+            "2" "GDK-Proton" \
+            "0" "Retour")" || return
+        case "$choice" in
+            1) install_ge ;;
+            2) install_gdk ;;
+            0|"") return ;;
+        esac
+    done
+}
+
 install_ge() {
     require_net || return
 
@@ -774,7 +1002,6 @@ install_ge() {
     menu_file="$tmp/menu.tsv"
     build_ge_menu "$pages" "$menu_file"
 
-    sed -i '/^GE-Proton10-3[0-4]\\t/d' "$menu_file"
 
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
@@ -852,7 +1079,7 @@ install_ge() {
         msg "Runner protege" \
 "$tag-UMU existe deja.
 
-La v0.4 refuse volontairement toute reinstallation ou mise a niveau sur place.
+La Toolbox refuse volontairement toute reinstallation ou mise a niveau sur place.
 
 Pour tester une nouvelle version, installez-la sous son propre numero de version.
 Pour remplacer exceptionnellement ce runner, archivez-le d'abord depuis le menu de suppression."
@@ -939,6 +1166,8 @@ Continuer ?"; then
 
     mkdir -p "$candidate/umu-batocera"
     cat > "$candidate/umu-batocera/runner-info" <<EOF
+RUNNER=$tag
+RUNNER_FAMILY=GE-Proton
 GE_PROTON=$tag
 UMU_INTEGRATION=$INTEGRATION_VERSION
 TOOLBOX_VERSION=$TOOLBOX_VERSION
@@ -995,11 +1224,10 @@ list_runners() {
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         local r_state="$(runner_integrity_label "$CUSTOM_DIR/$r")"
-        if ge_tag_blocked "${r%-UMU}"; then r_state="$r_state / NON PRIS EN CHARGE (10-30..10-34)"; fi
         out="${out}${r}  [$r_state]\n"
     done <<< "$(installed_runners)"
     [ -n "$out" ] || out="(aucun runner UMU installe)"
-    msg "Runners GE-Proton + UMU" "$out"
+    msg "Runners Proton + UMU" "$out"
 }
 
 upgrade_integration() {
@@ -1127,7 +1355,7 @@ verify_install() {
         esac
     done <<< "$(installed_runners)"
 
-    report="$report\nPolitique v0.4 : runners isoles en lecture seule pendant les jeux UMU.\nLogs : $LOG_DIR"
+    report="$report\nPolitique immutable : runners isoles en lecture seule pendant les jeux UMU.\nLogs : $LOG_DIR"
     msg "Diagnostic / integrite" "$report"
 }
 
@@ -1135,7 +1363,7 @@ export_runner() {
     local runners choice base label export_dir archive tmp_size hash
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Exporter un runner" "Aucun runner GE-Proton-UMU installe."
+        msg "Exporter un runner" "Aucun runner Proton-UMU gere installe."
         return
     fi
 
@@ -1245,7 +1473,7 @@ export_shareable_package() {
     local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Package partageable" "Aucun runner GE-Proton-UMU installe."
+        msg "Package partageable" "Aucun runner Proton-UMU gere installe."
         return
     fi
 
@@ -1309,7 +1537,7 @@ PAYLOAD="$BASE/payload"
 CUSTOM="/userdata/system/wine/custom"
 UMU="/userdata/system/umu"
 [ "$(id -u)" -eq 0 ] || { echo "ERREUR: lancez cet installateur en root."; exit 1; }
-RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f -name 'GE-Proton*-UMU.tar.xz' | head -n1)"
+RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' -o -name 'GDK-Proton*-UMU.tar.xz' \) | head -n1)"
 [ -n "$RUNARCH" ] || { echo "ERREUR: payload runner absent."; exit 1; }
 (cd "$PAYLOAD" && sha256sum -c "$(basename "$RUNARCH").sha256")
 RUNNER="$(basename "$RUNARCH" .tar.xz)"
@@ -1385,7 +1613,7 @@ Le runner contient l'integration Batocera/UMU v$INTEGRATION_VERSION et son manif
 Les runners UMU sont proteges en lecture seule pendant les lancements UMU afin qu'un prefixe reutilise avec plusieurs versions de Proton ne puisse pas modifier un autre runner.
 Les runners standards Batocera (Proton, Wine-TKG, Kron4ek...) ne sont pas remplaces par ce package.
 
-Pour gerer, mettre a jour, diagnostiquer et exporter des runners, utilisez la UMU Runner Toolbox v0.4.2 ou ulterieure.
+Pour gerer, mettre a jour, diagnostiquer et exporter des runners, utilisez UMU Runner Toolbox v0.9.0 ou ulterieure.
 EOF
 
     (cd "$pkgroot" && sha256sum install.sh README.txt payload/* > SHA256SUMS)
@@ -1403,9 +1631,13 @@ EOF
 
 delete_installed_runner() {
     local runners choice r
+    if umu_uninstall_active; then
+        msg "Suppression refusee" "Un lancement UMU/Wine ou un montage associe est actif.\n\nFermez le jeu avant de supprimer un runner."
+        return
+    fi
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Supprimer un runner" "Aucun runner GE-Proton-UMU installe."
+        msg "Supprimer un runner" "Aucun runner Proton-UMU gere installe."
         return
     fi
     local opts=()
@@ -1476,48 +1708,60 @@ umu_game_active() {
     if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py' >/dev/null 2>&1; then
         return 0
     fi
-    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Fq '/userdata/system/umu/merged-prefixes/'; then
+    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|materialized-prefixes|gameviews|test7-prefixes|test7-gameviews)/'; then
         return 0
     fi
     return 1
 }
 
-clean_umu_test_data() {
+clean_umu_runtime_data() {
     local compat="$UMU_DIR/compatdata"
     local merged="$UMU_DIR/merged-prefixes"
+    local materialized="$UMU_DIR/materialized-prefixes"
+    local gameviews="$UMU_DIR/gameviews"
+    local legacy_prefixes="$UMU_DIR/test7-prefixes"
+    local legacy_gameviews="$UMU_DIR/test7-gameviews"
     local mesa="$UMU_DIR/cache/mesa_shader_cache"
     local radv="$UMU_DIR/cache/radv_builtin_shaders"
-    local cb mb gb mesa_b radv_b total_game total_gpu report
+    local cb mb mat_b gv_b legacy_p_b legacy_g_b mesa_b radv_b total_game total_gpu report
 
     if umu_game_active; then
         msg "Nettoyage UMU refuse" "Un processus/lancement UMU ou un merged-prefix actif a ete detecte.\n\nFermez le jeu UMU en cours puis relancez le nettoyage."
         return
     fi
 
-    mkdir -p "$compat" "$merged"
+    mkdir -p "$compat" "$merged" "$materialized" "$gameviews"
     cb="$(dir_bytes "$compat")"
     mb="$(dir_bytes "$merged")"
-    total_game=$((cb + mb))
+    mat_b="$(dir_bytes "$materialized")"
+    gv_b="$(dir_bytes "$gameviews")"
+    legacy_p_b="$(dir_bytes "$legacy_prefixes")"
+    legacy_g_b="$(dir_bytes "$legacy_gameviews")"
+    total_game=$((cb + mb + mat_b + gv_b + legacy_p_b + legacy_g_b))
     mesa_b="$(dir_bytes "$mesa")"
     radv_b="$(dir_bytes "$radv")"
     total_gpu=$((mesa_b + radv_b))
 
-    report="Donnees de jeux / tests UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- total : $(human_bytes "$total_game")\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : $(human_bytes "$total_gpu")\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
+    report="Donnees runtime UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- materialized-prefixes : $(human_bytes "$mat_b")\n- gameviews : $(human_bytes "$gv_b")\n- anciens TEST7 : $(human_bytes "$((legacy_p_b + legacy_g_b))")\n- total : $(human_bytes "$total_game")\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : $(human_bytes "$total_gpu")\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
     msg "Analyse du nettoyage UMU" "$report"
 
     if [ "$total_game" -gt 0 ]; then
-        if yesno "Nettoyer les donnees de tests" "Supprimer le contenu de :\n\n$compat\n$merged\n\nEspace actuellement occupe : $(human_bytes "$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?"; then
+        if yesno "Nettoyer les donnees runtime" "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : $(human_bytes "$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?"; then
             if umu_game_active; then
                 msg "Nettoyage annule" "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee."
                 return
             fi
             clear_dir_contents "$compat"
             clear_dir_contents "$merged"
+            clear_dir_contents "$materialized"
+            clear_dir_contents "$gameviews"
+            clear_dir_contents "$legacy_prefixes"
+            clear_dir_contents "$legacy_gameviews"
             log "umu_cleanup_game_data=done bytes_before=$total_game"
-            msg "Nettoyage UMU" "Donnees de jeux/tests nettoyees.\n\nEspace precedemment occupe : $(human_bytes "$total_game")"
+            msg "Nettoyage UMU" "Donnees runtime nettoyees.\n\nEspace precedemment occupe : $(human_bytes "$total_game")"
         fi
     else
-        msg "Nettoyage UMU" "compatdata et merged-prefixes sont deja vides.\n\nAucune donnee de jeu/test a supprimer."
+        msg "Nettoyage UMU" "Les donnees runtime UMU sont deja vides.\n\nAucune donnee runtime a supprimer."
     fi
 
     # Shader caches are reconstructible but deliberately opt-in: deleting them
@@ -1543,10 +1787,10 @@ umu_uninstall_active() {
     if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py' >/dev/null 2>&1; then
         return 0
     fi
-    if pgrep -f "$CUSTOM_DIR/GE-Proton[0-9].*-UMU" >/dev/null 2>&1; then
+    if pgrep -f "$CUSTOM_DIR/\(GE-Proton\|GDK-Proton\)[0-9].*-UMU" >/dev/null 2>&1; then
         return 0
     fi
-    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|compatdata)|/userdata/system/wine/custom/GE-Proton[^ ]*-UMU'; then
+    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|materialized-prefixes|gameviews|test7-prefixes|test7-gameviews|compatdata)|/userdata/system/wine/custom/(GE-Proton|GDK-Proton)[^ ]*-UMU'; then
         return 0
     fi
     return 1
@@ -1587,7 +1831,7 @@ uninstall_umu_and_runners() {
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         case "$r" in
-            GE-Proton[0-9]*-[0-9]*-UMU) rm -rf -- "$CUSTOM_DIR/$r" ;;
+            GE-Proton[0-9]*-[0-9]*-UMU|GDK-Proton[0-9]*-[0-9]*-UMU) rm -rf -- "$CUSTOM_DIR/$r" ;;
         esac
     done <<< "$(installed_runners)"
     if [ -d "$UMU_DIR" ]; then
@@ -1613,7 +1857,7 @@ uninstall_everything() {
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         case "$r" in
-            GE-Proton[0-9]*-[0-9]*-UMU) rm -rf -- "$CUSTOM_DIR/$r" ;;
+            GE-Proton[0-9]*-[0-9]*-UMU|GDK-Proton[0-9]*-[0-9]*-UMU) rm -rf -- "$CUSTOM_DIR/$r" ;;
         esac
     done <<< "$(installed_runners)"
     toolbox_files_cleanup
@@ -1704,6 +1948,9 @@ global_game_scan() {
     if [ "$ambiguous" -eq 0 ]; then
         rm -f "$list"; msg "Analyse globale" "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu."; return
     fi
+
+    # Keep the scan results for this review session. After a manual association,
+    # remove only the processed item and return directly to the remaining list.
     while true; do
         remaining="$(awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS" {n++} END{print n+0}' "$list")"
         if [ "$remaining" -eq 0 ]; then
@@ -1711,6 +1958,7 @@ global_game_scan() {
             msg "Analyse globale" "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance."
             return
         fi
+
         if command -v dialog >/dev/null 2>&1; then
             local opts=() rec ri rs rscore rt rp rb rg label
             while IFS="$tab" read -r rec ri rs rscore rt rp rb rg; do
@@ -1725,10 +1973,15 @@ global_game_scan() {
             printf "\nNumero : "; read -r choice
             [ -n "$choice" ] || { rm -f "$list"; return; }
         fi
+
         selected="$(awk -F "$tab" -v n="$choice" '$1=="ITEM" && $2==n && $3=="AMBIGUOUS" {print; exit}' "$list")"
         [ -n "$selected" ] || continue
         IFS="$tab" read -r kind idx status score title path best gid <<< "$selected"
+
         associate_game "$title" "$path"
+
+        # Only remove the item when an override for this exact game path now exists.
+        # This also handles a cancelled candidate/store dialog safely: the item stays.
         if python3 "$helper" list 2>/dev/null | awk -F "$tab" -v p="$path" '$5==p {found=1} END{exit(found?0:1)}'; then
             tmp_review="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review-next.XXXXXX")" || { rm -f "$list"; return; }
             awk -F "$tab" -v n="$idx" '!( $1=="ITEM" && $2==n )' "$list" > "$tmp_review"
@@ -1781,7 +2034,7 @@ maintenance_menu() {
             "1" "Verifier l'integrite des runners" \
             "2" "Verifier la protection des runners" \
             "3" "Reparer / mettre a niveau l'integration UMU" \
-            "4" "Nettoyer les donnees de tests UMU" \
+            "4" "Nettoyer les donnees runtime UMU" \
             "5" "Nettoyer les logs UMU" \
             "6" "Diagnostic UMU complet" \
             "7" "Desinstallation" \
@@ -1790,7 +2043,7 @@ maintenance_menu() {
             1) list_runners ;;
             2) runtime_protection_status ;;
             3) upgrade_integration ;;
-            4) clean_umu_test_data ;;
+            4) clean_umu_runtime_data ;;
             5) clean_umu_logs ;;
             6) verify_install ;;
             7) uninstall_menu ;;
@@ -1879,7 +2132,7 @@ post_update_integration() {
 }
 
 documentation_about() {
-    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners GE-Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees de tests UMU, caches graphiques et logs ;
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU et GDK-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;
 - associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
 }
 
@@ -1887,7 +2140,7 @@ main_menu() {
     while true; do
         local choice
         choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
-            "1" "Installer un runner GE-Proton UMU" \
+            "1" "Installer un runner Proton UMU" \
             "2" "Supprimer un runner UMU" \
             "3" "Exporter / partager un runner" \
             "4" "Compatibilite des jeux" \
@@ -1896,7 +2149,7 @@ main_menu() {
             "7" "Documentation / A propos" \
             "0" "Quitter")" || exit 0
         case "$choice" in
-            1) install_ge ;;
+            1) install_runner_menu ;;
             2) delete_installed_runner ;;
             3) export_menu ;;
             4) gameid_override_menu ;;
@@ -1908,5 +2161,10 @@ main_menu() {
     done
 }
 sync_pad2key_mapping || log "pad2key_mapping=sync_failed"
+if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
+    unset UMU_TOOLBOX_INSTALL_SYNC
+    upgrade_integration 1
+    exit 0
+fi
 post_update_integration
 main_menu
