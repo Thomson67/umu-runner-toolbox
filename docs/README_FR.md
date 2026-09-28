@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton et GDK-Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.7.1**  
-Version de l'intégration runner : **v3.7.6**
+Version stable actuelle : **v0.9.1**  
+Version de l'intégration runner : **v3.8.0**
 
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
@@ -24,7 +24,7 @@ L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tou
 - Prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé et supporté.
 - Compatibilité Batocera 41 avec les adaptations nécessaires à Steam Runtime / pressure-vessel.
 
-> **Attention :** GE-Proton10-30 à GE-Proton10-34 sont volontairement bloqués. Ces versions ont été constatées incompatibles avec cette intégration Batocera + UMU et peuvent échouer au lancement avec un code de sortie 245. GE-Proton10-29 et les versions 11.x ne sont pas concernés par ce blocage spécifique.
+> **Depuis l'intégration v3.8.0 :** les préfixes Proton des jeux `.wsquashfs` ne sont plus exécutés directement depuis la vue OverlayFS de Batocera. Le PFX est matérialisé sur un système de fichiers réel tandis que les données du jeu restent accessibles via la vue fusionnée Batocera. Ce correctif a permis de lever l'ancien blocage de GE-Proton10-30 à GE-Proton10-34.
 
 ## Installation rapide
 
@@ -129,9 +129,11 @@ La Toolbox peut se mettre à jour depuis GitHub Releases. Le package et son SHA-
 
 ### Intégration des runners
 
-Les mises à niveau de l'intégration sont appliquées aux runners gérés qui passent les contrôles d'intégrité requis. Les runners non gérés ou modifiés sont ignorés afin d'éviter d'écraser une installation personnalisée.
+Les mises à niveau de l'intégration sont appliquées aux runners gérés qui passent les contrôles d'intégrité requis. Les runners non gérés ou modifiés sont ignorés afin d'éviter d'écraser une installation personnalisée. En v0.9.1, une migration est reportée lorsqu'un processus UMU/Wine est réellement actif, et le menu Maintenance distingue les protections RO actives des protections RO orphelines laissées après un arrêt forcé.
 
 ## Compatibilité
+
+Pour les jeux `.wsquashfs`, l'intégration v3.8.0 conserve les données du jeu sur la vue OverlayFS fusionnée de Batocera et matérialise le PFX Proton/Wine sous `/userdata/system/umu/materialized-prefixes`. Les compatdata des jeux compressés sont spécifiques au runner afin d'éviter les migrations involontaires entre GE-Proton et GDK-Proton.
 
 La Toolbox est prévue pour les principaux formats Windows utilisés sous Batocera :
 
