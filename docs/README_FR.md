@@ -2,18 +2,20 @@
 
 [README in English](../README.md)
 
-**UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton et GDK-Proton via UMU** sous Batocera.
+**UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton et CachyOS Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.7.1**  
-Version de l'intégration runner : **v3.7.6**
+Version stable actuelle : **v0.10.0**  
+Version de l'intégration runner : **v3.9.3**
 
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
 ## Fonctionnalités principales
 
-- Installation et suppression contrôlée de runners GE-Proton-UMU et GDK-Proton-UMU.
+- Installation et suppression contrôlée de runners GE-Proton-UMU, GDK-Proton-UMU et CachyOS Proton UMU.
 - Installation et mise à jour de `umu-run` avec vérification SHA-512.
 - Téléchargement de GE-Proton avec contrôle du checksum SHA-512 upstream.
+- Téléchargement de GDK-Proton avec vérification des digests SHA-256 GitHub lorsqu'ils sont disponibles.
+- Installation des releases CachyOS Proton Steam Linux Runtime (SLR) prises en charge via le même système UMU géré.
 - Vérification de l'intégrité des runners gérés grâce à un manifest.
 - Protection automatique en lecture seule des runners `*-UMU` pendant un lancement UMU.
 - Export d'un runner ou création d'un package autonome partageable.
@@ -24,7 +26,7 @@ L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tou
 - Prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé et supporté.
 - Compatibilité Batocera 41 avec les adaptations nécessaires à Steam Runtime / pressure-vessel.
 
-> **Attention :** GE-Proton10-30 à GE-Proton10-34 sont volontairement bloqués. Ces versions ont été constatées incompatibles avec cette intégration Batocera + UMU et peuvent échouer au lancement avec un code de sortie 245. GE-Proton10-29 et les versions 11.x ne sont pas concernés par ce blocage spécifique.
+> **v0.10.0 :** ajout du support géré de CachyOS Proton SLR et passage de l'intégration Batocera/UMU en v3.9.3. L'intégration validée prend en charge les lancements `.pc`, `.wine` et `.wsquashfs`, la résolution GAMEID/STORE avec ProtonFixes, la protection d'intégrité des runners et l'arrêt Batocera par Hotkey + Start des sessions matérialisées.
 
 ## Installation rapide
 
@@ -67,9 +69,9 @@ L'installation doit être lancée en `root`.
 
 ## Installer un runner Proton-UMU
 
-Le menu d’installation propose désormais deux familles : **GE-Proton** et **GDK-Proton**. Chaque version est installée dans son propre dossier `*-UMU` et n’écrase jamais un runner existant.
+Le menu d’installation propose trois familles : **GE-Proton**, **GDK-Proton** et **CachyOS Proton**. Chaque version est installée dans son propre dossier `*-UMU` et n’écrase jamais un runner existant.
 
-Lancer **UMU Runner Toolbox** depuis Ports puis choisir l'installation d'un runner GE-Proton UMU. La Toolbox télécharge la version sélectionnée, contrôle son checksum upstream, ajoute l'intégration Batocera/UMU et crée son manifest d'intégrité.
+Lancer **UMU Runner Toolbox** depuis Ports puis choisir la famille et la version du runner souhaité. La Toolbox télécharge la version sélectionnée, applique les contrôles disponibles, ajoute l'intégration Batocera/UMU et crée son manifest d'intégrité.
 
 Le runner obtenu peut ensuite être sélectionné dans les options avancées d'un jeu Windows dans EmulationStation.
 
@@ -91,7 +93,7 @@ Si aucune correspondance suffisamment fiable n'est trouvée, il utilise :
 GAMEID=umu-default
 ```
 
-Le jeu peut donc toujours être lancé, mais sans identification spécifique exploitable par ProtonFixes. Les conteneurs `.wine` et `.wsquashfs` portant le même nom sont reconnus comme des représentations équivalentes du même jeu lors de la recherche dans le gamelist.
+Le jeu peut donc toujours être lancé, mais sans identification spécifique exploitable par ProtonFixes. Les formats `.pc`, `.wine` et `.wsquashfs` sont pris en charge par le resolver pour retrouver le jeu Batocera et appliquer les informations GAMEID/STORE.
 
 Dans la majorité des cas, aucune configuration manuelle de `GAMEID` ou `STORE` n'est nécessaire.
 
@@ -115,7 +117,7 @@ Ces contrôles sont notamment utilisés avant certaines opérations de maintenan
 
 Pendant un lancement UMU, les runners `*-UMU` gérés sont automatiquement protégés en lecture seule. **Le préfixe Wine du jeu reste modifiable normalement.**
 
-Cette protection permet notamment de tester plusieurs versions de GE-Proton-UMU sur un même préfixe sans qu'un lancement puisse modifier accidentellement un autre runner.
+Cette protection permet notamment de tester plusieurs runners Proton-UMU sur un même préfixe sans qu'un lancement puisse modifier accidentellement un autre runner.
 
 ## Mises à jour
 
@@ -185,7 +187,7 @@ Un runner modifié qui échoue au contrôle d'intégrité n'est pas considéré 
 
 La suppression d'un runner depuis la Toolbox ne supprime pas les jeux ni leurs sauvegardes.
 
-Le script `uninstall.sh` retire uniquement la Toolbox : son dossier, son lanceur Ports et une éventuelle ancienne installation pré-v0.5.2b. Il conserve volontairement les runners GE-Proton-UMU et GDK-Proton-UMU déjà installés, UMU, les jeux, les Wine bottles et les sauvegardes.
+Le script `uninstall.sh` retire uniquement la Toolbox : son dossier, son lanceur Ports et une éventuelle ancienne installation pré-v0.5.2b. Il conserve volontairement les runners Proton-UMU gérés déjà installés, UMU, les jeux, les Wine bottles et les sauvegardes.
 
 ## À retenir
 
@@ -199,7 +201,7 @@ L'ancien guide détaillé d'installation et de partage reste disponible dans [GU
 
 ## Crédits
 
-UMU Runner Toolbox est un projet communautaire destiné à intégrer l'écosystème UMU et les runners GE-Proton à Batocera. Il s'appuie notamment sur **UMU Launcher**, **GE-Proton**, **ProtonFixes**, **Steam Runtime** et **Batocera**. Les marques et noms de projets appartiennent à leurs propriétaires respectifs.
+UMU Runner Toolbox est un projet communautaire destiné à intégrer l'écosystème UMU et les runners GE-Proton, GDK-Proton et CachyOS Proton à Batocera. Il s'appuie notamment sur **UMU Launcher**, **GE-Proton**, **GDK-Proton**, **CachyOS Proton**, **ProtonFixes**, **Steam Runtime** et **Batocera**. Les marques et noms de projets appartiennent à leurs propriétaires respectifs.
 
 ## Licence
 
