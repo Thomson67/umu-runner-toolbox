@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.9.1"
-INTEGRATION_VERSION="3.8.0"
+TOOLBOX_VERSION="0.10.0"
+INTEGRATION_VERSION="3.9.1-TEST"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -21,6 +21,7 @@ RUNNER_LOG_DIR="/userdata/system/logs/umu-runner"
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
 GDK_REPO="Weather-OS/GDK-Proton"
+CACHY_REPO="CachyOS/proton-cachyos"
 UMU_REPO="Open-Wine-Components/umu-launcher"
 TOOLBOX_REPO="Thomson67/umu-runner-toolbox"
 TOOLBOX_BRANCH="main"
@@ -144,7 +145,7 @@ umu_version() {
 
 installed_runners() {
     find "$CUSTOM_DIR" -mindepth 1 -maxdepth 1 -type d \
-        \( -name 'GE-Proton*-UMU' -o -name 'GDK-Proton*-UMU' \) -printf '%f\n' 2>/dev/null | sort -V
+        \( -name 'GE-Proton*-UMU' -o -name 'GDK-Proton*-UMU' -o -name 'Proton-CachyOS-*-UMU' \) -printf '%f\n' 2>/dev/null | sort -V
 }
 
 
@@ -277,6 +278,7 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
     case "$choice" in
         GE-Proton*-UMU) family="GE-Proton" ;;
         GDK-Proton*-UMU) family="GDK-Proton" ;;
+        Proton-CachyOS-*-UMU) family="Proton-CachyOS" ;;
         *) family="Proton" ;;
     esac
     cat > "$(runner_state_path "$r")" <<EOF
@@ -969,16 +971,158 @@ Statut : EXPERIMENTAL
 Integrite : PROTEGEE"
 }
 
+fetch_cachy_releases() {
+    local out="$1"
+    curl -fsSL --max-time 25 \
+        "https://api.github.com/repos/$CACHY_REPO/releases?per_page=100" -o "$out"
+}
+
+build_cachy_menu() {
+    local json="$1"
+    local menu="$2"
+    python3 - "$json" > "$menu" <<'PY_CACHY'
+import json,sys,re
+rels=json.load(open(sys.argv[1],encoding="utf-8"))
+rows=[]
+for rel in rels if isinstance(rels,list) else []:
+    if rel.get("draft") or rel.get("prerelease"):
+        continue
+    tag=rel.get("tag_name","") or ""
+    m=re.fullmatch(r"cachyos-(\d+\.\d+-[0-9]+)-slr",tag)
+    if not m:
+        continue
+    version=m.group(1)
+    base=f"proton-cachyos-{version}-slr-x86_64"
+    assets={a.get("name",""):a for a in rel.get("assets",[])}
+    tar=assets.get(base+".tar.xz")
+    chk=assets.get(base+".sha512sum")
+    if not tar:
+        continue
+    rows.append((rel.get("published_at","") or "", version,
+                 tar.get("browser_download_url",""),
+                 chk.get("browser_download_url","") if chk else ""))
+for _,version,url,chk in sorted(rows,reverse=True):
+    print(f"Proton-CachyOS-{version}\t{url}\t{chk}")
+PY_CACHY
+}
+
+install_cachy() {
+    require_net || return
+    local tmp json menu_file
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/cachy-list.XXXXXX")"
+    json="$tmp/releases.json"
+    clear
+    echo "Chargement des releases Proton-CachyOS SLR..."
+    if ! fetch_cachy_releases "$json"; then
+        rm -rf "$tmp"
+        msg "Erreur Proton-CachyOS" "Impossible de recuperer les releases Proton-CachyOS."
+        return
+    fi
+    menu_file="$tmp/menu.tsv"
+    build_cachy_menu "$json" "$menu_file"
+    if [ ! -s "$menu_file" ]; then
+        rm -rf "$tmp"
+        msg "Erreur Proton-CachyOS" "Aucune release SLR x86_64 compatible n'a ete trouvee."
+        return
+    fi
+
+    local opts=() name tarurl sumurl state
+    while IFS=$'\t' read -r name tarurl sumurl; do
+        [ -n "$name" ] || continue
+        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then state="INSTALLE / PROTEGE CONTRE ECRASEMENT"; else state="disponible (SLR x86_64)"; fi
+        opts+=("$name" "$state")
+    done < "$menu_file"
+
+    if command -v dialog >/dev/null 2>&1; then
+        name="$(dialog --stdout --title "Installer Proton-CachyOS + UMU" \
+          --menu "Build SLR x86_64 recommande upstream. Installation immutable." \
+          22 100 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
+    else
+        clear; cut -f1 "$menu_file"; echo; printf "Version a installer : "; read -r name
+    fi
+    [ -n "$name" ] || { rm -rf "$tmp"; return; }
+
+    local line target
+    line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    tarurl="$(printf '%s' "$line" | cut -f2)"
+    sumurl="$(printf '%s' "$line" | cut -f3)"
+    target="$CUSTOM_DIR/${name}-UMU"
+    if [ -e "$target" ]; then rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return; fi
+
+    if ! yesno "Installer $name-UMU" \
+"Source : Proton-CachyOS SLR x86_64
+Verification : SHA-512 upstream lorsque disponible
+Destination :
+$target
+
+Aucun runner existant ne sera modifie.
+
+Continuer ?"; then rm -rf "$tmp"; return; fi
+    if ! ensure_umu_for_runner; then rm -rf "$tmp"; return; fi
+
+    local stage tarname sumname extracted candidate
+    stage="$RUNNER_STAGING_ROOT/${name}-UMU.$(date '+%Y%m%d-%H%M%S').$$"
+    mkdir -p "$stage/download" "$stage/extracted"
+    tarname="$(basename "$tarurl")"
+    clear; echo "Telechargement de $name (SLR x86_64)..."
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Echec du telechargement."; return; fi
+
+    if [ -n "$sumurl" ]; then
+        sumname="$(basename "$sumurl")"
+        echo "Verification SHA512 upstream..."
+        if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname"); then
+            rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Checksum SHA512 upstream invalide. Rien n'a ete installe."; return
+        fi
+    else
+        log "WARNING upstream SHA512 asset absent for $name"
+    fi
+
+    echo "Extraction en staging..."
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Extraction XZ impossible."; return; fi
+    extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
+        rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Structure Proton-CachyOS inattendue. Rien n'a ete installe."; return
+    fi
+
+    candidate="$stage/candidate"
+    mv "$extracted" "$candidate"
+    cp -a "$OVERLAY/." "$candidate/"
+    chmod +x "$candidate/proton" "$candidate/bin/wine" "$candidate/bin/wine64" "$candidate/bin/wineserver" "$candidate/umu-batocera/umu-root-runner.py" 2>/dev/null || true
+    mkdir -p "$candidate/umu-batocera"
+    cat > "$candidate/umu-batocera/runner-info" <<EOF
+RUNNER=$name
+RUNNER_FAMILY=Proton-CachyOS
+UMU_INTEGRATION=$INTEGRATION_VERSION
+TOOLBOX_VERSION=$TOOLBOX_VERSION
+INSTALL_SOURCE=github-release-slr-x86_64
+SOURCE_REPO=$CACHY_REPO
+SOURCE_URL=$tarurl
+SOURCE_SHA512_FILE=${sumurl:-unavailable}
+STATUS=experimental
+INSTALLED_AT=$(date -Is 2>/dev/null || date)
+EOF
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Controle d'integrite du runner prepare impossible."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
+    echo "Installation atomique de $name-UMU..."
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Impossible de finaliser l'installation."; return; fi
+    rm -rf "$tmp" "$stage"
+    log "Installed immutable ${name}-UMU provider=Proton-CachyOS asset=SLR-x86_64"
+    msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-CachyOS\nBuild : SLR x86_64\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+}
+
 install_runner_menu() {
     while true; do
         local choice
         choice="$(menu_choice "Installer un runner Proton UMU" \
             "1" "GE-Proton" \
             "2" "GDK-Proton" \
+            "3" "Proton-CachyOS (SLR x86_64)" \
             "0" "Retour")" || return
         case "$choice" in
             1) install_ge ;;
             2) install_gdk ;;
+            3) install_cachy ;;
             0|"") return ;;
         esac
     done
@@ -1252,11 +1396,10 @@ Maintenance > Reparer / mettre a niveau l'integration UMU."
         if ! yesno "Installer l'integration v$INTEGRATION_VERSION" \
 "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.
 
-Les runners non geres ou modifies seront ignores.
+Les fichiers Wine/Proton upstream ne sont pas remplaces.
+Les runners deja MODIFIES sont refuses.
 
-Continuer ?"; then
-            return
-        fi
+Continuer ?"; then return; fi
     fi
 
     while IFS= read -r r; do
@@ -1326,7 +1469,7 @@ scan_prefix_refs() {
 umu_process_active() {
     # Process-only check for operations that modify runner files.
     # Stale runtime mounts without a live process are handled separately.
-    if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py|/userdata/system/wine/custom/(GE-Proton|GDK-Proton)[^ ]*-UMU/(bin/wine|proton|files/bin/wineserver)' >/dev/null 2>&1; then
+    if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py|/userdata/system/wine/custom/(GE-Proton|GDK-Proton|Proton-CachyOS-)[^ ]*-UMU/(bin/wine|proton|files/bin/wineserver)' >/dev/null 2>&1; then
         return 0
     fi
     return 1
@@ -1380,6 +1523,7 @@ runtime_protection_status() {
     if [ "$active" -eq 1 ]; then report="$report\nActivite UMU detectee : les protections RO sont attendues."; else report="$report\nAucune activite UMU detectee. Une ligne [RO ORPHELIN] peut etre nettoyee avec l'option Maintenance dediee."; fi
     msg "Protection runtime" "${report:-Aucun runner UMU.}"
 }
+
 verify_install() {
     local report=""
     if [ -s "$UMU_RUN" ]; then
@@ -1595,7 +1739,7 @@ PAYLOAD="$BASE/payload"
 CUSTOM="/userdata/system/wine/custom"
 UMU="/userdata/system/umu"
 [ "$(id -u)" -eq 0 ] || { echo "ERREUR: lancez cet installateur en root."; exit 1; }
-RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' -o -name 'GDK-Proton*-UMU.tar.xz' \) | head -n1)"
+RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' -o -name 'GDK-Proton*-UMU.tar.xz' -o -name 'Proton-CachyOS-*-UMU.tar.xz' \) | head -n1)"
 [ -n "$RUNARCH" ] || { echo "ERREUR: payload runner absent."; exit 1; }
 (cd "$PAYLOAD" && sha256sum -c "$(basename "$RUNARCH").sha256")
 RUNNER="$(basename "$RUNARCH" .tar.xz)"
@@ -1848,7 +1992,7 @@ umu_uninstall_active() {
     if pgrep -f "$CUSTOM_DIR/\(GE-Proton\|GDK-Proton\)[0-9].*-UMU" >/dev/null 2>&1; then
         return 0
     fi
-    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|materialized-prefixes|gameviews|test7-prefixes|test7-gameviews|compatdata)|/userdata/system/wine/custom/(GE-Proton|GDK-Proton)[^ ]*-UMU'; then
+    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|materialized-prefixes|gameviews|test7-prefixes|test7-gameviews|compatdata)|/userdata/system/wine/custom/(GE-Proton|GDK-Proton|Proton-CachyOS-)[^ ]*-UMU'; then
         return 0
     fi
     return 1

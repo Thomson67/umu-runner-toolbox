@@ -1,3 +1,72 @@
 #!/bin/bash
+set -u
 RUNNER_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-exec "$RUNNER_DIR/files/bin/wineserver" "$@"
+REAL_WINESERVER="$RUNNER_DIR/files/bin/wineserver"
+ORIGINAL_PREFIX="${WINEPREFIX-}"
+STATE_DIR="/run/umu-batocera"
+LOG_DIR="/userdata/system/logs/umu-runner"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+STOP_LOG="$LOG_DIR/wineserver-stop.log"
+wlog() { printf '%s %s\n' "$(date -Is 2>/dev/null || date)" "$*" >> "$STOP_LOG"; }
+canon_path() { readlink -f "$1" 2>/dev/null || printf '%s' "$1"; }
+
+case " ${*:-} " in
+    *" -k "*|*" -w "*)
+        request_canon=""
+        [ -n "$ORIGINAL_PREFIX" ] && request_canon="$(canon_path "$ORIGINAL_PREFIX")"
+        state=""
+        match_kind=""
+        runner_candidate=""
+        runner_candidates=0
+
+        if [ -d "$STATE_DIR" ]; then
+            for f in "$STATE_DIR"/session-*.state; do
+                [ -f "$f" ] || continue
+                state_pid="$(sed -n '6p' "$f" 2>/dev/null)"
+                # Drop abandoned mappings, but never reject a live mapping just
+                # because a child process has moved into pressure-vessel.
+                if [ -n "$state_pid" ] && ! kill -0 "$state_pid" 2>/dev/null; then
+                    rm -f "$f" 2>/dev/null || true
+                    continue
+                fi
+                mapped_runner="$(sed -n '5p' "$f" 2>/dev/null)"
+                [ "$mapped_runner" = "$RUNNER_DIR" ] || continue
+
+                raw="$(sed -n '1p' "$f" 2>/dev/null)"
+                canonical="$(sed -n '2p' "$f" 2>/dev/null)"
+                alias="$(sed -n '3p' "$f" 2>/dev/null)"
+                raw_canon=""; alias_canon=""
+                [ -n "$raw" ] && raw_canon="$(canon_path "$raw")"
+                [ -n "$alias" ] && alias_canon="$(canon_path "$alias")"
+
+                if [ -n "$ORIGINAL_PREFIX" ] && [ "$ORIGINAL_PREFIX" = "$raw" ]; then
+                    state="$f"; match_kind="raw"; break
+                elif [ -n "$request_canon" ] && { [ "$request_canon" = "$canonical" ] || [ "$request_canon" = "$raw_canon" ] || [ -n "$alias_canon" -a "$request_canon" = "$alias_canon" ]; }; then
+                    state="$f"; match_kind="canonical"; break
+                fi
+
+                runner_candidate="$f"
+                runner_candidates=$((runner_candidates+1))
+            done
+        fi
+
+        if [ -z "$state" ] && [ "$runner_candidates" -eq 1 ]; then
+            state="$runner_candidate"
+            match_kind="runner-unique"
+        fi
+
+        if [ -n "$state" ]; then
+            mapped_prefix="$(sed -n '4p' "$state" 2>/dev/null)"
+            mapped_runner="$(sed -n '5p' "$state" 2>/dev/null)"
+            if [ "$mapped_runner" = "$RUNNER_DIR" ] && [ -d "$mapped_prefix" ]; then
+                export WINEPREFIX="$mapped_prefix"
+                wlog "state_match=$match_kind action=$* original=${ORIGINAL_PREFIX:-<unset>} effective=$mapped_prefix state=$state runner=$RUNNER_DIR"
+            else
+                wlog "state_rejected action=$* state=$state original=${ORIGINAL_PREFIX:-<unset>} runner=$RUNNER_DIR"
+            fi
+        else
+            wlog "no_state action=$* original=${ORIGINAL_PREFIX:-<unset>} canonical=${request_canon:-<unset>} candidates=$runner_candidates runner=$RUNNER_DIR"
+        fi
+        ;;
+esac
+exec "$REAL_WINESERVER" "$@"

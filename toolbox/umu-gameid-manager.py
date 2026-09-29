@@ -55,6 +55,7 @@ def steam_candidates(runners):
     patterns=(
         'GE-Proton*-UMU/protonfixes/gamefixes-steam/*.py',
         'GDK-Proton*-UMU/protonfixes/gamefixes-steam/*.py',
+        'Proton-CachyOS-*-UMU/protonfixes/gamefixes-steam/*.py',
     )
     for pattern in patterns:
         for p in runners.glob(pattern):

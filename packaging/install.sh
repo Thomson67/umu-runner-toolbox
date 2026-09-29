@@ -22,6 +22,7 @@ TMP="/userdata/system/umu/.toolbox-local-install.$$"
 rm -rf "$TMP"
 cp -a "$SRC/toolbox" "$TMP" || fail "copie de la nouvelle Toolbox impossible."
 
+# Preserve persistent configuration/overrides from the current installation.
 if [ -d "$DEST/config" ]; then
     rm -rf "$TMP/config"
     cp -a "$DEST/config" "$TMP/config" || fail "conservation de config/ impossible."
@@ -49,6 +50,7 @@ fi
 
 chmod +x "$DEST/umu-toolbox.sh" 2>/dev/null || true
 
+# Install/update Batocera Port launcher when provided by the package.
 if [ -s "$SRC/toolbox/ports/UMU Runner Toolbox.sh" ]; then
     cp -a "$SRC/toolbox/ports/UMU Runner Toolbox.sh" "$PORT"
     chmod +x "$PORT" 2>/dev/null || true
@@ -70,6 +72,7 @@ PORTSCRIPT
     chmod +x "$PORT"
 fi
 
+# Always synchronize the bundled Pad2Key mapping.
 if [ -s "$SRC/toolbox/ports/UMU Runner Toolbox.sh.keys" ]; then
     cp -a "$SRC/toolbox/ports/UMU Runner Toolbox.sh.keys" "$PORT_KEYS"
 fi

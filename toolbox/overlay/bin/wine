@@ -84,16 +84,38 @@ protect_all_umu_runners_ro() {
 }
 
 unprotect_umu_runners() {
-    local i r
+    local i r attempt unmounted
     for ((i=${#UMU_PROTECTED_MOUNTS[@]}-1; i>=0; i--)); do
         r="${UMU_PROTECTED_MOUNTS[$i]}"
-        umount "$r" 2>>"$LOG" || umount -l "$r" 2>>"$LOG" || true
-        log "runner_unprotected=$r"
+        unmounted=0
+        # v3.9.3: a direct .pc prefix can leave the runner busy for a very short
+        # time while Proton/pressure-vessel is winding down. Retry normal
+        # unmounts first; only then use the existing lazy-unmount fallback.
+        for attempt in 1 2 3 4 5; do
+            if umount "$r" 2>>"$LOG"; then
+                unmounted=1
+                break
+            fi
+            sleep 0.2
+        done
+        if [ "$unmounted" -eq 0 ]; then
+            if umount -l "$r" 2>>"$LOG"; then
+                unmounted=1
+                log "runner_unprotected_lazy=$r"
+            fi
+        fi
+        if mountpoint -q "$r" 2>/dev/null; then
+            log "WARNING: runner_unprotect_failed=$r"
+        elif [ "$unmounted" -eq 1 ]; then
+            log "runner_unprotected=$r"
+        else
+            log "runner_unprotected_already=$r"
+        fi
     done
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.8.0 ====="
+log "===== Batocera UMU runner v3.9.3 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -267,19 +289,34 @@ ALIAS_MOUNT=""
 GAMEVIEW_BOUND=0
 GAMEVIEW_TARGET=""
 GAMEVIEW_MOUNTPOINT_CREATED=0
+ACTIVE_STATE_FILE=""
 
 cleanup_runtime_mounts() {
+    # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
+    cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
+    if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
+        rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
+        log "runtime_active_state_removed=$ACTIVE_STATE_FILE"
+        ACTIVE_STATE_FILE=""
+    fi
     if [ "${PFX_BOUND:-0}" -eq 1 ] && [ -n "${PFX_MOUNT:-}" ]; then
         umount "$PFX_MOUNT" 2>>"$LOG" || umount -l "$PFX_MOUNT" 2>>"$LOG" || true
         PFX_BOUND=0
     fi
     if [ "${GAMEVIEW_BOUND:-0}" -eq 1 ] && [ -n "${GAMEVIEW_TARGET:-}" ]; then
-        umount "$GAMEVIEW_TARGET" 2>>"$LOG" || umount -l "$GAMEVIEW_TARGET" 2>>"$LOG" || true
+        if umount "$GAMEVIEW_TARGET" 2>>"$LOG" || umount -l "$GAMEVIEW_TARGET" 2>>"$LOG"; then
+            if mountpoint -q "$GAMEVIEW_TARGET" 2>/dev/null; then
+                log "WARNING: runtime_gameview_still_mounted=$GAMEVIEW_TARGET"
+            else
+                log "runtime_gameview_unmounted=$GAMEVIEW_TARGET"
+            fi
+        else
+            log "WARNING: runtime_gameview_unmount_failed=$GAMEVIEW_TARGET"
+        fi
         GAMEVIEW_BOUND=0
-        if [ "${GAMEVIEW_MOUNTPOINT_CREATED:-0}" -eq 1 ]; then
+        if [ "${GAMEVIEW_MOUNTPOINT_CREATED:-0}" -eq 1 ] && ! mountpoint -q "$GAMEVIEW_TARGET" 2>/dev/null; then
             rmdir "$GAMEVIEW_TARGET" 2>>"$LOG" || true
         fi
-        log "runtime_gameview_unmounted=$GAMEVIEW_TARGET"
     fi
     if [ "${ALIAS_BOUND:-0}" -eq 1 ] && [ -n "${ALIAS_MOUNT:-}" ]; then
         umount "$ALIAS_MOUNT" 2>>"$LOG" || umount -l "$ALIAS_MOUNT" 2>>"$LOG" || true
@@ -456,6 +493,145 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     log "runtime_cwd=$UMU_CWD"
 fi
 
+# v3.9 TEST: apply the proven v3.8 split-prefix model to ordinary .wine
+# bottles as well.  Build a real runner-specific PFX excluding the top-level
+# drive_c game directory, and expose the original game directory through an
+# external bind-mounted gameview.  This is intentionally rebuilt on every
+# launch for validation; persistence/refresh policy will be designed only if
+# this proves the CachyOS 10 .wine failure is caused by the direct bottle bind.
+WINE_SPLIT_PREFIX=0
+if [ "$COMPRESSED_OVERLAY" -eq 0 ] && [ -n "$ORIGINAL_PREFIX_CANON" ]; then
+    case "$(printf '%s' "$ORIGINAL_PREFIX_CANON" | tr '[:upper:]' '[:lower:]')" in
+        *.wine)
+            case "$EXE_ABS" in
+                "$ORIGINAL_PREFIX_CANON"/drive_c/*/*)
+                    REL_EXE="${EXE_ABS#"$ORIGINAL_PREFIX_CANON"/}"
+                    AFTER_DRIVEC="${REL_EXE#drive_c/}"
+                    GAME_DIR="${AFTER_DRIVEC%%/*}"
+                    GAME_REL="drive_c/$GAME_DIR"
+                    EXE_IN_GAME="${REL_EXE#"$GAME_REL"/}"
+                    WINE_SPLIT_PREFIX=1
+                    ;;
+            esac
+            ;;
+    esac
+fi
+
+# v3.9.3: Batocera .pc games keep the game directory and Wine bottle
+# separate.  The executable/cwd points at /userdata/roms/windows/<game>.pc,
+# while WINEPREFIX points at .../<game>.pc.wine.  Preserve the direct prefix,
+# but record the real game container as the resolver identity.
+PC_GAME_PATH=""
+pwd_canon_for_pc="$(readlink -f "$PWD" 2>/dev/null || printf '%s' "$PWD")"
+case "$(printf '%s' "$pwd_canon_for_pc" | tr '[:upper:]' '[:lower:]')" in
+    /userdata/roms/windows/*.pc|/userdata/roms/windows/*.pc/*)
+        pc_rel="${pwd_canon_for_pc#/userdata/roms/windows/}"
+        pc_name="${pc_rel%%.pc*}.pc"
+        pc_candidate="/userdata/roms/windows/$pc_name"
+        prefix_base_lc="$(basename "$ORIGINAL_PREFIX_CANON" | tr '[:upper:]' '[:lower:]')"
+        pc_base_lc="$(basename "$pc_candidate" | tr '[:upper:]' '[:lower:]')"
+        if [ -d "$pc_candidate" ] && [ "$prefix_base_lc" = "${pc_base_lc}.wine" ]; then
+            PC_GAME_PATH="$pc_candidate"
+            IDENTITY_ANCHOR="$(basename "$pc_candidate")"
+            log "pc_game=1"
+            log "pc_game_path=$PC_GAME_PATH"
+            log "pc_prefix=$ORIGINAL_PREFIX_CANON"
+        fi
+        ;;
+esac
+
+if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
+    wine_anchor="$(basename "$ORIGINAL_PREFIX_CANON")"
+    wine_safe="$(printf '%s' "$wine_anchor" | tr -c 'A-Za-z0-9._-' '_')"
+    RUNTIME_KEY="$(printf 'wine-split-pfx|%s|%s' "$wine_anchor" "$RUNNER_DIR" | cksum | awk '{print $1}')"
+    MATERIALIZED_PREFIX="/userdata/system/umu/materialized-prefixes/${wine_safe}-${RUNTIME_KEY}"
+    mkdir -p "$(dirname "$MATERIALIZED_PREFIX")"
+    rm -rf "$MATERIALIZED_PREFIX"
+    mkdir -p "$MATERIALIZED_PREFIX/drive_c"
+
+    COPY_START="$(date +%s)"
+    log "wine_split_prefix=1"
+    log "runtime_copy_begin=$(date -Is 2>/dev/null || date)"
+    for COPY_ITEM in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
+        [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
+        [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
+        cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/" 2>>"$LOG" || {
+            log "ERROR: wine split prefix-root copy failed: $COPY_ITEM"; exit 82;
+        }
+    done
+    for COPY_ITEM in "$ORIGINAL_PREFIX_CANON/drive_c"/* "$ORIGINAL_PREFIX_CANON/drive_c"/.[!.]* "$ORIGINAL_PREFIX_CANON/drive_c"/..?*; do
+        [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
+        [ "$(basename "$COPY_ITEM")" = "$GAME_DIR" ] && continue
+        cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/drive_c/" 2>>"$LOG" || {
+            log "ERROR: wine split drive_c copy failed: $COPY_ITEM"; exit 82;
+        }
+    done
+    COPY_END="$(date +%s)"
+    log "runtime_copy_end=$(date -Is 2>/dev/null || date)"
+    log "runtime_copy_seconds=$((COPY_END-COPY_START))"
+    log "runtime_materialized_size=$(du -sh "$MATERIALIZED_PREFIX" 2>/dev/null | awk '{print $1}')"
+    log "runtime_real_prefix=$MATERIALIZED_PREFIX"
+    log "runtime_excluded_game=$GAME_REL"
+
+    GAME_SOURCE="$ORIGINAL_PREFIX_CANON/$GAME_REL"
+    [ -d "$GAME_SOURCE" ] || { log "ERROR: wine split game directory missing: $GAME_SOURCE"; exit 83; }
+    GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${wine_safe}-${RUNTIME_KEY}"
+    GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
+    mkdir -p "$GAMEVIEW"
+    GAMEVIEW_TARGET="$GAMEVIEW"
+    GAMEVIEW_MOUNTPOINT_CREATED=1
+    if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
+        log "ERROR: wine split gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 83;
+    fi
+    GAMEVIEW_BOUND=1
+
+    EXE_ABS="$GAMEVIEW/$EXE_IN_GAME"
+    pwd_canon="$(readlink -f "$PWD" 2>/dev/null || printf '%s' "$PWD")"
+    case "$pwd_canon" in
+        "$ORIGINAL_PREFIX_CANON/$GAME_REL") UMU_CWD="$GAMEVIEW" ;;
+        "$ORIGINAL_PREFIX_CANON/$GAME_REL"/*)
+            REL_CWD="${pwd_canon#"$ORIGINAL_PREFIX_CANON/$GAME_REL"/}"
+            UMU_CWD="$GAMEVIEW/$REL_CWD"
+            ;;
+        *) UMU_CWD="$GAMEVIEW" ;;
+    esac
+    EFFECTIVE_WINEPREFIX="$MATERIALIZED_PREFIX"
+    IDENTITY_ANCHOR="$wine_anchor"
+    log "runtime_game_source=$GAME_SOURCE"
+    log "runtime_gameview=$GAMEVIEW"
+    log "runtime_gameview_fstype=$(findmnt -n -o FSTYPE -T "$GAMEVIEW" 2>/dev/null || true)"
+    log "runtime_gameview_bind=1"
+    log "runtime_wine_direct_pfx_bypassed=1"
+    log "runtime_exe=$EXE_ABS"
+    log "runtime_exe_exists=$([ -e "$EXE_ABS" ] && echo 1 || echo 0)"
+    log "runtime_cwd=$UMU_CWD"
+fi
+
+# v3.9.2: every materialized-prefix session (.wine AND compressed)
+# publishes one explicit runtime mapping. Batocera's stop path still supplies
+# the original prefix, while the active wineserver belongs to the materialized
+# PFX. Keep raw/canonical/alias identities so the stop wrapper never has to
+# infer which namespace Batocera used.
+if { [ -n "${MATERIALIZED_PREFIX:-}" ] && [ "$EFFECTIVE_WINEPREFIX" = "$MATERIALIZED_PREFIX" ]; } || [ -n "${PC_GAME_PATH:-}" ]; then
+    ACTIVE_STATE_DIR="/run/umu-batocera"
+    mkdir -p "$ACTIVE_STATE_DIR"
+    ACTIVE_STATE_FILE="$ACTIVE_STATE_DIR/session-$$.state"
+    {
+        printf '%s\n' "$ORIGINAL_WINEPREFIX"
+        printf '%s\n' "$ORIGINAL_PREFIX_CANON"
+        printf '%s\n' "${ALIAS_MOUNT:-}"
+        printf '%s\n' "$EFFECTIVE_WINEPREFIX"
+        printf '%s\n' "$RUNNER_DIR"
+        printf '%s\n' "$$"
+    } > "$ACTIVE_STATE_FILE"
+    chmod 600 "$ACTIVE_STATE_FILE" 2>/dev/null || true
+    log "runtime_active_state=$ACTIVE_STATE_FILE"
+    log "runtime_stop_original=$ORIGINAL_WINEPREFIX"
+    log "runtime_stop_canonical=$ORIGINAL_PREFIX_CANON"
+    log "runtime_stop_alias=${ALIAS_MOUNT:-}"
+    log "runtime_stop_prefix=$EFFECTIVE_WINEPREFIX"
+fi
+
 # pressure-vessel does not automatically expose arbitrary /userdata paths.
 # Batocera users commonly redirect saves with absolute symlinks into
 # /userdata/saves/windows.  Share that tree read/write so those symlinks remain
@@ -512,7 +688,13 @@ if [ -n "$EMBEDDED_PREFIX" ]; then
     # refer to the same pfx adapter/shadercache. The real persistent data still
     # lives in the Batocera wine-bottle via pfx -> WINEPREFIX.
     anchor="${IDENTITY_ANCHOR:-$(basename "$EMBEDDED_PREFIX")}"
-    ident="embedded|$anchor"
+    # v3.8.1: isolate Proton compatdata metadata per runner for every embedded
+    # Batocera bottle. The real .wine prefix remains shared/persistent and is
+    # still bind-mounted as compatdata/pfx; only Proton's adapter metadata and
+    # shader/cache state get a runner-specific directory. This prevents a test
+    # with CachyOS/GE/GDK version A from upgrading or downgrading the compatdata
+    # metadata subsequently consumed by runner B.
+    ident="embedded|$anchor|$(basename "$RUNNER_DIR")"
     if [ "$COMPRESSED_OVERLAY" -eq 1 ] && [ -n "${GAMEVIEW:-}" ]; then
         ident="compressed|$anchor|$(basename "$RUNNER_DIR")"
     fi
@@ -561,7 +743,7 @@ if [ -n "$EMBEDDED_PREFIX" ]; then
     # materialized prefix. Recent GE/GDK runners can otherwise fail when the PFX
     # itself is an OverlayFS view, even though the same game works as .wine.
     PFX_BIND_SOURCE="$EMBEDDED_PREFIX"
-    if [ "$COMPRESSED_OVERLAY" -eq 1 ] && [ -n "${MATERIALIZED_PREFIX:-}" ]; then
+    if { [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; } && [ -n "${MATERIALIZED_PREFIX:-}" ]; then
         PFX_BIND_SOURCE="$MATERIALIZED_PREFIX"
     elif [ "$COMPRESSED_OVERLAY" -eq 1 ] && [ -n "$ORIGINAL_PREFIX_CANON" ]; then
         PFX_BIND_SOURCE="$ORIGINAL_PREFIX_CANON"
@@ -616,7 +798,9 @@ export STORE=""
 # v3.7.14: use the resolved bottle/game identity, not a literal escaped
 # parameter expression.  The previous \${...} tests were always non-empty,
 # so ordinary .wine launches incorrectly resolved to /userdata/roms/windows/.
-if [ -n "${IDENTITY_ANCHOR:-}" ]; then
+if [ -n "${PC_GAME_PATH:-}" ]; then
+    UMU_GAME_PATH="$PC_GAME_PATH"
+elif [ -n "${IDENTITY_ANCHOR:-}" ]; then
     UMU_GAME_PATH="/userdata/roms/windows/$IDENTITY_ANCHOR"
 elif [ -n "${anchor:-}" ]; then
     UMU_GAME_PATH="/userdata/roms/windows/$anchor"
@@ -676,6 +860,16 @@ log "GAMEID=$GAMEID"
 log "PROTONPATH=$PROTONPATH"
 log "UMU_RUN=$UMU_RUN"
 
+# v3.9 TEST: the split .wine gameview is also outside the original bottle.
+if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
+    log "original_pwd=$PWD"
+    log "umu_cwd=$UMU_CWD"
+    if ! cd "$UMU_CWD"; then
+        log "ERROR: cannot cd to split .wine gameview: $UMU_CWD"
+        exit 84
+    fi
+fi
+
 # v3.6.1: pressure-vessel inherits the caller cwd. For compressed games we must
 # enter the alias path before starting UMU, otherwise bwrap still tries to chdir
 # back into /var/run/wine/... and aborts even though EXE itself is under /userdata.
@@ -703,7 +897,7 @@ if [ ! -s "$RUNNER_DIR/proton" ]; then
 fi
 
 UMU_EXE="$exe"
-if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
@@ -712,7 +906,7 @@ python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
 rc=$?
 # Leave the bind-mounted alias before EXIT cleanup so normal umount is not kept
 # busy merely by this wrapper shell's current working directory.
-if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
+if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
 fi
 log "exit=$rc"
