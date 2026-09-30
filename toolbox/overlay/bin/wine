@@ -493,7 +493,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     log "runtime_cwd=$UMU_CWD"
 fi
 
-# v3.9 TEST: apply the proven v3.8 split-prefix model to ordinary .wine
+# v3.9.3: apply the proven v3.8 split-prefix model to ordinary .wine
 # bottles as well.  Build a real runner-specific PFX excluding the top-level
 # drive_c game directory, and expose the original game directory through an
 # external bind-mounted gameview.  This is intentionally rebuilt on every
@@ -860,7 +860,7 @@ log "GAMEID=$GAMEID"
 log "PROTONPATH=$PROTONPATH"
 log "UMU_RUN=$UMU_RUN"
 
-# v3.9 TEST: the split .wine gameview is also outside the original bottle.
+# v3.9.3: the split .wine gameview is also outside the original bottle.
 if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     log "original_pwd=$PWD"
     log "umu_cwd=$UMU_CWD"
