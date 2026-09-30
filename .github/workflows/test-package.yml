@@ -16,7 +16,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n[:space:]' < VERSION)"
-          test "$VERSION" = "0.12.0-TEST1"
+          test "$VERSION" = "0.12.0-TEST2"
           test "$VERSION" = "$(tr -d '\r\n[:space:]' < toolbox/VERSION)"
           grep -Fq "TOOLBOX_VERSION=\"$VERSION\"" toolbox/umu-toolbox.sh
           bash -n install.sh
@@ -37,7 +37,7 @@ jobs:
           unzip -t "$PKG.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: UMU-Runner-Toolbox-v0.12.0-TEST1
+          name: UMU-Runner-Toolbox-v0.12.0-TEST2
           path: |
-            UMU-Runner-Toolbox-v0.12.0-TEST1.zip
-            UMU-Runner-Toolbox-v0.12.0-TEST1.zip.sha256
+            UMU-Runner-Toolbox-v0.12.0-TEST2.zip
+            UMU-Runner-Toolbox-v0.12.0-TEST2.zip.sha256
