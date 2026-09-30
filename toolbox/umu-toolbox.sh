@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.12.0-TEST1"
+TOOLBOX_VERSION="0.12.0-TEST2"
 INTEGRATION_VERSION="3.9.3"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
@@ -1302,7 +1302,10 @@ for rel in rels if isinstance(rels,list) else []:
             continue
         rows.append((rel.get("published_at","") or "", version, tag, url,
                      chk.get("browser_download_url","") if chk else ""))
-for _,version,tag,url,chk in sorted(rows,reverse=True):
+def version_key(row):
+    version=row[1]
+    return tuple(int(x) for x in re.findall(r"\d+", version))
+for _,version,tag,url,chk in sorted(rows,key=version_key,reverse=True):
     print(f"dwproton-{version}\t{tag}\t{url}\t{chk}")
 PY_DW
 }
