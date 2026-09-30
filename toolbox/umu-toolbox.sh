@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.11.0"
+TOOLBOX_VERSION="0.12.0-TEST1"
 INTEGRATION_VERSION="3.9.3"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
@@ -23,6 +23,7 @@ GE_REPO="GloriousEggroll/proton-ge-custom"
 GDK_REPO="Weather-OS/GDK-Proton"
 CACHY_REPO="CachyOS/proton-cachyos"
 EM_REPO="BananaWorks07/Proton"
+DW_REPO="dawn-winery/dwproton-mirror"
 UMU_REPO="Open-Wine-Components/umu-launcher"
 TOOLBOX_REPO="Thomson67/umu-runner-toolbox"
 TOOLBOX_BRANCH="main"
@@ -146,7 +147,7 @@ umu_version() {
 
 installed_runners() {
     find "$CUSTOM_DIR" -mindepth 1 -maxdepth 1 -type d \
-        \( -name 'GE-Proton*-UMU' -o -name 'GDK-Proton*-UMU' -o -name 'Proton-CachyOS-*-UMU' -o -name 'proton-EM-*-UMU' \) -printf '%f\n' 2>/dev/null | sort -V
+        \( -name 'GE-Proton*-UMU' -o -name 'GDK-Proton*-UMU' -o -name 'Proton-CachyOS-*-UMU' -o -name 'proton-EM-*-UMU' -o -name 'dwproton-*-UMU' \) -printf '%f\n' 2>/dev/null | sort -V
 }
 
 
@@ -281,6 +282,7 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
         GDK-Proton*-UMU) family="GDK-Proton" ;;
         Proton-CachyOS-*-UMU) family="Proton-CachyOS" ;;
         proton-EM-*-UMU) family="Proton-EM" ;;
+        dwproton-*-UMU) family="DW-Proton" ;;
         *) family="Proton" ;;
     esac
     cat > "$(runner_state_path "$r")" <<EOF
@@ -1270,6 +1272,163 @@ EOF
     log "Installed immutable ${name}-UMU provider=Proton-EM tag=$tag"
     msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-EM\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
 }
+fetch_dw_releases() {
+    local out="$1"
+    curl -fsSL --max-time 25 \
+        "https://api.github.com/repos/$DW_REPO/releases?per_page=100" -o "$out"
+}
+
+build_dw_menu() {
+    local json="$1"
+    local menu="$2"
+    python3 - "$json" > "$menu" <<'PY_DW'
+import json,sys,re
+rels=json.load(open(sys.argv[1],encoding="utf-8"))
+rows=[]
+for rel in rels if isinstance(rels,list) else []:
+    if rel.get("draft"):
+        continue
+    tag=rel.get("tag_name","") or ""
+    assets={a.get("name",""):a for a in rel.get("assets",[])}
+    for name,a in assets.items():
+        m=re.fullmatch(r"dwproton-(.+)-x86_64\\.tar\\.xz",name,re.I)
+        if not m:
+            continue
+        version=m.group(1)
+        sumname=f"dwproton-{version}-x86_64.sha512sum"
+        chk=assets.get(sumname)
+        url=a.get("browser_download_url","") or ""
+        if not url:
+            continue
+        rows.append((rel.get("published_at","") or "", version, tag, url,
+                     chk.get("browser_download_url","") if chk else ""))
+for _,version,tag,url,chk in sorted(rows,reverse=True):
+    print(f"dwproton-{version}\t{tag}\t{url}\t{chk}")
+PY_DW
+}
+
+install_dw() {
+    require_net || return
+    local tmp json menu_file
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/dw-list.XXXXXX")"
+    json="$tmp/releases.json"
+    clear
+    echo "Chargement des releases DW-Proton..."
+    if ! fetch_dw_releases "$json"; then
+        rm -rf "$tmp"
+        msg "Erreur DW-Proton" "Impossible de recuperer les releases DW-Proton."
+        return
+    fi
+    menu_file="$tmp/menu.tsv"
+    build_dw_menu "$json" "$menu_file"
+    if [ ! -s "$menu_file" ]; then
+        rm -rf "$tmp"
+        msg "Erreur DW-Proton" "Aucune release DW-Proton .tar.xz compatible n'a ete trouvee."
+        return
+    fi
+
+    local opts=() name tag tarurl sumurl state
+    while IFS=$'\t' read -r name tag tarurl sumurl; do
+        [ -n "$name" ] || continue
+        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
+            state="INSTALLE / PROTEGE CONTRE ECRASEMENT"
+        elif [ -z "$sumurl" ]; then
+            state="NON INSTALLABLE - checksum upstream absent"
+        else
+            state="disponible ($tag)"
+        fi
+        opts+=("$name" "$state")
+    done < "$menu_file"
+
+    if command -v dialog >/dev/null 2>&1; then
+        name="$(dialog --stdout --title "Installer DW-Proton + UMU" \
+          --menu "Releases officielles dawn-winery/dwproton-mirror (x86_64). Installation immutable." \
+          24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
+    else
+        clear; cut -f1 "$menu_file"; echo; printf "Version a installer : "; read -r name
+    fi
+    [ -n "$name" ] || { rm -rf "$tmp"; return; }
+
+    local line target
+    line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    tag="$(printf '%s' "$line" | cut -f2)"
+    tarurl="$(printf '%s' "$line" | cut -f3)"
+    sumurl="$(printf '%s' "$line" | cut -f4)"
+    target="$CUSTOM_DIR/${name}-UMU"
+    if [ -e "$target" ]; then rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return; fi
+
+    if [ -z "$sumurl" ]; then
+        rm -rf "$tmp"
+        msg "DW-Proton non installable" "Cette release ($tag) ne fournit pas de checksum SHA-512 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee."
+        return
+    fi
+    if ! yesno "Installer $name-UMU" \
+"Source : dawn-winery/dwproton-mirror ($tag)
+Verification : SHA-512 upstream obligatoire
+Destination :
+$target
+
+Aucun runner existant ne sera modifie.
+
+Continuer ?"; then rm -rf "$tmp"; return; fi
+    if ! ensure_umu_for_runner; then rm -rf "$tmp"; return; fi
+
+    local stage tarname sumname extracted candidate
+    stage="$RUNNER_STAGING_ROOT/${name}-UMU.$(date '+%Y%m%d-%H%M%S').$$"
+    mkdir -p "$stage/download" "$stage/extracted"
+    tarname="$(basename "$tarurl")"
+    sumname="$(basename "$sumurl")"
+    clear; echo "Telechargement de $name..."
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Echec du telechargement."; return; fi
+
+    echo "Verification SHA512 upstream..."
+    if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
+        rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Impossible de telecharger le checksum SHA-512 upstream."; return
+    fi
+    if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
+        # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
+        local expected actual
+        expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
+        actual="$(sha512sum "$stage/download/$tarname" | awk '{print $1}')"
+        if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+            rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Checksum SHA-512 upstream invalide. Rien n'a ete installe."; return
+        fi
+    fi
+
+    echo "Extraction en staging..."
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Extraction XZ impossible."; return; fi
+    extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
+        rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Structure DW-Proton inattendue. Rien n'a ete installe."; return
+    fi
+
+    candidate="$stage/candidate"
+    mv "$extracted" "$candidate"
+    cp -a "$OVERLAY/." "$candidate/"
+    chmod +x "$candidate/proton" "$candidate/bin/wine" "$candidate/bin/wine64" "$candidate/bin/wineserver" "$candidate/umu-batocera/umu-root-runner.py" 2>/dev/null || true
+    mkdir -p "$candidate/umu-batocera"
+    cat > "$candidate/umu-batocera/runner-info" <<EOF
+RUNNER=$name
+RUNNER_FAMILY=DW-Proton
+UMU_INTEGRATION=$INTEGRATION_VERSION
+TOOLBOX_VERSION=$TOOLBOX_VERSION
+INSTALL_SOURCE=github-release
+SOURCE_REPO=$DW_REPO
+SOURCE_TAG=$tag
+SOURCE_URL=$tarurl
+SOURCE_SHA512_FILE=$sumurl
+STATUS=experimental
+INSTALLED_AT=$(date -Is 2>/dev/null || date)
+EOF
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Controle d'integrite du runner prepare impossible."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
+    echo "Installation atomique de $name-UMU..."
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Impossible de finaliser l'installation."; return; fi
+    rm -rf "$tmp" "$stage"
+    log "Installed immutable ${name}-UMU provider=DW-Proton tag=$tag"
+    msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : DW-Proton\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+}
 
 install_runner_menu() {
     while true; do
@@ -1279,12 +1438,14 @@ install_runner_menu() {
             "2" "GDK-Proton" \
             "3" "Proton-CachyOS (SLR x86_64)" \
             "4" "Proton-EM" \
+            "5" "DW-Proton" \
             "0" "Retour")" || return
         case "$choice" in
             1) install_ge ;;
             2) install_gdk ;;
             3) install_cachy ;;
             4) install_em ;;
+            5) install_dw ;;
             0|"") return ;;
         esac
     done
@@ -1631,7 +1792,7 @@ scan_prefix_refs() {
 umu_process_active() {
     # Process-only check for operations that modify runner files.
     # Stale runtime mounts without a live process are handled separately.
-    if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py|/userdata/system/wine/custom/(GE-Proton|GDK-Proton|Proton-CachyOS-|proton-EM-)[^ ]*-UMU/(bin/wine|proton|files/bin/wineserver)' >/dev/null 2>&1; then
+    if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py|/userdata/system/wine/custom/(GE-Proton|GDK-Proton|Proton-CachyOS-|proton-EM-|dwproton-)[^ ]*-UMU/(bin/wine|proton|files/bin/wineserver)' >/dev/null 2>&1; then
         return 0
     fi
     return 1
@@ -1901,7 +2062,7 @@ PAYLOAD="$BASE/payload"
 CUSTOM="/userdata/system/wine/custom"
 UMU="/userdata/system/umu"
 [ "$(id -u)" -eq 0 ] || { echo "ERREUR: lancez cet installateur en root."; exit 1; }
-RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' -o -name 'GDK-Proton*-UMU.tar.xz' -o -name 'Proton-CachyOS-*-UMU.tar.xz' -o -name 'proton-EM-*-UMU.tar.xz' \) | head -n1)"
+RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' -o -name 'GDK-Proton*-UMU.tar.xz' -o -name 'Proton-CachyOS-*-UMU.tar.xz' -o -name 'proton-EM-*-UMU.tar.xz' -o -name 'dwproton-*-UMU.tar.xz' \) | head -n1)"
 [ -n "$RUNARCH" ] || { echo "ERREUR: payload runner absent."; exit 1; }
 (cd "$PAYLOAD" && sha256sum -c "$(basename "$RUNARCH").sha256")
 RUNNER="$(basename "$RUNARCH" .tar.xz)"
@@ -2151,10 +2312,10 @@ umu_uninstall_active() {
     if pgrep -f '/userdata/system/umu/umu-run|umu-root-runner\.py' >/dev/null 2>&1; then
         return 0
     fi
-    if pgrep -f "$CUSTOM_DIR/\(GE-Proton\|GDK-Proton\|Proton-CachyOS-\|proton-EM-\).*[-]UMU" >/dev/null 2>&1; then
+    if pgrep -f "$CUSTOM_DIR/\(GE-Proton\|GDK-Proton\|Proton-CachyOS-\|proton-EM-\|dwproton-\).*[-]UMU" >/dev/null 2>&1; then
         return 0
     fi
-    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|materialized-prefixes|gameviews|test7-prefixes|test7-gameviews|compatdata)|/userdata/system/wine/custom/(GE-Proton|GDK-Proton|Proton-CachyOS-|proton-EM-)[^ ]*-UMU'; then
+    if command -v findmnt >/dev/null 2>&1 && findmnt -rn 2>/dev/null | grep -Eq '/userdata/system/umu/(merged-prefixes|materialized-prefixes|gameviews|test7-prefixes|test7-gameviews|compatdata)|/userdata/system/wine/custom/(GE-Proton|GDK-Proton|Proton-CachyOS-|proton-EM-|dwproton-)[^ ]*-UMU'; then
         return 0
     fi
     return 1
@@ -2494,7 +2655,7 @@ post_update_integration() {
 }
 
 documentation_about() {
-    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU et Proton-EM-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;
+    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;
 - associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
 }
 
