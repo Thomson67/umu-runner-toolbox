@@ -2,21 +2,22 @@
 
 [Documentation française](docs/README_FR.md)
 
-**UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM + UMU** runners on Batocera.
+**UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.11.0**  
+Current stable version: **v0.12.0**  
 Runner integration version: **v3.9.3**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
 ## Features
 
-- Install and safely remove GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU and Proton-EM-UMU runners.
+- Install and safely remove GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU, Proton-EM-UMU and DW-Proton-UMU runners.
 - Install and update `umu-run` with SHA-512 verification.
 - Download GE-Proton releases and verify upstream checksums before installation.
 - Download GDK-Proton releases and verify GitHub SHA-256 digests when available, including support for the historical GDK-Proton10-25 archive naming.
 - Install supported CachyOS Proton Steam Linux Runtime (SLR) releases through the same managed UMU workflow.
 - Install official Proton-EM releases from BananaWorks07/Proton with mandatory upstream SHA-256 verification. Releases without an upstream checksum remain visible but are explicitly marked non-installable.
+- Install DW-Proton x86_64 releases from dawn-winery/dwproton-mirror with mandatory upstream SHA-512 verification.
 - Validate managed runners with integrity manifests.
 - Automatically protect all `*-UMU` runners as read-only while an UMU game is running.
 - Export a runner or build a self-contained package for sharing.
@@ -28,7 +29,7 @@ It is designed to make UMU-based Proton runners easy to use from Batocera while 
 - Support `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled and supported by the runner winebus.
 - Batocera 41 compatibility workarounds for the missing Python `_lzma` module and the `ldconfig` cache required by Steam Runtime / pressure-vessel.
 
-> **v0.11.0:** adds managed Proton-EM support while retaining the validated integration v3.9.3. CachyOS Proton SLR support introduced in v0.10.0 remains available. The validated integration supports Batocera `.pc`, `.wine` and `.wsquashfs` launches, GAMEID/STORE resolution with ProtonFixes, runner integrity protection and Batocera stop/hotkey handling for materialized sessions.
+> **v0.12.0:** adds managed DW-Proton support with upstream SHA-512 verification while retaining the validated Batocera/UMU integration v3.9.3. DW-Proton was validated with `.pc`, `.wine` and `.wsquashfs` launches across Proton 10 and 11 releases.
 
 ## How GAMEID and STORE work
 
@@ -62,7 +63,7 @@ The maintenance menu can also clean UMU Runner and Toolbox logs while preserving
 
 ## Runner integrity and protection
 
-Managed GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU and Proton-EM-UMU runners receive an integrity manifest when they are prepared by the Toolbox.
+Managed GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU, Proton-EM-UMU and DW-Proton-UMU runners receive an integrity manifest when they are prepared by the Toolbox.
 
 Before sensitive maintenance, migration or export operations, the Toolbox can verify that manifest. A runner whose managed files no longer match its reference manifest is treated as modified rather than silently trusted.
 
@@ -107,7 +108,7 @@ chmod +x install.sh
 
 ## Installing a Proton-UMU runner
 
-Open **UMU Runner Toolbox** from Batocera Ports and choose the supported GE-Proton, GDK-Proton, CachyOS Proton or Proton-EM installation option.
+Open **UMU Runner Toolbox** from Batocera Ports and choose the supported GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM or DW-Proton installation option.
 
 The Toolbox downloads the selected Proton release, verifies the available upstream checksum/digest, adds the Batocera/UMU integration and creates the integrity manifest.
 
@@ -121,7 +122,7 @@ The Toolbox can update itself from GitHub Releases. The update package and SHA-2
 
 Runner integration upgrades are applied only to managed runners that pass the required integrity checks.
 
-Installing or updating Toolbox v0.11.0 also migrates the integration of existing healthy managed runners to v3.9.3. Modified runners that fail their integrity manifest are left untouched. If a live UMU/Wine process is detected, migration is safely deferred; Maintenance can also identify and remove orphaned read-only runner protections left after a forced termination.
+Installing or updating Toolbox v0.12.0 also migrates the integration of existing healthy managed runners to v3.9.3. Modified runners that fail their integrity manifest are left untouched. If a live UMU/Wine process is detected, migration is safely deferred; Maintenance can also identify and remove orphaned read-only runner protections left after a forced termination.
 
 ## Compatibility
 
@@ -182,9 +183,9 @@ The detailed installation and sharing guide is available in [docs/GUIDE_PARTAGE_
 
 ## Credits
 
-UMU Runner Toolbox is a community project built to integrate the UMU ecosystem and GE-Proton, GDK-Proton and CachyOS Proton runners with Batocera.
+UMU Runner Toolbox is a community project built to integrate the UMU ecosystem and GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM and DW-Proton runners with Batocera.
 
-It relies on and is intended to work alongside the upstream projects that make this possible, including **UMU Launcher**, **GE-Proton**, **GDK-Proton**, **CachyOS Proton**, **Proton-EM**, **ProtonFixes**, **Steam Runtime** and **Batocera**. All trademarks and project names belong to their respective owners.
+It relies on and is intended to work alongside the upstream projects that make this possible, including **UMU Launcher**, **GE-Proton**, **GDK-Proton**, **CachyOS Proton**, **Proton-EM**, **DW-Proton**, **ProtonFixes**, **Steam Runtime** and **Batocera**. All trademarks and project names belong to their respective owners.
 
 ## License
 
