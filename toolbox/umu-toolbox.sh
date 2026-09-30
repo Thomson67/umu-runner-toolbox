@@ -1291,7 +1291,7 @@ for rel in rels if isinstance(rels,list) else []:
     tag=rel.get("tag_name","") or ""
     assets={a.get("name",""):a for a in rel.get("assets",[])}
     for name,a in assets.items():
-        m=re.fullmatch(r"dwproton-(.+)-x86_64\\.tar\\.xz",name,re.I)
+        m=re.fullmatch(r"dwproton-(.+)-x86_64\.tar\.xz",name,re.I)
         if not m:
             continue
         version=m.group(1)
