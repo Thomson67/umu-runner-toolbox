@@ -93,19 +93,26 @@ def prepare_runtime():
     local = umu_local / variant
     marker_version = local / ".batocera-runtime-version"
     base_images = f"https://repo.steampowered.com/{repo_variant}/images"
-    version = get_text(f"{base_images}/latest-public-beta.txt")
 
+    # A complete local runtime is sufficient. Do not contact Valve merely to
+    # compare its version: this path must work behind a proxy and offline.
     if runtime_valid(local, codename):
         (local / "umu").unlink(missing_ok=True)
         (local / "umu").symlink_to("_v2-entry-point")
         (local / ".installed.ok").write_text("ok\n", encoding="utf-8")
-        if marker_version.is_file() and marker_version.read_text(encoding="utf-8", errors="replace").strip() == version:
-            log(f"{variant} {version} deja prepare")
+        local_version = ""
+        if marker_version.is_file():
+            local_version = marker_version.read_text(encoding="utf-8", errors="replace").strip()
+        if local_version:
+            log(f"{variant} {local_version} deja present et valide; reutilisation locale sans acces reseau")
         else:
-            log(f"{variant} deja present et valide; reutilisation sans retelechargement")
+            log(f"{variant} deja present et valide; reutilisation locale sans acces reseau")
         os.environ["UMU_RUNTIME_UPDATE"] = "0"
         return
 
+    # Network access is required only when the required runtime is absent or
+    # incomplete locally.
+    version = get_text(f"{base_images}/latest-public-beta.txt")
     base = f"{base_images}/{version}"
     sums = get_text(f"{base}/SHA256SUMS")
     digest = None
