@@ -2750,7 +2750,7 @@ clean_umu_runtime_data() {
     local legacy_gameviews="$UMU_DIR/test7-gameviews"
     local mesa="$UMU_DIR/cache/mesa_shader_cache"
     local radv="$UMU_DIR/cache/radv_builtin_shaders"
-    local cb mb mat_b gv_b legacy_p_b legacy_g_b mesa_b radv_b total_game total_gpu report
+    local cb mb mat_b gv_b legacy_p_b legacy_g_b mesa_b radv_b total_game total_gpu total_game_h total_gpu_h report
 
     if umu_game_active; then
         msg "$(tr_ui "Nettoyage UMU refuse")" "$(tr_ui "Un processus/lancement UMU ou un merged-prefix actif a ete detecte.\n\nFermez le jeu UMU en cours puis relancez le nettoyage.")"
@@ -2765,15 +2765,17 @@ clean_umu_runtime_data() {
     legacy_p_b="$(dir_bytes "$legacy_prefixes")"
     legacy_g_b="$(dir_bytes "$legacy_gameviews")"
     total_game=$((cb + mb + mat_b + gv_b + legacy_p_b + legacy_g_b))
+    total_game_h="${total_game_h}"
     mesa_b="$(dir_bytes "$mesa")"
     radv_b="$(dir_bytes "$radv")"
     total_gpu=$((mesa_b + radv_b))
+    total_gpu_h="${total_gpu_h}"
 
-    report="Donnees runtime UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- materialized-prefixes : $(human_bytes "$mat_b")\n- gameviews : $(human_bytes "$gv_b")\n- anciens TEST7 : $(human_bytes "$((legacy_p_b + legacy_g_b))")\n- total : $(human_bytes "$total_game")\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : $(human_bytes "$total_gpu")\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
+    report="Donnees runtime UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- materialized-prefixes : $(human_bytes "$mat_b")\n- gameviews : $(human_bytes "$gv_b")\n- anciens TEST7 : $(human_bytes "$((legacy_p_b + legacy_g_b))")\n- total : ${total_game_h}\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : ${total_gpu_h}\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
     msg "$(tr_ui "Analyse du nettoyage UMU")" "$(tr_ui "$report")"
 
     if [ "$total_game" -gt 0 ]; then
-        if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : $(human_bytes "$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?")"; then
+        if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : ${total_game_h}\n\nLes repertoires eux-memes seront conserves. Continuer ?")"; then
             if umu_game_active; then
                 msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee.")"
                 return
@@ -2785,7 +2787,7 @@ clean_umu_runtime_data() {
             clear_dir_contents "$legacy_prefixes"
             clear_dir_contents "$legacy_gameviews"
             log "umu_cleanup_game_data=done bytes_before=$total_game"
-            msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Donnees runtime nettoyees.\n\nEspace precedemment occupe : $(human_bytes "$total_game")")"
+            msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Donnees runtime nettoyees.\n\nEspace precedemment occupe : ${total_game_h}")"
         fi
     else
         msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Les donnees runtime UMU sont deja vides.\n\nAucune donnee runtime a supprimer.")"
@@ -2793,7 +2795,7 @@ clean_umu_runtime_data() {
 
     # Shader caches are reconstructible but deliberately opt-in: deleting them
     # can cause shader recompilation/stutter on subsequent launches.
-    if [ "$total_gpu" -gt 0 ] && yesno "$(tr_ui "Caches graphiques (facultatif)")" "$(tr_ui "Les caches graphiques occupent $(human_bytes "$total_gpu").\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?")"; then
+    if [ "$total_gpu" -gt 0 ] && yesno "$(tr_ui "Caches graphiques (facultatif)")" "$(tr_ui "Les caches graphiques occupent ${total_gpu_h}.\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?")"; then
         if umu_game_active; then
             msg "$(tr_ui "Caches non supprimes")" "$(tr_ui "Un lancement UMU est maintenant actif. Les caches graphiques ont ete conserves.")"
             return
@@ -2801,7 +2803,7 @@ clean_umu_runtime_data() {
         clear_dir_contents "$mesa"
         clear_dir_contents "$radv"
         log "umu_cleanup_gpu_cache=done bytes_before=$total_gpu"
-        msg "$(tr_ui "Caches graphiques")" "$(tr_ui "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total_gpu")")"
+        msg "$(tr_ui "Caches graphiques")" "$(tr_ui "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : ${total_gpu_h}")"
     fi
 }
 
@@ -2937,9 +2939,9 @@ clean_umu_logs() {
         return
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Clean UMU logs")" "$(tr_ui "Toolbox logs: $(human_bytes ")"$tb")\nRunner logs: $(human_bytes "$rb")\nTotal: $(human_bytes "$total")\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
+        yesno "$(tr_ui "Clean UMU logs")" "$(tr_ui "Toolbox logs: $(human_bytes "$tb")\nRunner logs: $(human_bytes "$rb")\nTotal: $(human_bytes "$total")\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
     else
-        yesno "$(tr_ui "Nettoyer les logs UMU")" "$(tr_ui "Logs Toolbox : $(human_bytes ")"$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
+        yesno "$(tr_ui "Nettoyer les logs UMU")" "$(tr_ui "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
     fi
     find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
     while IFS= read -r f; do
@@ -2948,7 +2950,7 @@ clean_umu_logs() {
         rm -f -- "$f" 2>/dev/null || true
     done < <(find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -print 2>/dev/null)
     log "umu_logs_cleanup=done bytes_before=$total"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup")" "$(tr_ui "UMU logs cleaned.\n\nPreviously used space: $(human_bytes ")"$total")\nThe current Toolbox log was preserved."; else msg "$(tr_ui "Nettoyage des logs")" "$(tr_ui "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes ")"$total")\nLe log Toolbox courant a ete conserve."; fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup")" "$(tr_ui "UMU logs cleaned.\n\nPreviously used space: $(human_bytes "$total")\nThe current Toolbox log was preserved."; else msg "$(tr_ui "Nettoyage des logs")" "$(tr_ui "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."; fi
 }
 
 associate_game() {
