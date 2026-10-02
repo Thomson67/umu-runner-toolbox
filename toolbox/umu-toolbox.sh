@@ -283,6 +283,33 @@ tr_ui() {
     s="${s//Les runners classiques ne seront PAS touches./Classic runners will NOT be touched.}"
     s="${s//Cette operation est destructive./This operation is destructive.}"
     s="${s//La Toolbox a ete conservee./The Toolbox was preserved.}"
+    s="${s//Exporter un runner/Export a runner}"
+    s="${s//Aucun runner Proton-UMU gere installe./No managed Proton-UMU runner is installed.}"
+    s="${s//Runner introuvable/Runner not found}"
+    s="${s//Export refuse/Export refused}"
+    s="${s//Export impossible/Export unavailable}"
+    s="${s//Confirmer l export/Confirm export}"
+    s="${s//Export echoue/Export failed}"
+    s="${s//Export termine/Export complete}"
+    s="${s//Creer un package partageable/Create a shareable package}"
+    s="${s//Package partageable/Shareable package}"
+    s="${s//Confirmer le package/Confirm package}"
+    s="${s//Package termine/Package complete}"
+    s="${s//Compatibilite des jeux/Game compatibility}"
+    s="${s//Gestionnaire GAMEID absent/GAMEID manager missing}"
+    s="${s//Analyser tous les jeux/Scan all games}"
+    s="${s//Associer \/ modifier un jeu/Associate \/ edit a game}"
+    s="${s//Afficher les associations manuelles/Show manual associations}"
+    s="${s//Supprimer une association/Delete an association}"
+    s="${s//Aucune correspondance/No match}"
+    s="${s//Correspondances/Matches}"
+    s="${s//Choisir le store/Choose store}"
+    s="${s//Association enregistree/Association saved}"
+    s="${s//Analyse impossible/Scan failed}"
+    s="${s//Analyse globale/Global scan}"
+    s="${s//Associations manuelles/Manual associations}"
+    s="${s//Association supprimee/Association deleted}"
+    s="${s//Suppression impossible./Unable to delete.}"
     printf '%s' "$s"
 }
 
@@ -2246,22 +2273,22 @@ export_runner() {
     local opts=() r
     while IFS= read -r r; do
         [ -n "$r" ] || continue
-        opts+=("$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")")
+        opts+=("$r" "$(tr_ui "$(runner_integrity_label "$CUSTOM_DIR/$r")")")
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Exporter un runner" \
-            --menu "Choisissez le runner a empaqueter en .tar.xz. Un runner MODIFIE ne peut pas etre exporte." \
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Export a runner' || printf 'Exporter un runner')" \
+            --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Choose the runner to package as .tar.xz. A MODIFIED runner cannot be exported.' || printf '%s' 'Choisissez le runner a empaqueter en .tar.xz. Un runner MODIFIE ne peut pas etre exporte.')" \
             22 100 14 "${opts[@]}")" || return
     else
         clear
-        echo "==== Exporter un runner ===="
+        echo "==== $([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Export a runner' || printf 'Exporter un runner') ===="
         echo
         while IFS= read -r r; do
             [ -n "$r" ] && printf '%s  [%s]\n' "$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")"
         done <<< "$runners"
         echo
-        printf "Runner a exporter : "
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf "Runner to export: "; else printf "Runner a exporter : "; fi
         read -r choice
     fi
     [ -n "$choice" ] || return
@@ -2356,7 +2383,7 @@ export_shareable_package() {
     local opts=() r
     while IFS= read -r r; do
         [ -n "$r" ] || continue
-        opts+=("$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")")
+        opts+=("$r" "$(tr_ui "$(runner_integrity_label "$CUSTOM_DIR/$r")")")
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
@@ -2882,7 +2909,7 @@ associate_game() {
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
         log "gameid_override=set title=$title matched_title=$ctitle score=$cscore gameid=$gameid store=$store"
-        msg "Association enregistree" "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Association saved" "Game: $title\nMatch: $ctitle\nScore: $cscore\nGAMEID: $gameid\nSTORE: $store\n\nThis manual association takes priority over automatic detection on the next launch."; else msg "Association enregistree" "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."; fi
     else msg "Erreur" "Impossible d enregistrer l association."; fi
 }
 
@@ -2895,7 +2922,7 @@ global_game_scan() {
     list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
     tail -n +2 "$scan" > "$list"; rm -f "$scan"
     if [ "$ambiguous" -eq 0 ]; then
-        rm -f "$list"; msg "Analyse globale" "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu."; return
+        rm -f "$list"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Global scan" "Games scanned: $total\nClear matches: $clear\nAmbiguous: 0\nNo match: $none\nManual associations: $overrides\n\nNo ambiguous match requires review.\nGames without a match remain available through Associate / edit a game."; else msg "Analyse globale" "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu."; fi; return
     fi
 
     # Keep the scan results for this review session. After a manual association,
@@ -2904,7 +2931,7 @@ global_game_scan() {
         remaining="$(awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS" {n++} END{print n+0}' "$list")"
         if [ "$remaining" -eq 0 ]; then
             rm -f "$list"
-            msg "Analyse globale" "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance."
+            if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Global scan" "All ambiguous games from this scan have been processed.\n\nNo new scan was started."; else msg "Analyse globale" "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance."; fi
             return
         fi
 
@@ -2916,7 +2943,7 @@ global_game_scan() {
                 label="[AMBIGU] $rt -> $rb [$rg] score=$rscore"
                 opts+=("$ri" "$label")
             done < "$list"
-            choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Compatibilite des jeux - analyse globale" --menu "Jeux : $total | clairs : $clear | ambigus restants : $remaining/$ambiguous | sans match : $none | manuels : $overrides\n\nSelectionnez un jeu a examiner. Annuler pour revenir." 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
+            choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Game compatibility - global scan' || printf 'Compatibilite des jeux - analyse globale')" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Games: %s | clear: %s | ambiguous remaining: %s/%s | no match: %s | manual: %s\n\nSelect a game to review. Cancel to return.' "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides" || printf 'Jeux : %s | clairs : %s | ambigus restants : %s/%s | sans match : %s | manuels : %s\n\nSelectionnez un jeu a examiner. Annuler pour revenir.' "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides")" 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
         else
             awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS"' "$list"
             printf "\nNumero : "; read -r choice
@@ -2962,15 +2989,15 @@ gameid_override_menu() {
             IFS="$tab" read -r idx title path <<< "$selected"
             associate_game "$title" "$path" ;;
           3)
-            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="Aucune association manuelle."; msg "Associations manuelles" "$list" ;;
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'No manual association.' || printf 'Aucune association manuelle.')"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Manual associations' || printf 'Associations manuelles')" "$list" ;;
           4)
-            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { msg "Associations manuelles" "Aucune association manuelle."; continue; }
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Manual associations" "No manual association."; else msg "Associations manuelles" "Aucune association manuelle."; fi; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
                 choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Delete an association" || printf "Supprimer une association")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the association to delete." || printf "Choisissez l association a supprimer.")" 28 105 18 "${dopts[@]}")" || continue
             else printf "%s\n" "$list"; printf "\nNumero : "; read -r choice; fi
-            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; else msg "Erreur" "Suppression impossible."; fi ;;
+            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Association deleted" "The game will use automatic detection again."; else msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; fi; else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to delete."; else msg "Erreur" "Suppression impossible."; fi; fi ;;
           0|"") return ;;
         esac
     done
