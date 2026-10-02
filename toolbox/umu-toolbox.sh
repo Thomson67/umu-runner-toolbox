@@ -125,7 +125,13 @@ tr_ui() {
         "Desinstallation") s="Uninstall" ;;
         "Retour") s="Back" ;;
         "Exporter / partager un runner") s="Export / share a runner" ;;
+        "Creer un package partageable/autonome (recommande)") s="Create a shareable/standalone package (recommended)" ;;
+        "Exporter le runner seul (.tar.xz)") s="Export the runner only (.tar.xz)" ;;
         "Compatibilite des jeux") s="Game compatibility" ;;
+        "Analyser tous les jeux") s="Scan all games" ;;
+        "Associer / modifier un jeu") s="Associate / edit a game" ;;
+        "Afficher les associations manuelles") s="Show manual associations" ;;
+        "Supprimer une association") s="Delete an association" ;;
         "Documentation / A propos") s="Documentation / About" ;;
         "Mise a jour Toolbox") s="Toolbox update" ;;
         "Runner installe") s="Runner installed" ;;
