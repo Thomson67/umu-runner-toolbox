@@ -291,4 +291,9 @@ I18N=(
   [umu_update]="Update UMU"
   [download_failed_simple]="Download failed."
   [archive_extract_failed]="Unable to extract the archive."
+  [status_title]="Installation status"
+  [runtime_present]="present"
+  [runtime_missing_lazy]="missing (will be downloaded by UMU if needed)"
+  [none_parenthesized]="(none)"
+  [status_body]="Toolbox: v%s\\nBatocera UMU integration: v%s\\n\\nUMU: %s\\nUMU Steam Runtime: %s\\n\\nInstalled UMU runners:\\n%s\\n\\nPROTECTED / OK: valid integrity reference\\nMODIFIED: critical files differ\\nUNMANAGED: no integrity reference created yet\\n\\nToolbox logs:\\n%s"
 )
