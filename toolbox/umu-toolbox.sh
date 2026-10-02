@@ -2047,28 +2047,24 @@ upgrade_integration() {
     local auto="${1:-0}"
     local runners r base changed=0 skipped="" upgraded="" failed="" tmpstage
     runners="$(installed_runners)"
-    [ -n "$runners" ] || { msg "Integration v$INTEGRATION_VERSION" "Aucun runner UMU installe."; return; }
+    [ -n "$runners" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Integration v$INTEGRATION_VERSION" "No UMU runner installed."; else msg "Integration v$INTEGRATION_VERSION" "Aucun runner UMU installe."; fi; return; }
 
     if umu_process_active; then
         log "integration_upgrade=deferred reason=umu_process_activity"
-        msg "Integration v$INTEGRATION_VERSION" \
-"Migration reportee : un processus UMU/Wine est encore actif.
-
-Aucun runner n'a ete modifie.
-
-Fermez le jeu (ou utilisez le diagnostic de protection si une ancienne session est bloquee), puis relancez :
-Maintenance > Reparer / mettre a niveau l'integration UMU."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Integration v$INTEGRATION_VERSION" "Upgrade deferred: an UMU/Wine process is still active.\n\nNo runner was modified.\n\nClose the game (or use the protection diagnostics if an old session is stuck), then run:\nMaintenance > Repair / upgrade UMU integration."
+        else
+            msg "Integration v$INTEGRATION_VERSION" "Migration reportee : un processus UMU/Wine est encore actif.\n\nAucun runner n'a ete modifie.\n\nFermez le jeu (ou utilisez le diagnostic de protection si une ancienne session est bloquee), puis relancez :\nMaintenance > Reparer / mettre a niveau l'integration UMU."
+        fi
         return 2
     fi
 
     if [ "$auto" != "1" ]; then
-        if ! yesno "Installer l'integration v$INTEGRATION_VERSION" \
-"Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.
-
-Les fichiers Wine/Proton upstream ne sont pas remplaces.
-Les runners deja MODIFIES sont refuses.
-
-Continuer ?"; then return; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            yesno "Install integration v$INTEGRATION_VERSION" "This operation replaces ONLY the Batocera integration files (bin/wine, bin/wine64, bin/wineserver and UMU bridge) for runners whose manifest is currently valid.\n\nUpstream Wine/Proton files are not replaced.\nRunners already marked MODIFIED are refused.\n\nContinue?" || return
+        else
+            yesno "Installer l'integration v$INTEGRATION_VERSION" "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.\n\nLes fichiers Wine/Proton upstream ne sont pas remplaces.\nLes runners deja MODIFIES sont refuses.\n\nContinuer ?" || return
+        fi
     fi
 
     while IFS= read -r r; do
@@ -2107,7 +2103,11 @@ Continuer ?"; then return; fi
         upgraded="$upgraded$r : v$INTEGRATION_VERSION OK\n"; changed=$((changed+1))
     done <<< "$runners"
     log "integration_upgrade=done changed=$changed"
-    msg "Integration v$INTEGRATION_VERSION" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nErreurs :\n${failed:-Aucune}\n\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Integration v$INTEGRATION_VERSION" "Runners upgraded: $changed\n\n${upgraded:-None}\nRefused / ignored:\n${skipped:-None}\nErrors:\n${failed:-None}\n\nIntegration v$INTEGRATION_VERSION automatically protects ALL *-UMU runners as read-only during every UMU launch."
+    else
+        msg "Integration v$INTEGRATION_VERSION" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nErreurs :\n${failed:-Aucune}\n\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
+    fi
 }
 
 scan_prefix_refs() {
@@ -2360,8 +2360,8 @@ export_shareable_package() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Creer un package partageable" \\
-            --menu "Le package contient le runner, un installateur autonome et la documentation. UMU sera installe/mis a jour depuis sa release officielle sur la machine cible." \\
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Create a shareable package' || printf 'Creer un package partageable')" \
+            --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'The package contains the runner, a standalone installer and documentation. UMU will be installed/updated from its official release on the target machine.' || printf '%s' 'Le package contient le runner, un installateur autonome et la documentation. UMU sera installe/mis a jour depuis sa release officielle sur la machine cible.')" \
             22 105 14 "${opts[@]}")" || return
     else
         clear
@@ -2788,19 +2788,30 @@ uninstall_menu() {
 
 
 clean_umu_logs() {
-    local tb rb total
+    local tb rb total f
     if umu_game_active; then
-        msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Log cleanup refused" "An UMU launch is currently active.\n\nClose the game before cleaning Runner logs so the complete session diagnostics are preserved."; else msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."; fi
         return
     fi
     mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
     tb="$(dir_bytes "$LOG_DIR")"; rb="$(dir_bytes "$RUNNER_LOG_DIR")"; total=$((tb + rb))
-    [ "$total" -gt 0 ] || { msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."; return; }
-    if ! yesno "Nettoyer les logs UMU" "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?"; then return; fi
+    if [ "$total" -le 0 ]; then
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Log cleanup" "UMU log directories are already empty."; else msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."; fi
+        return
+    fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        yesno "Clean UMU logs" "Toolbox logs: $(human_bytes "$tb")\nRunner logs: $(human_bytes "$rb")\nTotal: $(human_bytes "$total")\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
+    else
+        yesno "Nettoyer les logs UMU" "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
+    fi
     find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
-    find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" ! -samefile "$LOG" -delete 2>/dev/null || true
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        [ "$f" = "$LOG" ] && continue
+        rm -f -- "$f" 2>/dev/null || true
+    done < <(find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -print 2>/dev/null)
     log "umu_logs_cleanup=done bytes_before=$total"
-    msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Log cleanup" "UMU logs cleaned.\n\nPreviously used space: $(human_bytes "$total")\nThe current Toolbox log was preserved."; else msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."; fi
 }
 
 associate_game() {
