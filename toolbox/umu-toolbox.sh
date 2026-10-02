@@ -1926,42 +1926,66 @@ runtime_protection_status() {
 verify_install() {
     local report="" r base integ appid runtime codename rdir opts active=0
     umu_process_active && active=1 || true
-    if [ -s "$UMU_RUN" ] && umu_run_works; then report="$report[OK] umu-run : $(umu_version)\n"; elif [ -s "$UMU_RUN" ]; then report="$report[KO] umu-run present mais non fonctionnel\n"; else report="$report[KO] umu-run absent\n"; fi
-    report="$report\nSteam Runtime :\n"
+
+    if [ -s "$UMU_RUN" ] && umu_run_works; then
+        report="$(i18n diag_umu_ok "$(umu_version)")\\n"
+    elif [ -s "$UMU_RUN" ]; then
+        report="$(i18n diag_umu_broken)\\n"
+    else
+        report="$(i18n diag_umu_missing)\\n"
+    fi
+
+    report="$report\\n$(i18n diag_runtime_section)\\n"
     local runtime_seen=""
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         base="$CUSTOM_DIR/$r"
-        appid="$(sed -n 's/.*"require_tool_appid"[[:space:]]*"*\([0-9][0-9]*\)"*.*/\1/p' "$base/toolmanifest.vdf" 2>/dev/null | head -n1)"
+        appid="$(sed -n 's/.*"require_tool_appid"[[:space:]]*"*\\([0-9][0-9]*\\)"*.*/\\1/p' "$base/toolmanifest.vdf" 2>/dev/null | head -n1)"
         case "$appid" in
             1391110) codename="soldier"; runtime="steamrt2" ;;
             1628350) codename="sniper"; runtime="steamrt3" ;;
             4183110) codename="steamrt4"; runtime="steamrt4" ;;
             4185400) codename="steamrt4-arm64"; runtime="steamrt4-arm64" ;;
-            "") report="$report[INFO] $r : aucun Steam Runtime declare\n"; continue ;;
-            *) report="$report[ALERTE] $r : runtime appid $appid non reconnu\n"; continue ;;
+            "") report="$report$(i18n diag_runtime_none "$r")\\n"; continue ;;
+            *) report="$report$(i18n diag_runtime_unknown "$r" "$appid")\\n"; continue ;;
         esac
         case " $runtime_seen " in *" $runtime "*) continue ;; esac
-        runtime_seen="$runtime_seen $runtime"; rdir="$UMU_DIR/home/.local/share/umu/$runtime"
-        if [ -d "$rdir" ] && [ -s "$rdir/mtree.txt.gz" ] && [ -s "$rdir/VERSIONS.txt" ] && [ -d "$rdir/pressure-vessel" ] && [ -e "$rdir/_v2-entry-point" ]; then report="$report[OK] $runtime / $codename present\n"; else report="$report[KO] $runtime / $codename absent ou incomplet\n"; fi
+        runtime_seen="$runtime_seen $runtime"
+        rdir="$UMU_DIR/home/.local/share/umu/$runtime"
+        if [ -d "$rdir" ] && [ -s "$rdir/mtree.txt.gz" ] && [ -s "$rdir/VERSIONS.txt" ] && [ -d "$rdir/pressure-vessel" ] && [ -e "$rdir/_v2-entry-point" ]; then
+            report="$report$(i18n diag_runtime_present "$runtime" "$codename")\\n"
+        else
+            report="$report$(i18n diag_runtime_incomplete "$runtime" "$codename")\\n"
+        fi
     done <<< "$(installed_runners)"
-    [ -n "$runtime_seen" ] || report="$report[INFO] Aucun Steam Runtime requis par les runners installes\n"
-    report="$report\nRunners / integrite / protection :\n"
+    [ -n "$runtime_seen" ] || report="$report$(i18n diag_runtime_not_required)\\n"
+
+    report="$report\\n$(i18n diag_runners_section)\\n"
     while IFS= read -r r; do
-        [ -n "$r" ] || continue; base="$CUSTOM_DIR/$r"
-        if [ ! -s "$base/proton" ] || [ ! -x "$base/bin/wine" ] || [ ! -s "$base/files/bin/wine" ]; then report="$report[KO] $r : incomplet\n"; continue; fi
+        [ -n "$r" ] || continue
+        base="$CUSTOM_DIR/$r"
+        if [ ! -s "$base/proton" ] || [ ! -x "$base/bin/wine" ] || [ ! -s "$base/files/bin/wine" ]; then
+            report="$report$(i18n diag_runner_incomplete "$r")\\n"
+            continue
+        fi
         integ="$(runner_integrity_label "$base")"
         if runner_has_runtime_mount "$base"; then
             opts="$(findmnt -rn -o OPTIONS -M "$base" 2>/dev/null || true)"
-            case ",$opts," in *,ro,*) [ "$active" -eq 1 ] && opts="RO actif" || opts="RO ORPHELIN" ;; *) opts="MONTAGE RW" ;; esac
-        else opts="normal"; fi
+            case ",$opts," in
+                *,ro,*) [ "$active" -eq 1 ] && opts="$(i18n diag_mount_ro_active)" || opts="$(i18n diag_mount_ro_orphan)" ;;
+                *) opts="$(i18n diag_mount_rw)" ;;
+            esac
+        else
+            opts="$(i18n diag_mount_normal)"
+        fi
         case "$integ" in
-            "PROTEGE / OK") report="$report[OK] $r : integrite valide | protection $opts\n" ;;
-            "MODIFIE") report="$report[ALERTE] $r : FICHIERS CRITIQUES MODIFIES | protection $opts\n" ;;
-            *) report="$report[INFO] $r : non manage | protection $opts\n" ;;
+            "PROTEGE / OK") report="$report$(i18n diag_runner_ok "$r" "$opts")\\n" ;;
+            "MODIFIE") report="$report$(i18n diag_runner_modified "$r" "$opts")\\n" ;;
+            *) report="$report$(i18n diag_runner_unmanaged "$r" "$opts")\\n" ;;
         esac
     done <<< "$(installed_runners)"
-    report="$report\nPolitique immutable : protection RO automatique pendant les jeux UMU.\nLogs : 20 fichiers max / 30 jours max par categorie.\n$LOG_DIR\n$RUNNER_LOG_DIR"
+
+    report="$report\\n$(i18n diag_footer "$LOG_DIR" "$RUNNER_LOG_DIR")"
     msg "$(i18n diagnostic_full)" "$report"
 }
 
