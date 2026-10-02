@@ -481,7 +481,7 @@ PY2
             return 1
         fi
         cp "$newrun" "$tmp/umu-run"
-        if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
+        if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum >>"$LOG" 2>&1); then
             rm -rf "$tmp"
             msg "$(i18n umu_install_failed)" "$(i18n umu_checksum_invalid)"
             return 1
@@ -945,13 +945,7 @@ install_gdk() {
         return
     fi
 
-    if ! yesno "$(i18n install_named "$name-UMU")" \
-"Le runner sera construit dans une zone temporaire puis controle avant installation.
-
-Destination :
-$target
-
-Continuer ?"; then
+    if ! yesno "$(i18n install_named "$name-UMU")" "$(i18n install_confirm_basic "$target")"; then
         rm -rf "$tmp"
         return
     fi
@@ -1126,15 +1120,7 @@ install_cachy() {
     target="$CUSTOM_DIR/${name}-UMU"
     if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(i18n runner_protected)" "$(i18n runner_exists_body "$name-UMU")"; return; fi
 
-    if ! yesno "$(i18n install_named "$name-UMU")" \
-"Source : Proton-CachyOS SLR x86_64
-Verification : SHA-512 upstream lorsque disponible
-Destination :
-$target
-
-Aucun runner existant ne sera modifie.
-
-Continuer ?"; then rm -rf "$tmp"; return; fi
+    if ! yesno "$(i18n install_named "$name-UMU")" "$(i18n install_confirm_source "Proton-CachyOS SLR x86_64" "$(i18n verify_upstream_sha512)" "$target")"; then rm -rf "$tmp"; return; fi
     if ! ensure_umu_for_runner; then rm -rf "$tmp"; return; fi
 
     local stage tarname sumname extracted candidate
@@ -1147,7 +1133,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     if [ -n "$sumurl" ]; then
         sumname="$(basename "$sumurl")"
         echo "$(i18n verify_upstream_sha512)"
-        if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname"); then
+        if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname" >>"$LOG" 2>&1); then
             rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n checksum_invalid_sha512)"; return
         fi
     else
@@ -1286,15 +1272,7 @@ install_em() {
         msg "$(i18n proton_not_installable "Proton-EM")" "$(i18n checksum_required_sha256 "$tag")"
         return
     fi
-    if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$name-UMU")" \
-"Source : BananaWorks07/Proton ($tag)
-Verification : SHA-256 upstream obligatoire
-Destination :
-$target
-
-Aucun runner existant ne sera modifie.
-
-Continuer ?"; then rm -rf "$tmp"; return; fi
+    if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$name-UMU")" "$(i18n install_confirm_source "BananaWorks07/Proton ($tag)" "$(i18n verify_sha256_upstream_required)" "$target")"; then rm -rf "$tmp"; return; fi
     if ! ensure_umu_for_runner; then rm -rf "$tmp"; return; fi
 
     local stage tarname sumname extracted candidate
@@ -1309,7 +1287,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n checksum_download_sha256_failed)"; return
     fi
-    if ! (cd "$stage/download" && sha256sum -c "$sumname"); then
+    if ! (cd "$stage/download" && sha256sum -c "$sumname" >>"$LOG" 2>&1); then
         # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
         local expected actual
         expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
@@ -1448,15 +1426,7 @@ install_dw() {
         msg "$(i18n proton_not_installable "DW-Proton")" "$(i18n checksum_required_sha512 "$tag")"
         return
     fi
-    if ! yesno "$(i18n install_named "$name-UMU")" \
-"Source : dawn-winery/dwproton-mirror ($tag)
-Verification : SHA-512 upstream obligatoire
-Destination :
-$target
-
-Aucun runner existant ne sera modifie.
-
-Continuer ?"; then rm -rf "$tmp"; return; fi
+    if ! yesno "$(i18n install_named "$name-UMU")" "$(i18n install_confirm_source "dawn-winery/dwproton-mirror ($tag)" "$(i18n verify_sha512_upstream_required)" "$target")"; then rm -rf "$tmp"; return; fi
     if ! ensure_umu_for_runner; then rm -rf "$tmp"; return; fi
 
     local stage tarname sumname extracted candidate
@@ -1649,15 +1619,7 @@ Pour remplacer exceptionnellement ce runner, archivez-le d'abord depuis le menu 
         return
     fi
 
-    if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$tag-UMU")" \
-"Le runner sera construit dans une zone temporaire puis controle avant installation.
-
-Destination finale :
-$target
-
-Aucun runner existant ne sera modifie.
-
-Continuer ?"; then
+    if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$tag-UMU")" "$(i18n install_confirm_basic "$target")"; then
         rm -rf "$tmp"
         return
     fi
