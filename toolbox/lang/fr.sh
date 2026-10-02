@@ -1,0 +1,28 @@
+# UMU Runner Toolbox - Francais
+# shellcheck shell=bash
+declare -A I18N=(
+  [runner_error]="Erreur %s"
+  [runner_unexpected_structure]="Structure %s inattendue. Rien n'a ete installe."
+  [runner_integrity_failed]="Controle d'integrite du runner prepare impossible."
+  [runner_finalize_failed]="Impossible de finaliser l'installation."
+  [runner_exists]="%s existe deja. Aucune reinstallation sur place n'est autorisee."
+  [runner_conflict]="%s est apparu pendant l'installation."
+  [download_failed]="Echec du telechargement."
+  [extraction_failed]="Extraction impossible."
+  [xz_extraction_failed]="Extraction XZ impossible."
+  [checksum_github_sha256_invalid]="Checksum SHA256 GitHub invalide. Rien n'a ete installe."
+  [checksum_upstream_sha256_invalid]="Checksum SHA-256 upstream invalide. Rien n'a ete installe."
+  [checksum_upstream_sha512_invalid]="Checksum SHA-512 upstream invalide. Rien n'a ete installe."
+  [runner_installed]="Runner installe"
+  [runner_installed_body]="%s est installe comme NOUVEAU runner.\n\nFamille : %s\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+  [runner_installed_build_body]="%s est installe comme NOUVEAU runner.\n\nFamille : %s\nBuild : %s\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+  [runner_installed_release_body]="%s est installe comme NOUVEAU runner.\n\nFamille : %s\nRelease : %s\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+  [ge_runner_installed_body]="%s est installe comme NOUVEAU runner.\n\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE\n\nApres validation en jeu, utilisez :\nProteger / valider un runner\npour le marquer comme connu fonctionnel.\n\nUne autre version GE-Proton-UMU ne modifiera jamais ce dossier."
+  [downloading]="Telechargement de %s..."
+  [downloading_build]="Telechargement de %s (%s)..."
+  [extracting_staging]="Extraction en staging..."
+  [atomic_install]="Installation atomique de %s..."
+  [steamrt_prepare]="Preparation du Steam Runtime requis..."
+  [steamrt_title]="Steam Runtime"
+  [steamrt_failed]="Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne."
+)
