@@ -2767,34 +2767,44 @@ umu_uninstall_active() {
 
 uninstall_toolbox_only() {
     if umu_game_active; then
-        msg "Desinstallation refusee" "Un lancement UMU ou un montage de prefixe est encore actif.\n\nFermez d'abord le jeu puis recommencez."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall refused" "An UMU launch or prefix mount is still active.\n\nClose the game first, then try again."; else msg "Desinstallation refusee" "Un lancement UMU ou un montage de prefixe est encore actif.\n\nFermez d abord le jeu puis recommencez."; fi
         return
     fi
-    if ! yesno "Desinstaller la Toolbox" "La Toolbox va etre supprimee.\n\nSeront conserves :\n- UMU et son runtime ;\n- les runners *-UMU ;\n- les prefixes, compatdata et sauvegardes.\n\nLe Port et son fichier Pad2Key seront egalement retires.\n\nContinuer ?"; then
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        yesno "Uninstall Toolbox" "The Toolbox will be removed.\n\nThe following will be kept:\n- UMU and its runtime;\n- *-UMU runners;\n- prefixes, compatdata and backups.\n\nThe Port entry and its Pad2Key file will also be removed.\n\nContinue?" || return
+    else
+        yesno "Desinstaller la Toolbox" "La Toolbox va etre supprimee.\n\nSeront conserves :\n- UMU et son runtime ;\n- les runners *-UMU ;\n- les prefixes, compatdata et sauvegardes.\n\nLe Port et son fichier Pad2Key seront egalement retires.\n\nContinuer ?" || return
+    fi
+    if false; then
         return
     fi
     toolbox_files_cleanup
     log "toolbox_uninstall=toolbox_only"
-    msg "Toolbox desinstallee" "La Toolbox, son Port et son mapping Pad2Key ont ete supprimes.\n\nUMU et les runners UMU sont conserves."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Toolbox uninstalled" "The Toolbox, its Port entry and Pad2Key mapping were removed.\n\nUMU and the UMU runners were kept."; else msg "Toolbox desinstallee" "La Toolbox, son Port et son mapping Pad2Key ont ete supprimes.\n\nUMU et les runners UMU sont conserves."; fi
 }
 
 uninstall_umu_and_runners() {
     local runners
     runners="$(installed_runners)"
     if umu_uninstall_active; then
-        msg "Desinstallation refusee" "Un processus UMU/Wine utilisant un runner UMU ou un montage associe est encore actif.\n\nFermez d'abord le jeu puis recommencez."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall refused" "An UMU/Wine process using an UMU runner or associated mount is still active.\n\nClose the game first, then try again."; else msg "Desinstallation refusee" "Un processus UMU/Wine utilisant un runner UMU ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez."; fi
         return
     fi
     if [ -n "$runners" ]; then
         runners="$(printf '%s\n' "$runners" | sed 's/^/- /')"
     else
-        runners="- Aucun runner *-UMU detecte"
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then runners="- No *-UMU runner detected"; else runners="- Aucun runner *-UMU detecte"; fi
     fi
-    if ! yesno "Desinstaller UMU + runners" "Cette operation va supprimer :\n\nUMU et ses donnees :\n- umu-run\n- runtime Steam Runtime UMU\n- compatdata / merged-prefixes\n- home / cache / exports\n- sauvegardes UMU\n\nRunners qui seront supprimes :\n$runners\n\nLa Toolbox sera CONSERVEE.\nLes runners classiques ne seront PAS touches.\n\nContinuer ?"; then
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        yesno "Uninstall UMU + runners" "This operation will remove:\n\nUMU and its data:\n- umu-run\n- UMU Steam Runtime\n- compatdata / merged-prefixes\n- home / cache / exports\n- UMU backups\n\nRunners to be removed:\n$runners\n\nThe Toolbox will be KEPT.\nClassic runners will NOT be touched.\n\nContinue?" || return
+    else
+        yesno "Desinstaller UMU + runners" "Cette operation va supprimer :\n\nUMU et ses donnees :\n- umu-run\n- runtime Steam Runtime UMU\n- compatdata / merged-prefixes\n- home / cache / exports\n- sauvegardes UMU\n\nRunners qui seront supprimes :\n$runners\n\nLa Toolbox sera CONSERVEE.\nLes runners classiques ne seront PAS touches.\n\nContinuer ?" || return
+    fi
+    if false; then
         return
     fi
     if umu_uninstall_active; then
-        msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n'a ete effectuee."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall cancelled" "UMU activity was detected immediately before deletion. Nothing was removed."; else msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee."; fi
         return
     fi
     while IFS= read -r r; do
@@ -2806,19 +2816,24 @@ uninstall_umu_and_runners() {
     fi
     mkdir -p "$UMU_DIR"
     log "umu_uninstall=umu_and_runners"
-    msg "UMU desinstalle" "UMU et les runners *-UMU ont ete supprimes.\n\nLa Toolbox a ete conservee.\n\nLes runners classiques Batocera n'ont pas ete touches."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "UMU uninstalled" "UMU and the *-UMU runners were removed.\n\nThe Toolbox was kept.\n\nClassic Batocera runners were not touched."; else msg "UMU desinstalle" "UMU et les runners *-UMU ont ete supprimes.\n\nLa Toolbox a ete conservee.\n\nLes runners classiques Batocera n ont pas ete touches."; fi
 }
 
 uninstall_everything() {
     if umu_uninstall_active; then
-        msg "Desinstallation refusee" "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d'abord le jeu puis recommencez."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall refused" "An UMU/Wine launch or associated mount is still active.\n\nClose the game first, then try again."; else msg "Desinstallation refusee" "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez."; fi
         return
     fi
-    if ! yesno "Desinstallation complete" "Cette operation va supprimer :\n\n- la Toolbox ;\n- le Port et son mapping Pad2Key ;\n- UMU ;\n- le runtime Steam Runtime UMU ;\n- tous les runners *-UMU ;\n- les prefixes et donnees UMU ;\n- les sauvegardes UMU ;\n- les exports UMU.\n\nLes runners classiques Wine/Proton/TKG/Kron4ek ne seront PAS touches.\n\nCette operation est destructive. Continuer ?"; then
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        yesno "Complete uninstall" "This operation will remove:\n\n- the Toolbox;\n- the Port entry and Pad2Key mapping;\n- UMU;\n- the UMU Steam Runtime;\n- all *-UMU runners;\n- UMU prefixes and data;\n- UMU backups;\n- UMU exports.\n\nClassic Wine/Proton/TKG/Kron4ek runners will NOT be touched.\n\nThis operation is destructive. Continue?" || return
+    else
+        yesno "Desinstallation complete" "Cette operation va supprimer :\n\n- la Toolbox ;\n- le Port et son mapping Pad2Key ;\n- UMU ;\n- le runtime Steam Runtime UMU ;\n- tous les runners *-UMU ;\n- les prefixes et donnees UMU ;\n- les sauvegardes UMU ;\n- les exports UMU.\n\nLes runners classiques Wine/Proton/TKG/Kron4ek ne seront PAS touches.\n\nCette operation est destructive. Continuer ?" || return
+    fi
+    if false; then
         return
     fi
     if umu_uninstall_active; then
-        msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n'a ete effectuee."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall cancelled" "UMU activity was detected immediately before deletion. Nothing was removed."; else msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee."; fi
         return
     fi
     while IFS= read -r r; do
@@ -2830,7 +2845,7 @@ uninstall_everything() {
         rm -rf -- "$UMU_DIR"
     fi
     log "uninstall=complete"
-    msg "Desinstallation complete" "La Toolbox, UMU et les runners *-UMU ont ete supprimes.\n\nLes runners classiques et vos fichiers de jeux externes n'ont pas ete touches."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Complete uninstall" "The Toolbox, UMU and all *-UMU runners were removed.\n\nClassic runners and your external game files were not touched."; else msg "Desinstallation complete" "La Toolbox, UMU et les runners *-UMU ont ete supprimes.\n\nLes runners classiques et vos fichiers de jeux externes n ont pas ete touches."; fi
 }
 
 uninstall_menu() {
