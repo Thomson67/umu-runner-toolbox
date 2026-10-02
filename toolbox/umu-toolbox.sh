@@ -1197,6 +1197,7 @@ PY_EM
 }
 
 install_em() {
+    local requested="${1:-}" noninteractive="${2:-0}"
     require_net || return
     local tmp json menu_file
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/em-list.XXXXXX")"
@@ -1229,7 +1230,9 @@ install_em() {
         opts+=("$name" "$state")
     done < "$menu_file"
 
-    if command -v dialog >/dev/null 2>&1; then
+    if [ -n "$requested" ]; then
+        name="${requested%-UMU}"
+    elif command -v dialog >/dev/null 2>&1; then
         name="$(dialog --stdout --title "Installer Proton-EM + UMU" \
           --menu "Releases officielles BananaWorks07/Proton. Installation immutable." \
           24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
@@ -1245,14 +1248,17 @@ install_em() {
     tarurl="$(printf '%s' "$line" | cut -f3)"
     sumurl="$(printf '%s' "$line" | cut -f4)"
     target="$CUSTOM_DIR/${name}-UMU"
-    if [ -e "$target" ]; then rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return; fi
+    if [ -e "$target" ]; then
+        if [ "$noninteractive" = "1" ] && verify_runner_manifest "$target"; then rm -rf "$tmp"; echo "already-installed: $name-UMU"; return 0; fi
+        rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return 2
+    fi
 
     if [ -z "$sumurl" ]; then
         rm -rf "$tmp"
         msg "Proton-EM non installable" "Cette release ($tag) ne fournit pas de checksum SHA-256 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee."
         return
     fi
-    if ! yesno "Installer $name-UMU" \
+    if [ "$noninteractive" != "1" ] && ! yesno "Installer $name-UMU" \
 "Source : BananaWorks07/Proton ($tag)
 Verification : SHA-256 upstream obligatoire
 Destination :
@@ -1505,6 +1511,7 @@ install_runner_menu() {
 }
 
 install_ge() {
+    local requested="${1:-}" noninteractive="${2:-0}"
     require_net || return
 
     local tmp pages menu_file
@@ -1542,7 +1549,9 @@ install_ge() {
     opts+=("MANUAL" "Saisir un tag exact (ex: GE-Proton11-4)")
 
     local tag
-    if command -v dialog >/dev/null 2>&1; then
+    if [ -n "$requested" ]; then
+        tag="${requested%-UMU}"
+    elif command -v dialog >/dev/null 2>&1; then
         tag="$(dialog --stdout --title "Installer GE-Proton + UMU" \
             --menu "Installation immutable : un runner existant ne sera jamais remplace." \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
@@ -1557,7 +1566,12 @@ install_ge() {
     [ -n "$tag" ] || { rm -rf "$tmp"; return; }
 
     local line tarurl sumurl tag_json
-    if [ "$tag" = "MANUAL" ]; then
+    if [ -n "$requested" ]; then
+        if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then rm -rf "$tmp"; msg "Tag invalide" "Format attendu : GE-Proton11-4"; return 2; fi
+        tag_json="$tmp/tag.json"
+        if ! fetch_ge_tag "$tag" "$tag_json"; then rm -rf "$tmp"; msg "Release introuvable" "$tag n'a pas ete trouve sur GitHub."; return 3; fi
+        line="$(resolve_ge_tag "$tag" "$tag_json")"
+    elif [ "$tag" = "MANUAL" ]; then
         tag="$(input_box "Version GE-Proton" "Saisissez le tag exact, par exemple GE-Proton11-4 :" "GE-Proton11-4")" || {
             rm -rf "$tmp"; return;
         }
@@ -1596,6 +1610,7 @@ install_ge() {
     # IMMUTABLE POLICY: never touch an existing runner.
     if [ -e "$target" ]; then
         rm -rf "$tmp"
+        if [ "$noninteractive" = "1" ] && verify_runner_manifest "$target"; then rm -rf "$tmp"; echo "already-installed: $tag-UMU"; return 0; fi
         msg "Runner protege" \
 "$tag-UMU existe deja.
 
@@ -1606,7 +1621,7 @@ Pour remplacer exceptionnellement ce runner, archivez-le d'abord depuis le menu 
         return
     fi
 
-    if ! yesno "Installer $tag-UMU" \
+    if [ "$noninteractive" != "1" ] && ! yesno "Installer $tag-UMU" \
 "Le runner sera construit dans une zone temporaire puis controle avant installation.
 
 Destination finale :
@@ -2739,6 +2754,21 @@ main_menu() {
         esac
     done
 }
+install_runner_cli() {
+    local requested="${1:-}" base
+    [ -n "$requested" ] || { echo "Usage: $0 --install-runner <runner>" >&2; return 64; }
+    base="${requested%-UMU}"
+    case "$base" in
+        GE-Proton[0-9]*-[0-9]*) install_ge "$base" 1 ;;
+        proton-EM-*) install_em "$base" 1 ;;
+        *) echo "Runner non pris en charge par --install-runner : $requested" >&2; return 65 ;;
+    esac
+}
+if [ "${1:-}" = "--install-runner" ]; then
+    install_runner_cli "${2:-}"
+    exit $?
+fi
+
 sync_pad2key_mapping || log "pad2key_mapping=sync_failed"
 if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
     unset UMU_TOOLBOX_INSTALL_SYNC
