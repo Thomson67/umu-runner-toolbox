@@ -259,4 +259,6 @@ I18N=(
   [gpu_cache_kept]="Caches not deleted"
   [uninstall_menu]="Uninstall"
   [toolbox_installed]="UMU Runner Toolbox installed"
+  [uninstall_active_runner]="An UMU/Wine process using an UMU runner or associated mount is still active.\\n\\nClose the game first, then try again."
+  [first_install_title]="UMU Runner Toolbox installed"
 )
