@@ -613,6 +613,18 @@ runner_integrity_label() {
     fi
 }
 
+integrity_label_i18n() {
+    local label
+    label="$(runner_integrity_label "$1")"
+    case "$label" in
+        OK) i18n integrity_ok ;;
+        MODIFIE|MODIFIED) i18n integrity_modified ;;
+        "NON GERE"|UNMANAGED) i18n integrity_unmanaged ;;
+        ABSENT|MISSING) i18n integrity_missing ;;
+        *) i18n integrity_unknown ;;
+    esac
+}
+
 protect_runner() {
     local runners choice r state
     runners="$(installed_runners)"
@@ -2291,7 +2303,7 @@ export_runner() {
     local opts=() r
     while IFS= read -r r; do
         [ -n "$r" ] || continue
-        opts+=("$r" "$(tr_ui "$(runner_integrity_label "$CUSTOM_DIR/$r")")")
+        opts+=("$r" "$(integrity_label_i18n "$CUSTOM_DIR/$r")")
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
@@ -2381,7 +2393,7 @@ export_shareable_package() {
     local opts=() r
     while IFS= read -r r; do
         [ -n "$r" ] || continue
-        opts+=("$r" "$(tr_ui "$(runner_integrity_label "$CUSTOM_DIR/$r")")")
+        opts+=("$r" "$(integrity_label_i18n "$CUSTOM_DIR/$r")")
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
@@ -2570,7 +2582,7 @@ delete_installed_runner() {
     fi
     local opts=()
     while IFS= read -r r; do
-        [ -n "$r" ] && opts+=("$r" "$(tr_ui "$(runner_integrity_label "$CUSTOM_DIR/$r")")")
+        [ -n "$r" ] && opts+=("$r" "$(integrity_label_i18n "$CUSTOM_DIR/$r")")
     done <<< "$runners"
     if command -v dialog >/dev/null 2>&1; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
