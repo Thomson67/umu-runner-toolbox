@@ -310,6 +310,73 @@ tr_ui() {
     s="${s//Associations manuelles/Manual associations}"
     s="${s//Association supprimee/Association deleted}"
     s="${s//Suppression impossible./Unable to delete.}"
+    s="${s//Creer une reference/Create an integrity reference}"
+    s="${s//Aucun runner Proton-UMU gere installe./No managed Proton-UMU runner is installed.}"
+    s="${s//Erreur/Error}"
+    s="${s//Impossible de/Unable to}"
+    s="${s//Installation UMU impossible/UMU installation failed}"
+    s="${s//Installation du runner annulee/Runner installation cancelled}"
+    s="${s//Erreur UMU/UMU error}"
+    s="${s//Mise a jour UMU/UMU update}"
+    s="${s//Telechargement/Downloading}"
+    s="${s//Aucune sauvegarde UMU disponible./No UMU backup is available.}"
+    s="${s//Sauvegarde restauree./Backup restored.}"
+    s="${s//Release invalide/Invalid release}"
+    s="${s//Archive introuvable/Archive not found}"
+    s="${s//Runner protege/Protected runner}"
+    s="${s//existe deja. Aucune reinstallation sur place n'est autorisee./already exists. In-place reinstallation is not allowed.}"
+    s="${s//Echec du telechargement./Download failed.}"
+    s="${s//invalide. Rien n'a ete installe./is invalid. Nothing was installed.}"
+    s="${s//Extraction impossible./Extraction failed.}"
+    s="${s//Extraction XZ impossible./XZ extraction failed.}"
+    s="${s//Structure/Structure}"
+    s="${s//inattendue. Rien n'a ete installe./is unexpected. Nothing was installed.}"
+    s="${s//Controle d'integrite du runner prepare impossible./Unable to verify the prepared runner integrity.}"
+    s="${s//Conflit/Conflict}"
+    s="${s//est apparu pendant l'installation./appeared during installation.}"
+    s="${s//Installation atomique de/Atomic installation of}"
+    s="${s//Runner installe/Runner installed}"
+    s="${s//est installe comme NOUVEAU runner./is installed as a NEW runner.}"
+    s="${s//Famille :/Family:}"
+    s="${s//Statut :/Status:}"
+    s="${s//Integrite : PROTEGEE/Integrity: PROTECTED}"
+    s="${s//non installable/cannot be installed}"
+    s="${s//Cette release/This release}"
+    s="${s//ne fournit pas de checksum/does not provide an upstream checksum}"
+    s="${s//Pour preserver la verification d'integrite des runners UMU, son installation est desactivee./To preserve UMU runner integrity verification, installation is disabled.}"
+    s="${s//Tag invalide/Invalid tag}"
+    s="${s//Format attendu :/Expected format:}"
+    s="${s//Runner non pris en charge/Unsupported runner}"
+    s="${s//Release/Release}"
+    s="${s//Archive x86_64 introuvable/x86_64 archive not found}"
+    s="${s//Le runner a change pendant sa preparation. Installation annulee./The runner changed during preparation. Installation cancelled.}"
+    s="${s//Analyse du prefixe/Prefix analysis}"
+    s="${s//Protections runtime/Runtime protections}"
+    s="${s//Protection runtime/Runtime protection}"
+    s="${s//Protections RO orphelines/Orphaned RO protections}"
+    s="${s//Nettoyage annule/Cleanup cancelled}"
+    s="${s//Aucune protection RO orpheline detectee./No orphaned RO protection detected.}"
+    s="${s//Exporter un runner/Export a runner}"
+    s="${s//Runner introuvable/Runner not found}"
+    s="${s//Le controle d'integrite de/Integrity verification of}"
+    s="${s//a echoue. Aucun fichier n'a ete exporte./failed. No file was exported.}"
+    s="${s//La commande xz n'est pas disponible sur ce systeme./The xz command is not available on this system.}"
+    s="${s//Export termine/Export complete}"
+    s="${s//Export echoue/Export failed}"
+    s="${s//Suppression refusee/Deletion refused}"
+    s="${s//Supprimer un runner/Delete a runner}"
+    s="${s//Confirmer la suppression/Confirm deletion}"
+    s="${s//Runner supprime/Runner deleted}"
+    s="${s//Nettoyage UMU refuse/UMU cleanup refused}"
+    s="${s//Analyse du nettoyage UMU/UMU cleanup analysis}"
+    s="${s//Nettoyer les donnees runtime/Clean runtime data}"
+    s="${s//Caches graphiques (facultatif)/Graphics caches (optional)}"
+    s="${s//Caches non supprimes/Caches not deleted}"
+    s="${s//Caches graphiques/Graphics caches}"
+    s="${s//Aucune correspondance/No match}"
+    s="${s//Aucun GAMEID candidat trouve pour :/No GAMEID candidate found for:}"
+    s="${s//gamelist Windows introuvable :/Windows gamelist not found:}"
+    s="${s//Impossible de lire le gamelist./Unable to read the gamelist.}"
     printf '%s' "$s"
 }
 
@@ -442,7 +509,7 @@ input_box() {
         clear
         echo "==== $(tr_ui "$title") ===="
         echo
-        echo "$prompt"
+        echo "$(tr_ui "$prompt")"
         printf "> "
         read -r value
         printf '%s' "${value:-$initial}"
@@ -569,7 +636,7 @@ protect_runner() {
     local runners choice r state
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Creer une reference" "Aucun runner Proton-UMU gere installe."
+        msg "$(tr_ui "Creer une reference")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"
         return
     fi
 
@@ -601,7 +668,7 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
     fi
 
     if ! write_manifest "$r"; then
-        msg "Erreur" "Impossible de creer le manifest d'integrite de $choice."
+        msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de creer le manifest d'integrite de $choice.")"
         return
     fi
     mkdir -p "$(runner_info_dir "$r")"
@@ -623,7 +690,7 @@ TOOLBOX_VERSION=$TOOLBOX_VERSION
 STATUS=validated
 VALIDATED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    msg "Reference creee" "$choice est maintenant reference. Cette empreinte ne sera plus remplacee par la Toolbox."
+    msg "$(tr_ui "Reference creee")" "$(tr_ui "$choice est maintenant reference. Cette empreinte ne sera plus remplacee par la Toolbox.")"
 }
 
 
@@ -681,7 +748,7 @@ install_umu_if_missing() {
     json="$tmp/release.json"
     if ! curl -fsSL --max-time 30 "https://api.github.com/repos/$UMU_REPO/releases/latest" -o "$json"; then
         rm -rf "$tmp"
-        msg "Installation UMU impossible" "Impossible de recuperer la derniere release officielle UMU.\n\nLe runner ne sera pas installe tant que umu-run n'est pas disponible."
+        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Impossible de recuperer la derniere release officielle UMU.\n\nLe runner ne sera pas installe tant que umu-run n'est pas disponible.")"
         return 1
     fi
 
@@ -711,42 +778,42 @@ PY2
 )"
     if [ -z "$tag" ] || [ -z "$asset" ]; then
         rm -rf "$tmp"
-        msg "Installation UMU impossible" "La derniere release UMU ne contient pas l'archive zipapp attendue."
+        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "La derniere release UMU ne contient pas l'archive zipapp attendue.")"
         return 1
     fi
     if ! curl -fL --progress-bar "$asset" -o "$tmp/umu-launcher.tar"; then
         rm -rf "$tmp"
-        msg "Installation UMU impossible" "Echec du telechargement de UMU $tag."
+        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Echec du telechargement de UMU $tag.")"
         return 1
     fi
     mkdir -p "$tmp/extracted"
     if ! tar -xf "$tmp/umu-launcher.tar" -C "$tmp/extracted"; then
         rm -rf "$tmp"
-        msg "Installation UMU impossible" "Impossible d'extraire UMU $tag."
+        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Impossible d'extraire UMU $tag.")"
         return 1
     fi
     newrun="$(find "$tmp/extracted" -type f -name umu-run -print -quit)"
     if [ -z "$newrun" ] || [ ! -s "$newrun" ]; then
         rm -rf "$tmp"
-        msg "Installation UMU impossible" "umu-run est absent de l'archive UMU $tag."
+        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "umu-run est absent de l'archive UMU $tag.")"
         return 1
     fi
     if [ -n "$checksum" ]; then
         if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
             rm -rf "$tmp"
-            msg "Installation UMU impossible" "Impossible de telecharger le checksum SHA512 de UMU."
+            msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Impossible de telecharger le checksum SHA512 de UMU.")"
             return 1
         fi
         cp "$newrun" "$tmp/umu-run"
         if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
             rm -rf "$tmp"
-            msg "Installation UMU impossible" "Le checksum SHA512 de UMU est invalide."
+            msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Le checksum SHA512 de UMU est invalide.")"
             return 1
         fi
     fi
     if ! python3 "$(root_bridge)" "$newrun" --version >/dev/null 2>&1; then
         rm -rf "$tmp"
-        msg "Installation UMU impossible" "La nouvelle copie de umu-run ne passe pas le test d'execution Batocera. Aucun remplacement n'a ete effectue."
+        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "La nouvelle copie de umu-run ne passe pas le test d'execution Batocera. Aucun remplacement n'a ete effectue.")"
         return 1
     fi
 
@@ -768,7 +835,7 @@ ensure_umu_for_runner() {
     if install_umu_if_missing; then
         return 0
     fi
-    msg "Installation du runner annulee" "UMU est indispensable pour installer et lancer un runner Proton-UMU.\n\nAucun runner n'a ete installe."
+    msg "$(tr_ui "Installation du runner annulee")" "$(tr_ui "UMU est indispensable pour installer et lancer un runner Proton-UMU.\n\nAucun runner n'a ete installe.")"
     return 1
 }
 
@@ -780,7 +847,7 @@ prepare_runtime_for_runner() {
     local rc=$?
     if [ "$rc" -ne 0 ]; then
         log "runtime_bootstrap=failed runner=$runner rc=$rc"
-        msg "Steam Runtime" "Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne."
+        msg "$(tr_ui "Steam Runtime")" "$(tr_ui "Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne.")"
         return "$rc"
     fi
     log "runtime_bootstrap=ok runner=$runner"
@@ -804,7 +871,7 @@ update_umu() {
 
     if ! fetch_latest_umu_json > "$json"; then
         rm -rf "$tmp"
-        msg "Erreur UMU" "Impossible de recuperer les informations de release UMU."
+        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Impossible de recuperer les informations de release UMU.")"
         return
     fi
 
@@ -835,14 +902,14 @@ PY
 
     if [ -z "$tag" ] || [ -z "$asset" ]; then
         rm -rf "$tmp"
-        msg "Erreur UMU" "Release UMU invalide ou asset zipapp introuvable."
+        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Release UMU invalide ou asset zipapp introuvable.")"
         return
     fi
 
     oldver="$(umu_version)"
     if printf '%s' "$oldver" | grep -q "^$tag"; then
         rm -rf "$tmp"
-        msg "UMU" "UMU $tag est deja installe."
+        msg "$(tr_ui "UMU")" "$(tr_ui "UMU $tag est deja installe.")"
         return
     fi
 
@@ -862,14 +929,14 @@ Installer UMU $tag ?"; then
     echo "Telechargement UMU $tag..."
     if ! curl -fL --progress-bar "$asset" -o "$tmp/umu-launcher.tar"; then
         rm -rf "$tmp"
-        msg "Erreur UMU" "Echec du telechargement."
+        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Echec du telechargement.")"
         return
     fi
 
     mkdir -p "$tmp/extracted"
     if ! tar -xf "$tmp/umu-launcher.tar" -C "$tmp/extracted"; then
         rm -rf "$tmp"
-        msg "Erreur UMU" "Impossible d'extraire l'archive."
+        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Impossible d'extraire l'archive.")"
         return
     fi
 
@@ -877,7 +944,7 @@ Installer UMU $tag ?"; then
     newrun="$(find "$tmp/extracted" -type f -name umu-run | head -n1)"
     if [ -z "$newrun" ] || [ ! -s "$newrun" ]; then
         rm -rf "$tmp"
-        msg "Erreur UMU" "umu-run est absent de l'archive."
+        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "umu-run est absent de l'archive.")"
         return
     fi
 
@@ -885,14 +952,14 @@ Installer UMU $tag ?"; then
         echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying SHA512...' || printf '%s' 'Verification SHA512...')"
         if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
             rm -rf "$tmp"
-            msg "Erreur UMU" "Impossible de telecharger le checksum."
+            msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Impossible de telecharger le checksum.")"
             return
         fi
         # The upstream checksum is for a file named umu-run.
         cp "$newrun" "$tmp/umu-run"
         if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
             rm -rf "$tmp"
-            msg "Erreur UMU" "Le checksum SHA512 de umu-run est invalide."
+            msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Le checksum SHA512 de umu-run est invalide.")"
             return
         fi
     fi
@@ -925,7 +992,7 @@ rollback_umu() {
     local files count
     files="$(find "$UMU_BACKUP" -maxdepth 1 -type f -name 'umu-run-*' -printf '%f\n' 2>/dev/null | sort -r)"
     if [ -z "$files" ]; then
-        msg "Rollback UMU" "Aucune sauvegarde UMU disponible."
+        msg "$(tr_ui "Rollback UMU")" "$(tr_ui "Aucune sauvegarde UMU disponible.")"
         return
     fi
 
@@ -946,12 +1013,12 @@ rollback_umu() {
     fi
     [ -n "$choice" ] || return
 
-    if yesno "Rollback UMU" "Restaurer $choice ?"; then
+    if yesno "$(tr_ui "Rollback UMU")" "$(tr_ui "Restaurer $choice ?")"; then
         cp -a "$UMU_BACKUP/$choice" "$UMU_RUN"
         chmod +x "$UMU_RUN"
         rm -f "$UMU_DIR/umu_run.py"
         ln -s umu-run "$UMU_DIR/umu_run.py"
-        msg "Rollback UMU" "Sauvegarde restauree.\n\nVersion active : $(umu_version)"
+        msg "$(tr_ui "Rollback UMU")" "$(tr_ui "Sauvegarde restauree.\n\nVersion active : $(umu_version)")"
     fi
 }
 
@@ -1167,14 +1234,14 @@ install_gdk() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GDK-Proton releases...' || printf '%s' 'Chargement des releases GDK-Proton...')"
     if ! fetch_gdk_releases "$json"; then
         rm -rf "$tmp"
-        msg "Erreur GDK-Proton" "Impossible de recuperer les releases GDK-Proton."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Impossible de recuperer les releases GDK-Proton.")"
         return
     fi
     menu_file="$tmp/menu.tsv"
     build_gdk_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "Erreur GDK-Proton" "Aucune release GDK-Proton compatible n'a ete trouvee."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Aucune release GDK-Proton compatible n'a ete trouvee.")"
         return
     fi
 
@@ -1204,14 +1271,14 @@ install_gdk() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
     tarurl="$(printf '%s' "$line" | cut -f2)"
     sha="$(printf '%s' "$line" | cut -f3)"
     target="$CUSTOM_DIR/${name}-UMU"
 
     if [ -e "$target" ]; then
         rm -rf "$tmp"
-        msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."
+        msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"
         return
     fi
 
@@ -1239,7 +1306,7 @@ Continuer ?"; then
     echo "Telechargement de $name..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GDK-Proton" "Echec du telechargement."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Echec du telechargement.")"
         return
     fi
 
@@ -1248,7 +1315,7 @@ Continuer ?"; then
         actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ "$actual" != "$sha" ]; then
             rm -rf "$tmp" "$stage"
-            msg "Erreur GDK-Proton" "Checksum SHA256 GitHub invalide. Rien n'a ete installe."
+            msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Checksum SHA256 GitHub invalide. Rien n'a ete installe.")"
             return
         fi
     else
@@ -1258,7 +1325,7 @@ Continuer ?"; then
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GDK-Proton" "Extraction impossible."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Extraction impossible.")"
         return
     fi
 
@@ -1267,7 +1334,7 @@ Continuer ?"; then
        [ ! -s "$extracted/files/bin/wine" ] ||
        [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GDK-Proton" "Structure GDK-Proton inattendue. Rien n'a ete installe."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Structure GDK-Proton inattendue. Rien n'a ete installe.")"
         return
     fi
 
@@ -1293,7 +1360,7 @@ EOF
 
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GDK-Proton" "Controle d'integrite du runner prepare impossible."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"
         return
     fi
 
@@ -1301,14 +1368,14 @@ EOF
 
     if [ -e "$target" ]; then
         rm -rf "$tmp" "$stage"
-        msg "Conflit" "$target est apparu pendant l'installation."
+        msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"
         return
     fi
 
     echo "Installation atomique de $name-UMU..."
     if ! mv "$candidate" "$target"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GDK-Proton" "Impossible de finaliser l'installation."
+        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Impossible de finaliser l'installation.")"
         return
     fi
 
@@ -1366,14 +1433,14 @@ install_cachy() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-CachyOS SLR releases...' || printf '%s' 'Chargement des releases Proton-CachyOS SLR...')"
     if ! fetch_cachy_releases "$json"; then
         rm -rf "$tmp"
-        msg "Erreur Proton-CachyOS" "Impossible de recuperer les releases Proton-CachyOS."
+        msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Impossible de recuperer les releases Proton-CachyOS.")"
         return
     fi
     menu_file="$tmp/menu.tsv"
     build_cachy_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "Erreur Proton-CachyOS" "Aucune release SLR x86_64 compatible n'a ete trouvee."
+        msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Aucune release SLR x86_64 compatible n'a ete trouvee.")"
         return
     fi
 
@@ -1395,11 +1462,11 @@ install_cachy() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
     tarurl="$(printf '%s' "$line" | cut -f2)"
     sumurl="$(printf '%s' "$line" | cut -f3)"
     target="$CUSTOM_DIR/${name}-UMU"
-    if [ -e "$target" ]; then rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return; fi
 
     if ! yesno "Installer $name-UMU" \
 "Source : Proton-CachyOS SLR x86_64
@@ -1417,23 +1484,23 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
     clear; echo "Telechargement de $name (SLR x86_64)..."
-    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Echec du telechargement."; return; fi
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Echec du telechargement.")"; return; fi
 
     if [ -n "$sumurl" ]; then
         sumname="$(basename "$sumurl")"
         echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname"); then
-            rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Checksum SHA512 upstream invalide. Rien n'a ete installe."; return
+            rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Checksum SHA512 upstream invalide. Rien n'a ete installe.")"; return
         fi
     else
         log "WARNING upstream SHA512 asset absent for $name"
     fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
-    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Extraction XZ impossible."; return; fi
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
-        rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Structure Proton-CachyOS inattendue. Rien n'a ete installe."; return
+        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Structure Proton-CachyOS inattendue. Rien n'a ete installe.")"; return
     fi
 
     candidate="$stage/candidate"
@@ -1453,15 +1520,15 @@ SOURCE_SHA512_FILE=${sumurl:-unavailable}
 STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Controle d'integrite du runner prepare impossible."; return; fi
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
-    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
     echo "Installation atomique de $name-UMU..."
-    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Impossible de finaliser l'installation."; return; fi
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=Proton-CachyOS asset=SLR-x86_64"
-    msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-CachyOS\nBuild : SLR x86_64\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    msg "$(tr_ui "Runner installe")" "$(tr_ui "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-CachyOS\nBuild : SLR x86_64\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE")"
 }
 
 fetch_em_releases() {
@@ -1509,14 +1576,14 @@ install_em() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-EM releases...' || printf '%s' 'Chargement des releases Proton-EM...')"
     if ! fetch_em_releases "$json"; then
         rm -rf "$tmp"
-        msg "Erreur Proton-EM" "Impossible de recuperer les releases Proton-EM."
+        msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de recuperer les releases Proton-EM.")"
         return
     fi
     menu_file="$tmp/menu.tsv"
     build_em_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "Erreur Proton-EM" "Aucune release Proton-EM .tar.xz compatible n'a ete trouvee."
+        msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Aucune release Proton-EM .tar.xz compatible n'a ete trouvee.")"
         return
     fi
 
@@ -1546,19 +1613,19 @@ install_em() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
     tag="$(printf '%s' "$line" | cut -f2)"
     tarurl="$(printf '%s' "$line" | cut -f3)"
     sumurl="$(printf '%s' "$line" | cut -f4)"
     target="$CUSTOM_DIR/${name}-UMU"
     if [ -e "$target" ]; then
         if [ "$noninteractive" = "1" ] && verify_runner_manifest "$target"; then rm -rf "$tmp"; echo "already-installed: $name-UMU"; return 0; fi
-        rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return 2
+        rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return 2
     fi
 
     if [ -z "$sumurl" ]; then
         rm -rf "$tmp"
-        msg "Proton-EM non installable" "Cette release ($tag) ne fournit pas de checksum SHA-256 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee."
+        msg "$(tr_ui "Proton-EM non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-256 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
         return
     fi
     if [ "$noninteractive" != "1" ] && ! yesno "Installer $name-UMU" \
@@ -1578,11 +1645,11 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     tarname="$(basename "$tarurl")"
     sumname="$(basename "$sumurl")"
     clear; echo "Telechargement de $name..."
-    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Echec du telechargement."; return; fi
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Echec du telechargement.")"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA256...' || printf '%s' 'Verification SHA256 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
-        rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Impossible de telecharger le checksum SHA-256 upstream."; return
+        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de telecharger le checksum SHA-256 upstream.")"; return
     fi
     if ! (cd "$stage/download" && sha256sum -c "$sumname"); then
         # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
@@ -1590,15 +1657,15 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
         actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-            rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Checksum SHA-256 upstream invalide. Rien n'a ete installe."; return
+            rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Checksum SHA-256 upstream invalide. Rien n'a ete installe.")"; return
         fi
     fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
-    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Extraction XZ impossible."; return; fi
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
-        rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Structure Proton-EM inattendue. Rien n'a ete installe."; return
+        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Structure Proton-EM inattendue. Rien n'a ete installe.")"; return
     fi
 
     candidate="$stage/candidate"
@@ -1619,15 +1686,15 @@ SOURCE_SHA256_FILE=$sumurl
 STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Controle d'integrite du runner prepare impossible."; return; fi
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
-    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
     echo "Installation atomique de $name-UMU..."
-    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Impossible de finaliser l'installation."; return; fi
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=Proton-EM tag=$tag"
-    msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-EM\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    msg "$(tr_ui "Runner installe")" "$(tr_ui "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-EM\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE")"
 }
 fetch_dw_releases() {
     local out="$1"
@@ -1676,14 +1743,14 @@ install_dw() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading DW-Proton releases...' || printf '%s' 'Chargement des releases DW-Proton...')"
     if ! fetch_dw_releases "$json"; then
         rm -rf "$tmp"
-        msg "Erreur DW-Proton" "Impossible de recuperer les releases DW-Proton."
+        msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de recuperer les releases DW-Proton.")"
         return
     fi
     menu_file="$tmp/menu.tsv"
     build_dw_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "Erreur DW-Proton" "Aucune release DW-Proton .tar.xz compatible n'a ete trouvee."
+        msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Aucune release DW-Proton .tar.xz compatible n'a ete trouvee.")"
         return
     fi
 
@@ -1711,16 +1778,16 @@ install_dw() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "Release invalide" "Archive introuvable pour $name."; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
     tag="$(printf '%s' "$line" | cut -f2)"
     tarurl="$(printf '%s' "$line" | cut -f3)"
     sumurl="$(printf '%s' "$line" | cut -f4)"
     target="$CUSTOM_DIR/${name}-UMU"
-    if [ -e "$target" ]; then rm -rf "$tmp"; msg "Runner protege" "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return; fi
 
     if [ -z "$sumurl" ]; then
         rm -rf "$tmp"
-        msg "DW-Proton non installable" "Cette release ($tag) ne fournit pas de checksum SHA-512 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee."
+        msg "$(tr_ui "DW-Proton non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-512 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
         return
     fi
     if ! yesno "Installer $name-UMU" \
@@ -1740,11 +1807,11 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     tarname="$(basename "$tarurl")"
     sumname="$(basename "$sumurl")"
     clear; echo "Telechargement de $name..."
-    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Echec du telechargement."; return; fi
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Echec du telechargement.")"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
-        rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Impossible de telecharger le checksum SHA-512 upstream."; return
+        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de telecharger le checksum SHA-512 upstream.")"; return
     fi
     if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
         # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
@@ -1752,15 +1819,15 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
         actual="$(sha512sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-            rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Checksum SHA-512 upstream invalide. Rien n'a ete installe."; return
+            rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Checksum SHA-512 upstream invalide. Rien n'a ete installe.")"; return
         fi
     fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
-    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Extraction XZ impossible."; return; fi
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
-        rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Structure DW-Proton inattendue. Rien n'a ete installe."; return
+        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Structure DW-Proton inattendue. Rien n'a ete installe.")"; return
     fi
 
     candidate="$stage/candidate"
@@ -1781,15 +1848,15 @@ SOURCE_SHA512_FILE=$sumurl
 STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Controle d'integrite du runner prepare impossible."; return; fi
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
-    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
     echo "Installation atomique de $name-UMU..."
-    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Impossible de finaliser l'installation."; return; fi
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=DW-Proton tag=$tag"
-    msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : DW-Proton\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    msg "$(tr_ui "Runner installe")" "$(tr_ui "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : DW-Proton\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE")"
 }
 
 install_runner_menu() {
@@ -1825,7 +1892,7 @@ install_ge() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GE-Proton releases...' || printf '%s' 'Chargement des releases GE-Proton...')"
     if ! fetch_ge_releases "$pages"; then
         rm -rf "$tmp"
-        msg "Erreur GE-Proton" "Impossible de recuperer les releases GE-Proton."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de recuperer les releases GE-Proton.")"
         return
     fi
 
@@ -1835,7 +1902,7 @@ install_ge() {
 
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "Erreur GE-Proton" "Aucune release x86_64 compatible n'a ete trouvee."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Aucune release x86_64 compatible n'a ete trouvee.")"
         return
     fi
 
@@ -1870,9 +1937,9 @@ install_ge() {
 
     local line tarurl sumurl tag_json
     if [ -n "$requested" ]; then
-        if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then rm -rf "$tmp"; msg "Tag invalide" "Format attendu : GE-Proton11-4"; return 2; fi
+        if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then rm -rf "$tmp"; msg "$(tr_ui "Tag invalide")" "$(tr_ui "Format attendu : GE-Proton11-4")"; return 2; fi
         tag_json="$tmp/tag.json"
-        if ! fetch_ge_tag "$tag" "$tag_json"; then rm -rf "$tmp"; msg "Release introuvable" "$tag n'a pas ete trouve sur GitHub."; return 3; fi
+        if ! fetch_ge_tag "$tag" "$tag_json"; then rm -rf "$tmp"; msg "$(tr_ui "Release introuvable")" "$(tr_ui "$tag n'a pas ete trouve sur GitHub.")"; return 3; fi
         line="$(resolve_ge_tag "$tag" "$tag_json")"
     elif [ "$tag" = "MANUAL" ]; then
         tag="$(input_box "Version GE-Proton" "Saisissez le tag exact, par exemple GE-Proton11-4 :" "GE-Proton11-4")" || {
@@ -1880,13 +1947,13 @@ install_ge() {
         }
         if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then
             rm -rf "$tmp"
-            msg "Tag invalide" "Format attendu : GE-Proton11-4"
+            msg "$(tr_ui "Tag invalide")" "$(tr_ui "Format attendu : GE-Proton11-4")"
             return
         fi
         tag_json="$tmp/tag.json"
         if ! fetch_ge_tag "$tag" "$tag_json"; then
             rm -rf "$tmp"
-            msg "Release introuvable" "$tag n'a pas ete trouve sur GitHub."
+            msg "$(tr_ui "Release introuvable")" "$(tr_ui "$tag n'a pas ete trouve sur GitHub.")"
             return
         fi
         line="$(resolve_ge_tag "$tag" "$tag_json")"
@@ -1896,13 +1963,13 @@ install_ge() {
 
     if ge_tag_blocked "$tag"; then
         rm -rf "$tmp"
-        msg "Runner non pris en charge" "$tag est volontairement bloque par cette version de la Toolbox.\n\nGE-Proton10-30 a GE-Proton10-34 ont ete constates non fonctionnels avec cette integration Batocera + UMU (echec de lancement / exit 245).\n\nGE-Proton10-29 et les versions 11.x ne sont pas concernes."
+        msg "$(tr_ui "Runner non pris en charge")" "$(tr_ui "$tag est volontairement bloque par cette version de la Toolbox.\n\nGE-Proton10-30 a GE-Proton10-34 ont ete constates non fonctionnels avec cette integration Batocera + UMU (echec de lancement / exit 245).\n\nGE-Proton10-29 et les versions 11.x ne sont pas concernes.")"
         return
     fi
 
     if [ -z "$line" ]; then
         rm -rf "$tmp"
-        msg "Release invalide" "Archive x86_64 introuvable pour $tag."
+        msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive x86_64 introuvable pour $tag.")"
         return
     fi
 
@@ -1956,7 +2023,7 @@ Continuer ?"; then
     echo "Telechargement de $tag..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GE-Proton" "Echec du telechargement."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Echec du telechargement.")"
         return
     fi
 
@@ -1964,12 +2031,12 @@ Continuer ?"; then
         echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
             rm -rf "$tmp" "$stage"
-            msg "Erreur GE-Proton" "Impossible de telecharger le checksum."
+            msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de telecharger le checksum.")"
             return
         fi
         if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
             rm -rf "$tmp" "$stage"
-            msg "Erreur GE-Proton" "Checksum SHA512 upstream invalide. Rien n'a ete installe."
+            msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Checksum SHA512 upstream invalide. Rien n'a ete installe.")"
             return
         fi
     else
@@ -1979,7 +2046,7 @@ Continuer ?"; then
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GE-Proton" "Extraction impossible. Rien n'a ete installe."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Extraction impossible. Rien n'a ete installe.")"
         return
     fi
 
@@ -1989,7 +2056,7 @@ Continuer ?"; then
        [ ! -s "$extracted/files/bin/wine" ] ||
        [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GE-Proton" "Structure GE-Proton inattendue. Rien n'a ete installe."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Structure GE-Proton inattendue. Rien n'a ete installe.")"
         return
     fi
 
@@ -2017,14 +2084,14 @@ EOF
 
     if ! write_manifest "$candidate"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GE-Proton" "Impossible de creer l'empreinte d'integrite. Rien n'a ete installe."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de creer l'empreinte d'integrite. Rien n'a ete installe.")"
         return
     fi
 
     # Re-check the staged candidate after hashing.
     if ! verify_runner_manifest "$candidate"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GE-Proton" "Le runner a change pendant sa preparation. Installation annulee."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Le runner a change pendant sa preparation. Installation annulee.")"
         return
     fi
 
@@ -2033,14 +2100,14 @@ EOF
 
     if [ -e "$target" ]; then
         rm -rf "$tmp" "$stage"
-        msg "Conflit" "$target est apparu pendant l'installation. Aucun fichier n'a ete ecrase."
+        msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation. Aucun fichier n'a ete ecrase.")"
         return
     fi
 
     echo "Installation atomique de $tag-UMU..."
     if ! mv "$candidate" "$target"; then
         rm -rf "$tmp" "$stage"
-        msg "Erreur GE-Proton" "Impossible de finaliser l'installation. Les runners existants sont intacts."
+        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de finaliser l'installation. Les runners existants sont intacts.")"
         return
     fi
 
@@ -2067,30 +2134,30 @@ list_runners() {
         out="${out}${r}  [$r_state]\n"
     done <<< "$(installed_runners)"
     [ -n "$out" ] || out="(aucun runner UMU installe)"
-    msg "Runners Proton + UMU" "$out"
+    msg "$(tr_ui "Runners Proton + UMU")" "$(tr_ui "$out")"
 }
 
 upgrade_integration() {
     local auto="${1:-0}"
     local runners r base changed=0 skipped="" upgraded="" failed="" tmpstage
     runners="$(installed_runners)"
-    [ -n "$runners" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Integration v$INTEGRATION_VERSION" "No UMU runner installed."; else msg "Integration v$INTEGRATION_VERSION" "Aucun runner UMU installe."; fi; return; }
+    [ -n "$runners" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "No UMU runner installed.")"; else msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Aucun runner UMU installe.")"; fi; return; }
 
     if umu_process_active; then
         log "integration_upgrade=deferred reason=umu_process_activity"
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Integration v$INTEGRATION_VERSION" "Upgrade deferred: an UMU/Wine process is still active.\n\nNo runner was modified.\n\nClose the game (or use the protection diagnostics if an old session is stuck), then run:\nMaintenance > Repair / upgrade UMU integration."
+            msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Upgrade deferred: an UMU/Wine process is still active.\n\nNo runner was modified.\n\nClose the game (or use the protection diagnostics if an old session is stuck), then run:\nMaintenance > Repair / upgrade UMU integration.")"
         else
-            msg "Integration v$INTEGRATION_VERSION" "Migration reportee : un processus UMU/Wine est encore actif.\n\nAucun runner n'a ete modifie.\n\nFermez le jeu (ou utilisez le diagnostic de protection si une ancienne session est bloquee), puis relancez :\nMaintenance > Reparer / mettre a niveau l'integration UMU."
+            msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Migration reportee : un processus UMU/Wine est encore actif.\n\nAucun runner n'a ete modifie.\n\nFermez le jeu (ou utilisez le diagnostic de protection si une ancienne session est bloquee), puis relancez :\nMaintenance > Reparer / mettre a niveau l'integration UMU.")"
         fi
         return 2
     fi
 
     if [ "$auto" != "1" ]; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            yesno "Install integration v$INTEGRATION_VERSION" "This operation replaces ONLY the Batocera integration files (bin/wine, bin/wine64, bin/wineserver and UMU bridge) for runners whose manifest is currently valid.\n\nUpstream Wine/Proton files are not replaced.\nRunners already marked MODIFIED are refused.\n\nContinue?" || return
+            yesno "$(tr_ui "Install integration v$INTEGRATION_VERSION")" "$(tr_ui "This operation replaces ONLY the Batocera integration files (bin/wine, bin/wine64, bin/wineserver and UMU bridge) for runners whose manifest is currently valid.\n\nUpstream Wine/Proton files are not replaced.\nRunners already marked MODIFIED are refused.\n\nContinue?")" || return
         else
-            yesno "Installer l'integration v$INTEGRATION_VERSION" "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.\n\nLes fichiers Wine/Proton upstream ne sont pas remplaces.\nLes runners deja MODIFIES sont refuses.\n\nContinuer ?" || return
+            yesno "$(tr_ui "Installer l'integration v$INTEGRATION_VERSION")" "$(tr_ui "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.\n\nLes fichiers Wine/Proton upstream ne sont pas remplaces.\nLes runners deja MODIFIES sont refuses.\n\nContinuer ?")" || return
         fi
     fi
 
@@ -2131,9 +2198,9 @@ upgrade_integration() {
     done <<< "$runners"
     log "integration_upgrade=done changed=$changed"
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Integration v$INTEGRATION_VERSION" "Runners upgraded: $changed\n\n${upgraded:-None}\nRefused / ignored:\n${skipped:-None}\nErrors:\n${failed:-None}\n\nIntegration v$INTEGRATION_VERSION automatically protects ALL *-UMU runners as read-only during every UMU launch."
+        msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Runners upgraded: $changed\n\n${upgraded:-None}\nRefused / ignored:\n${skipped:-None}\nErrors:\n${failed:-None}\n\nIntegration v$INTEGRATION_VERSION automatically protects ALL *-UMU runners as read-only during every UMU launch.")"
     else
-        msg "Integration v$INTEGRATION_VERSION" "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nErreurs :\n${failed:-Aucune}\n\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU."
+        msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nErreurs :\n${failed:-Aucune}\n\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU.")"
     fi
 }
 
@@ -2141,7 +2208,7 @@ scan_prefix_refs() {
     local p out total
     p="$(input_box "Scanner un prefixe" "Chemin du prefixe .wine / wine-bottle / prefixe monte :" "/userdata/roms/windows/")" || return
     [ -n "$p" ] || return
-    if [ ! -d "$p" ]; then msg "Prefixe introuvable" "$p n'est pas un dossier accessible."; return; fi
+    if [ ! -d "$p" ]; then msg "$(tr_ui "Prefixe introuvable")" "$(tr_ui "$p n'est pas un dossier accessible.")"; return; fi
     out="$(mktemp "$RUNNER_STAGING_ROOT/prefix-scan.XXXXXX")"
     find "$p" -type l -print0 2>/dev/null | while IFS= read -r -d '' f; do
         t="$(readlink "$f" 2>/dev/null || true)"
@@ -2153,13 +2220,13 @@ scan_prefix_refs() {
     done | sort | uniq -c > "$out"
     total="$(awk '{s+=$1} END{print s+0}' "$out")"
     if [ "$total" -eq 0 ]; then
-        rm -f "$out"; msg "Analyse du prefixe" "Aucun symlink absolu vers /userdata/system/wine/custom n'a ete trouve."
+        rm -f "$out"; msg "$(tr_ui "Analyse du prefixe")" "$(tr_ui "Aucun symlink absolu vers /userdata/system/wine/custom n'a ete trouve.")"
         return
     fi
     local report="Prefixe : $p\nLiens absolus vers des runners : $total\n\n"
     while read -r n target; do report="$report$n lien(s) -> $(basename "$target")\n"; done < "$out"
     rm -f "$out"
-    msg "References inter-runners" "$report\nUn prefixe multi-runner reste autorise. La v$INTEGRATION_VERSION empeche ces liens d'ecrire dans les distributions UMU."
+    msg "$(tr_ui "References inter-runners")" "$(tr_ui "$report\nUn prefixe multi-runner reste autorise. La v$INTEGRATION_VERSION empeche ces liens d'ecrire dans les distributions UMU.")"
 }
 
 umu_process_active() {
@@ -2179,7 +2246,7 @@ runner_has_runtime_mount() {
 orphan_runner_protections() {
     local r target opts report="" found=0
     if umu_process_active; then
-        msg "Protections runtime" "Un processus UMU/Wine est encore actif.\n\nLes protections des runners sont donc considerees comme actives et ne seront pas demontees."
+        msg "$(tr_ui "Protections runtime")" "$(tr_ui "Un processus UMU/Wine est encore actif.\n\nLes protections des runners sont donc considerees comme actives et ne seront pas demontees.")"
         return 2
     fi
     while IFS= read -r r; do
@@ -2189,9 +2256,9 @@ orphan_runner_protections() {
             case ",$opts," in *,ro,*) report="$report$r [RO]\n"; found=$((found+1)) ;; esac
         fi
     done <<< "$(installed_runners)"
-    if [ "$found" -eq 0 ]; then msg "Protections runtime" "Aucune protection RO orpheline detectee."; return 0; fi
-    if ! yesno "Protections RO orphelines" "Aucun lancement UMU actif n'est detecte, mais $found runner(s) reste(nt) monte(s) en lecture seule :\n\n$report\nCela peut arriver apres un crash ou un kill force.\n\nDemonter uniquement ces protections RO orphelines ?"; then return 0; fi
-    if umu_process_active; then msg "Nettoyage annule" "Une activite UMU a ete detectee. Aucun montage n'a ete retire."; return 2; fi
+    if [ "$found" -eq 0 ]; then msg "$(tr_ui "Protections runtime")" "$(tr_ui "Aucune protection RO orpheline detectee.")"; return 0; fi
+    if ! yesno "$(tr_ui "Protections RO orphelines")" "$(tr_ui "Aucun lancement UMU actif n'est detecte, mais $found runner(s) reste(nt) monte(s) en lecture seule :\n\n$report\nCela peut arriver apres un crash ou un kill force.\n\nDemonter uniquement ces protections RO orphelines ?")"; then return 0; fi
+    if umu_process_active; then msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Une activite UMU a ete detectee. Aucun montage n'a ete retire.")"; return 2; fi
     local cleaned=0 failed=""
     while IFS= read -r r; do
         [ -n "$r" ] || continue; target="$CUSTOM_DIR/$r"
@@ -2200,7 +2267,7 @@ orphan_runner_protections() {
             case ",$opts," in *,ro,*) if umount "$target" 2>>"$LOG"; then cleaned=$((cleaned+1)); log "orphan_runner_protection_unmounted=$target"; else failed="$failed$r\n"; fi ;; esac
         fi
     done <<< "$(installed_runners)"
-    msg "Protections runtime" "Protections RO orphelines retirees : $cleaned\n\nEchecs :\n${failed:-Aucun}"
+    msg "$(tr_ui "Protections runtime")" "$(tr_ui "Protections RO orphelines retirees : $cleaned\n\nEchecs :\n${failed:-Aucun}")"
 }
 
 runtime_protection_status() {
@@ -2217,7 +2284,7 @@ runtime_protection_status() {
         else report="$report[normal] $r (sera protege RO au lancement UMU)\n"; fi
     done <<< "$(installed_runners)"
     if [ "$active" -eq 1 ]; then report="$report\nActivite UMU detectee : les protections RO sont attendues."; else report="$report\nAucune activite UMU detectee. Une ligne [RO ORPHELIN] peut etre nettoyee avec l'option Maintenance dediee."; fi
-    msg "Protection runtime" "${report:-Aucun runner UMU.}"
+    msg "$(tr_ui "Protection runtime")" "$(tr_ui "${report:-Aucun runner UMU.}")"
 }
 
 verify_install() {
@@ -2259,14 +2326,14 @@ verify_install() {
         esac
     done <<< "$(installed_runners)"
     report="$report\nPolitique immutable : protection RO automatique pendant les jeux UMU.\nLogs : 20 fichiers max / 30 jours max par categorie.\n$LOG_DIR\n$RUNNER_LOG_DIR"
-    msg "Diagnostic UMU complet" "$report"
+    msg "$(tr_ui "Diagnostic UMU complet")" "$(tr_ui "$report")"
 }
 
 export_runner() {
     local runners choice base label export_dir archive tmp_size hash
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Exporter un runner" "Aucun runner Proton-UMU gere installe."
+        msg "$(tr_ui "Exporter un runner")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"
         return
     fi
 
@@ -2294,7 +2361,7 @@ export_runner() {
     [ -n "$choice" ] || return
 
     base="$CUSTOM_DIR/$choice"
-    [ -d "$base" ] || { msg "Erreur" "Runner introuvable : $choice"; return; }
+    [ -d "$base" ] || { msg "$(tr_ui "Erreur")" "$(tr_ui "Runner introuvable : $choice")"; return; }
     label="$(runner_integrity_label "$base")"
 
     if [ "$label" = "MODIFIE" ]; then
@@ -2315,12 +2382,12 @@ Utilisez d'abord l'option de creation de reference, puis relancez l'export."
     fi
 
     if ! verify_runner_manifest "$base"; then
-        msg "Export refuse" "Le controle d'integrite de $choice a echoue. Aucun fichier n'a ete exporte."
+        msg "$(tr_ui "Export refuse")" "$(tr_ui "Le controle d'integrite de $choice a echoue. Aucun fichier n'a ete exporte.")"
         return
     fi
 
     if ! command -v xz >/dev/null 2>&1; then
-        msg "Export impossible" "La commande xz n'est pas disponible sur ce systeme."
+        msg "$(tr_ui "Export impossible")" "$(tr_ui "La commande xz n'est pas disponible sur ce systeme.")"
         return
     fi
 
@@ -2346,7 +2413,7 @@ Creer l'archive ?"; then
     if tar -C "$CUSTOM_DIR" -cJf "$archive" -- "$choice" >>"$LOG" 2>&1; then
         if ! xz -t "$archive" >>"$LOG" 2>&1; then
             rm -f "$archive"
-            msg "Export echoue" "L'archive a ete creee mais son test XZ a echoue. Elle a ete supprimee."
+            msg "$(tr_ui "Export echoue")" "$(tr_ui "L'archive a ete creee mais son test XZ a echoue. Elle a ete supprimee.")"
             return
         fi
         tmp_size="$(du -h "$archive" 2>/dev/null | awk '{print $1}')"
@@ -2369,14 +2436,14 @@ Pour restaurer manuellement sur une autre Batocera :
 tar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"
     else
         rm -f "$archive" "${archive}.sha256"
-        msg "Export echoue" "tar/xz a retourne une erreur. Consultez :\n$LOG"
+        msg "$(tr_ui "Export echoue")" "$(tr_ui "tar/xz a retourne une erreur. Consultez :\n$LOG")"
     fi
 }
 export_shareable_package() {
     local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size manifest appid runtime_variant runtime_src runtime_archive runtime_size
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Shareable package" "No managed Proton-UMU runner is installed."; else msg "Package partageable" "Aucun runner Proton-UMU gere installe."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Shareable package")" "$(tr_ui "No managed Proton-UMU runner is installed.")"; else msg "$(tr_ui "Package partageable")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"; fi
         return
     fi
 
@@ -2404,29 +2471,29 @@ export_shareable_package() {
     [ -n "$choice" ] || return
 
     base="$CUSTOM_DIR/$choice"
-    [ -d "$base" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner not found: $choice"; else msg "Erreur" "Runner introuvable : $choice"; fi; return; }
+    [ -d "$base" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Runner introuvable : $choice")"; fi; return; }
     label="$(runner_integrity_label "$base")"
     if [ "$label" != "PROTEGE / OK" ] || ! verify_runner_manifest "$base"; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "$choice is not in a healthy managed state. The shareable package was not created."; else msg "Export refuse" "$choice n est pas dans un etat sain et gere. Le package partageable n a pas ete cree."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "$choice is not in a healthy managed state. The shareable package was not created.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "$choice n est pas dans un etat sain et gere. Le package partageable n a pas ete cree.")"; fi
         return
     fi
     manifest="$base/toolmanifest.vdf"
-    [ -s "$manifest" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "toolmanifest.vdf is missing: the required Steam Runtime cannot be determined."; else msg "Export refuse" "toolmanifest.vdf absent : Steam Runtime requis indeterminable."; fi; return; }
+    [ -s "$manifest" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "toolmanifest.vdf is missing: the required Steam Runtime cannot be determined.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "toolmanifest.vdf absent : Steam Runtime requis indeterminable.")"; fi; return; }
     appid="$(grep -Eo '"require_tool_appid"[[:space:]]*"?[0-9]+"?' "$manifest" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' || true)"
     case "$appid" in
         1391110) runtime_variant="steamrt2" ;;
         1628350) runtime_variant="steamrt3" ;;
         4183110) runtime_variant="steamrt4" ;;
         4185400) runtime_variant="steamrt4-arm64" ;;
-        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "Steam Runtime appid is unsupported or missing: ${appid:-none}"; else msg "Export refuse" "Steam Runtime appid non gere ou absent : ${appid:-aucun}"; fi; return ;;
+        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "Steam Runtime appid is unsupported or missing: ${appid:-none}")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "Steam Runtime appid non gere ou absent : ${appid:-aucun}")"; fi; return ;;
     esac
     runtime_src="$UMU_DIR/home/.local/share/umu/$runtime_variant"
     if [ ! -d "$runtime_src" ] || [ ! -s "$runtime_src/_v2-entry-point" ] || [ ! -s "$runtime_src/VERSIONS.txt" ] || [ ! -s "$runtime_src/mtree.txt.gz" ] || [ ! -d "$runtime_src/pressure-vessel" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "Required Steam Runtime $runtime_variant is missing or incomplete. Prepare/run this runner, then try the export again."; else msg "Export refuse" "Le Steam Runtime requis $runtime_variant est absent ou incomplet. Preparez le runner puis recommencez."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "Required Steam Runtime $runtime_variant is missing or incomplete. Prepare/run this runner, then try the export again.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "Le Steam Runtime requis $runtime_variant est absent ou incomplet. Preparez le runner puis recommencez.")"; fi
         return
     fi
     runtime_size="$(du -sh "$runtime_src" 2>/dev/null | awk 'NR==1{print $1}')"
-    command -v xz >/dev/null 2>&1 || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export unavailable" "The xz command is missing."; else msg "Export impossible" "La commande xz est absente."; fi; return; }
+    command -v xz >/dev/null 2>&1 || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export unavailable")" "$(tr_ui "The xz command is missing.")"; else msg "$(tr_ui "Export impossible")" "$(tr_ui "La commande xz est absente.")"; fi; return; }
 
     export_dir="/userdata/system/umu/exports"
     mkdir -p "$export_dir"
@@ -2438,9 +2505,9 @@ export_shareable_package() {
     runtime_archive="$pkgroot/payload/${runtime_variant}.tar.xz"
 
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Confirm package creation" "Runner: $choice\nIntegrity: $(tr_ui "$label")\nRequired Steam Runtime: $runtime_variant (appid $appid)\nInstalled runtime size: $runtime_size\n\nThe standalone package will contain the complete runner AND its required Steam Runtime so it can be installed offline.\n\nCreate the package?" || { rm -rf "$work"; return; }
+        yesno "$(tr_ui "Confirm package creation")" "$(tr_ui "Runner: $choice\nIntegrity: $(tr_ui ")"$label")\nRequired Steam Runtime: $runtime_variant (appid $appid)\nInstalled runtime size: $runtime_size\n\nThe standalone package will contain the complete runner AND its required Steam Runtime so it can be installed offline.\n\nCreate the package?" || { rm -rf "$work"; return; }
     else
-        yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?" || { rm -rf "$work"; return; }
+        yesno "$(tr_ui "Confirmer le package")" "$(tr_ui "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?")" || { rm -rf "$work"; return; }
     fi
     if false; then
         rm -rf "$work"; return
@@ -2449,12 +2516,12 @@ export_shareable_package() {
     clear
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing runner...' || printf '%s' 'Compression du runner...')"
     if ! tar -C "$CUSTOM_DIR" -cJf "$runner_archive" -- "$choice"; then
-        rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner compression failed."; else msg "Erreur" "Echec de compression du runner."; fi; return
+        rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner compression failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Echec de compression du runner.")"; fi; return
     fi
-    xz -t "$runner_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner XZ test failed."; else msg "Erreur" "Test XZ du runner echoue."; fi; return; }
+    xz -t "$runner_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner XZ test failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Test XZ du runner echoue.")"; fi; return; }
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing required Steam Runtime...' || printf '%s' 'Compression du Steam Runtime requis...')"
-    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Steam Runtime compression failed."; else msg "Erreur" "Echec de compression du Steam Runtime."; fi; return; fi
-    xz -t "$runtime_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Steam Runtime XZ test failed."; else msg "Erreur" "Test XZ du Steam Runtime echoue."; fi; return; }
+    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime compression failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Echec de compression du Steam Runtime.")"; fi; return; fi
+    xz -t "$runtime_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime XZ test failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Test XZ du Steam Runtime echoue.")"; fi; return; }
     [ -s "$UMU_RUN" ] && cp -a "$UMU_RUN" "$pkgroot/payload/umu-run"
     (cd "$pkgroot/payload" && sha256sum * > SHA256SUMS)
 
@@ -2567,9 +2634,9 @@ EOF
     if tar -C "$work" -cJf "$archive" -- "$pkgname" && xz -t "$archive"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"; printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"; size="$(du -h "$archive" | awk '{print $1}')"
         rm -rf "$work"
-        msg "Package termine" "Package partageable cree :\n$archive\n\nTaille : $size\nSHA-256 :\n$hash\n\nCe package peut etre installe sur une Batocera sans installation UMU prealable."
+        msg "$(tr_ui "Package termine")" "$(tr_ui "Package partageable cree :\n$archive\n\nTaille : $size\nSHA-256 :\n$hash\n\nCe package peut etre installe sur une Batocera sans installation UMU prealable.")"
     else
-        rm -rf "$work" "$archive" "${archive}.sha256"; msg "Export echoue" "Impossible de creer/tester le package final."
+        rm -rf "$work" "$archive" "${archive}.sha256"; msg "$(tr_ui "Export echoue")" "$(tr_ui "Impossible de creer/tester le package final.")"
     fi
 }
 
@@ -2578,18 +2645,18 @@ delete_installed_runner() {
     local runners choice r
     if umu_uninstall_active; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Deletion refused" "An UMU/Wine launch or associated mount is active.\n\nClose the game before deleting a runner."
+            msg "$(tr_ui "Deletion refused")" "$(tr_ui "An UMU/Wine launch or associated mount is active.\n\nClose the game before deleting a runner.")"
         else
-            msg "Suppression refusee" "Un lancement UMU/Wine ou un montage associe est actif.\n\nFermez le jeu avant de supprimer un runner."
+            msg "$(tr_ui "Suppression refusee")" "$(tr_ui "Un lancement UMU/Wine ou un montage associe est actif.\n\nFermez le jeu avant de supprimer un runner.")"
         fi
         return
     fi
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Delete an UMU runner" "No managed Proton-UMU runner is installed."
+            msg "$(tr_ui "Delete an UMU runner")" "$(tr_ui "No managed Proton-UMU runner is installed.")"
         else
-            msg "Supprimer un runner" "Aucun runner Proton-UMU gere installe."
+            msg "$(tr_ui "Supprimer un runner")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"
         fi
         return
     fi
@@ -2603,7 +2670,7 @@ delete_installed_runner() {
                 "Choose the runner to delete. Games, prefixes and save data will not be deleted." \
                 26 100 15 "${opts[@]}")" || return
         else
-            choice="$(dialog --stdout --ok-label "Accepter" --cancel-label "Annuler" --title "Supprimer un runner UMU" --menu \
+            choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Delete an UMU runner' || printf 'Supprimer un runner UMU')" --menu \
                 "Choisissez le runner a supprimer. Les jeux, prefixes et sauvegardes ne seront pas supprimes." \
                 26 100 15 "${opts[@]}")" || return
         fi
@@ -2616,23 +2683,23 @@ delete_installed_runner() {
     fi
     [ -n "$choice" ] || return
     if [ ! -d "$CUSTOM_DIR/$choice" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner not found: $choice"; else msg "Erreur" "Runner introuvable : $choice"; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Runner introuvable : $choice")"; fi
         return
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Confirm deletion" "Permanently delete:\n\n$CUSTOM_DIR/$choice\n\nGames, .wine/.pc/.wsquashfs prefixes, wine-bottles and save data will not be deleted.\n\nContinue?" || return
+        yesno "$(tr_ui "Confirm deletion")" "$(tr_ui "Permanently delete:\n\n$CUSTOM_DIR/$choice\n\nGames, .wine/.pc/.wsquashfs prefixes, wine-bottles and save data will not be deleted.\n\nContinue?")" || return
     else
-        yesno "Confirmer la suppression" "Supprimer definitivement :\n\n$CUSTOM_DIR/$choice\n\nLes jeux, prefixes .wine/.pc/.wsquashfs, wine-bottles et sauvegardes ne seront pas supprimes.\n\nContinuer ?" || return
+        yesno "$(tr_ui "Confirmer la suppression")" "$(tr_ui "Supprimer definitivement :\n\n$CUSTOM_DIR/$choice\n\nLes jeux, prefixes .wine/.pc/.wsquashfs, wine-bottles et sauvegardes ne seront pas supprimes.\n\nContinuer ?")" || return
     fi
     if rm -rf --one-file-system "$CUSTOM_DIR/$choice"; then
         log "Runner deleted by user: $choice"
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Runner deleted" "$choice has been deleted.\n\nYour games, prefixes and save data were not touched."
+            msg "$(tr_ui "Runner deleted")" "$(tr_ui "$choice has been deleted.\n\nYour games, prefixes and save data were not touched.")"
         else
-            msg "Runner supprime" "$choice a ete supprime.\n\nVos jeux, prefixes et sauvegardes n'ont pas ete touches."
+            msg "$(tr_ui "Runner supprime")" "$(tr_ui "$choice a ete supprime.\n\nVos jeux, prefixes et sauvegardes n'ont pas ete touches.")"
         fi
     else
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to delete $choice. See:\n$LOG"; else msg "Erreur" "Impossible de supprimer $choice. Consultez :\n$LOG"; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Unable to delete $choice. See:\n$LOG")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de supprimer $choice. Consultez :\n$LOG")"; fi
     fi
 }
 
@@ -2700,7 +2767,7 @@ clean_umu_runtime_data() {
     local cb mb mat_b gv_b legacy_p_b legacy_g_b mesa_b radv_b total_game total_gpu report
 
     if umu_game_active; then
-        msg "Nettoyage UMU refuse" "Un processus/lancement UMU ou un merged-prefix actif a ete detecte.\n\nFermez le jeu UMU en cours puis relancez le nettoyage."
+        msg "$(tr_ui "Nettoyage UMU refuse")" "$(tr_ui "Un processus/lancement UMU ou un merged-prefix actif a ete detecte.\n\nFermez le jeu UMU en cours puis relancez le nettoyage.")"
         return
     fi
 
@@ -2717,12 +2784,12 @@ clean_umu_runtime_data() {
     total_gpu=$((mesa_b + radv_b))
 
     report="Donnees runtime UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- materialized-prefixes : $(human_bytes "$mat_b")\n- gameviews : $(human_bytes "$gv_b")\n- anciens TEST7 : $(human_bytes "$((legacy_p_b + legacy_g_b))")\n- total : $(human_bytes "$total_game")\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : $(human_bytes "$total_gpu")\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
-    msg "Analyse du nettoyage UMU" "$report"
+    msg "$(tr_ui "Analyse du nettoyage UMU")" "$(tr_ui "$report")"
 
     if [ "$total_game" -gt 0 ]; then
-        if yesno "Nettoyer les donnees runtime" "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : $(human_bytes "$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?"; then
+        if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : $(human_bytes ")"$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?"; then
             if umu_game_active; then
-                msg "Nettoyage annule" "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee."
+                msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee.")"
                 return
             fi
             clear_dir_contents "$compat"
@@ -2732,23 +2799,23 @@ clean_umu_runtime_data() {
             clear_dir_contents "$legacy_prefixes"
             clear_dir_contents "$legacy_gameviews"
             log "umu_cleanup_game_data=done bytes_before=$total_game"
-            msg "Nettoyage UMU" "Donnees runtime nettoyees.\n\nEspace precedemment occupe : $(human_bytes "$total_game")"
+            msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Donnees runtime nettoyees.\n\nEspace precedemment occupe : $(human_bytes ")"$total_game")"
         fi
     else
-        msg "Nettoyage UMU" "Les donnees runtime UMU sont deja vides.\n\nAucune donnee runtime a supprimer."
+        msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Les donnees runtime UMU sont deja vides.\n\nAucune donnee runtime a supprimer.")"
     fi
 
     # Shader caches are reconstructible but deliberately opt-in: deleting them
     # can cause shader recompilation/stutter on subsequent launches.
-    if [ "$total_gpu" -gt 0 ] && yesno "Caches graphiques (facultatif)" "Les caches graphiques occupent $(human_bytes "$total_gpu").\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?"; then
+    if [ "$total_gpu" -gt 0 ] && yesno "$(tr_ui "Caches graphiques (facultatif)")" "$(tr_ui "Les caches graphiques occupent $(human_bytes ")"$total_gpu").\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?"; then
         if umu_game_active; then
-            msg "Caches non supprimes" "Un lancement UMU est maintenant actif. Les caches graphiques ont ete conserves."
+            msg "$(tr_ui "Caches non supprimes")" "$(tr_ui "Un lancement UMU est maintenant actif. Les caches graphiques ont ete conserves.")"
             return
         fi
         clear_dir_contents "$mesa"
         clear_dir_contents "$radv"
         log "umu_cleanup_gpu_cache=done bytes_before=$total_gpu"
-        msg "Caches graphiques" "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total_gpu")"
+        msg "$(tr_ui "Caches graphiques")" "$(tr_ui "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : $(human_bytes ")"$total_gpu")"
     fi
 }
 
@@ -2772,27 +2839,27 @@ umu_uninstall_active() {
 
 uninstall_toolbox_only() {
     if umu_game_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall refused" "An UMU launch or prefix mount is still active.\n\nClose the game first, then try again."; else msg "Desinstallation refusee" "Un lancement UMU ou un montage de prefixe est encore actif.\n\nFermez d abord le jeu puis recommencez."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU launch or prefix mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un lancement UMU ou un montage de prefixe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
         return
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Uninstall Toolbox" "The Toolbox will be removed.\n\nThe following will be kept:\n- UMU and its runtime;\n- *-UMU runners;\n- prefixes, compatdata and backups.\n\nThe Port entry and its Pad2Key file will also be removed.\n\nContinue?" || return
+        yesno "$(tr_ui "Uninstall Toolbox")" "$(tr_ui "The Toolbox will be removed.\n\nThe following will be kept:\n- UMU and its runtime;\n- *-UMU runners;\n- prefixes, compatdata and backups.\n\nThe Port entry and its Pad2Key file will also be removed.\n\nContinue?")" || return
     else
-        yesno "Desinstaller la Toolbox" "La Toolbox va etre supprimee.\n\nSeront conserves :\n- UMU et son runtime ;\n- les runners *-UMU ;\n- les prefixes, compatdata et sauvegardes.\n\nLe Port et son fichier Pad2Key seront egalement retires.\n\nContinuer ?" || return
+        yesno "$(tr_ui "Desinstaller la Toolbox")" "$(tr_ui "La Toolbox va etre supprimee.\n\nSeront conserves :\n- UMU et son runtime ;\n- les runners *-UMU ;\n- les prefixes, compatdata et sauvegardes.\n\nLe Port et son fichier Pad2Key seront egalement retires.\n\nContinuer ?")" || return
     fi
     if false; then
         return
     fi
     toolbox_files_cleanup
     log "toolbox_uninstall=toolbox_only"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Toolbox uninstalled" "The Toolbox, its Port entry and Pad2Key mapping were removed.\n\nUMU and the UMU runners were kept."; else msg "Toolbox desinstallee" "La Toolbox, son Port et son mapping Pad2Key ont ete supprimes.\n\nUMU et les runners UMU sont conserves."; fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Toolbox uninstalled")" "$(tr_ui "The Toolbox, its Port entry and Pad2Key mapping were removed.\n\nUMU and the UMU runners were kept.")"; else msg "$(tr_ui "Toolbox desinstallee")" "$(tr_ui "La Toolbox, son Port et son mapping Pad2Key ont ete supprimes.\n\nUMU et les runners UMU sont conserves.")"; fi
 }
 
 uninstall_umu_and_runners() {
     local runners
     runners="$(installed_runners)"
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall refused" "An UMU/Wine process using an UMU runner or associated mount is still active.\n\nClose the game first, then try again."; else msg "Desinstallation refusee" "Un processus UMU/Wine utilisant un runner UMU ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU/Wine process using an UMU runner or associated mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un processus UMU/Wine utilisant un runner UMU ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
         return
     fi
     if [ -n "$runners" ]; then
@@ -2801,15 +2868,15 @@ uninstall_umu_and_runners() {
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then runners="- No *-UMU runner detected"; else runners="- Aucun runner *-UMU detecte"; fi
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Uninstall UMU + runners" "This operation will remove:\n\nUMU and its data:\n- umu-run\n- UMU Steam Runtime\n- compatdata / merged-prefixes\n- home / cache / exports\n- UMU backups\n\nRunners to be removed:\n$runners\n\nThe Toolbox will be KEPT.\nClassic runners will NOT be touched.\n\nContinue?" || return
+        yesno "$(tr_ui "Uninstall UMU + runners")" "$(tr_ui "This operation will remove:\n\nUMU and its data:\n- umu-run\n- UMU Steam Runtime\n- compatdata / merged-prefixes\n- home / cache / exports\n- UMU backups\n\nRunners to be removed:\n$runners\n\nThe Toolbox will be KEPT.\nClassic runners will NOT be touched.\n\nContinue?")" || return
     else
-        yesno "Desinstaller UMU + runners" "Cette operation va supprimer :\n\nUMU et ses donnees :\n- umu-run\n- runtime Steam Runtime UMU\n- compatdata / merged-prefixes\n- home / cache / exports\n- sauvegardes UMU\n\nRunners qui seront supprimes :\n$runners\n\nLa Toolbox sera CONSERVEE.\nLes runners classiques ne seront PAS touches.\n\nContinuer ?" || return
+        yesno "$(tr_ui "Desinstaller UMU + runners")" "$(tr_ui "Cette operation va supprimer :\n\nUMU et ses donnees :\n- umu-run\n- runtime Steam Runtime UMU\n- compatdata / merged-prefixes\n- home / cache / exports\n- sauvegardes UMU\n\nRunners qui seront supprimes :\n$runners\n\nLa Toolbox sera CONSERVEE.\nLes runners classiques ne seront PAS touches.\n\nContinuer ?")" || return
     fi
     if false; then
         return
     fi
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall cancelled" "UMU activity was detected immediately before deletion. Nothing was removed."; else msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall cancelled")" "$(tr_ui "UMU activity was detected immediately before deletion. Nothing was removed.")"; else msg "$(tr_ui "Desinstallation annulee")" "$(tr_ui "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee.")"; fi
         return
     fi
     while IFS= read -r r; do
@@ -2821,24 +2888,24 @@ uninstall_umu_and_runners() {
     fi
     mkdir -p "$UMU_DIR"
     log "umu_uninstall=umu_and_runners"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "UMU uninstalled" "UMU and the *-UMU runners were removed.\n\nThe Toolbox was kept.\n\nClassic Batocera runners were not touched."; else msg "UMU desinstalle" "UMU et les runners *-UMU ont ete supprimes.\n\nLa Toolbox a ete conservee.\n\nLes runners classiques Batocera n ont pas ete touches."; fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "UMU uninstalled")" "$(tr_ui "UMU and the *-UMU runners were removed.\n\nThe Toolbox was kept.\n\nClassic Batocera runners were not touched.")"; else msg "$(tr_ui "UMU desinstalle")" "$(tr_ui "UMU et les runners *-UMU ont ete supprimes.\n\nLa Toolbox a ete conservee.\n\nLes runners classiques Batocera n ont pas ete touches.")"; fi
 }
 
 uninstall_everything() {
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall refused" "An UMU/Wine launch or associated mount is still active.\n\nClose the game first, then try again."; else msg "Desinstallation refusee" "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU/Wine launch or associated mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
         return
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Complete uninstall" "This operation will remove:\n\n- the Toolbox;\n- the Port entry and Pad2Key mapping;\n- UMU;\n- the UMU Steam Runtime;\n- all *-UMU runners;\n- UMU prefixes and data;\n- UMU backups;\n- UMU exports.\n\nClassic Wine/Proton/TKG/Kron4ek runners will NOT be touched.\n\nThis operation is destructive. Continue?" || return
+        yesno "$(tr_ui "Complete uninstall")" "$(tr_ui "This operation will remove:\n\n- the Toolbox;\n- the Port entry and Pad2Key mapping;\n- UMU;\n- the UMU Steam Runtime;\n- all *-UMU runners;\n- UMU prefixes and data;\n- UMU backups;\n- UMU exports.\n\nClassic Wine/Proton/TKG/Kron4ek runners will NOT be touched.\n\nThis operation is destructive. Continue?")" || return
     else
-        yesno "Desinstallation complete" "Cette operation va supprimer :\n\n- la Toolbox ;\n- le Port et son mapping Pad2Key ;\n- UMU ;\n- le runtime Steam Runtime UMU ;\n- tous les runners *-UMU ;\n- les prefixes et donnees UMU ;\n- les sauvegardes UMU ;\n- les exports UMU.\n\nLes runners classiques Wine/Proton/TKG/Kron4ek ne seront PAS touches.\n\nCette operation est destructive. Continuer ?" || return
+        yesno "$(tr_ui "Desinstallation complete")" "$(tr_ui "Cette operation va supprimer :\n\n- la Toolbox ;\n- le Port et son mapping Pad2Key ;\n- UMU ;\n- le runtime Steam Runtime UMU ;\n- tous les runners *-UMU ;\n- les prefixes et donnees UMU ;\n- les sauvegardes UMU ;\n- les exports UMU.\n\nLes runners classiques Wine/Proton/TKG/Kron4ek ne seront PAS touches.\n\nCette operation est destructive. Continuer ?")" || return
     fi
     if false; then
         return
     fi
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Uninstall cancelled" "UMU activity was detected immediately before deletion. Nothing was removed."; else msg "Desinstallation annulee" "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall cancelled")" "$(tr_ui "UMU activity was detected immediately before deletion. Nothing was removed.")"; else msg "$(tr_ui "Desinstallation annulee")" "$(tr_ui "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee.")"; fi
         return
     fi
     while IFS= read -r r; do
@@ -2850,7 +2917,7 @@ uninstall_everything() {
         rm -rf -- "$UMU_DIR"
     fi
     log "uninstall=complete"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Complete uninstall" "The Toolbox, UMU and all *-UMU runners were removed.\n\nClassic runners and your external game files were not touched."; else msg "Desinstallation complete" "La Toolbox, UMU et les runners *-UMU ont ete supprimes.\n\nLes runners classiques et vos fichiers de jeux externes n ont pas ete touches."; fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Complete uninstall")" "$(tr_ui "The Toolbox, UMU and all *-UMU runners were removed.\n\nClassic runners and your external game files were not touched.")"; else msg "$(tr_ui "Desinstallation complete")" "$(tr_ui "La Toolbox, UMU et les runners *-UMU ont ete supprimes.\n\nLes runners classiques et vos fichiers de jeux externes n ont pas ete touches.")"; fi
 }
 
 uninstall_menu() {
@@ -2874,19 +2941,19 @@ uninstall_menu() {
 clean_umu_logs() {
     local tb rb total f
     if umu_game_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Log cleanup refused" "An UMU launch is currently active.\n\nClose the game before cleaning Runner logs so the complete session diagnostics are preserved."; else msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup refused")" "$(tr_ui "An UMU launch is currently active.\n\nClose the game before cleaning Runner logs so the complete session diagnostics are preserved.")"; else msg "$(tr_ui "Nettoyage des logs refuse")" "$(tr_ui "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session.")"; fi
         return
     fi
     mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
     tb="$(dir_bytes "$LOG_DIR")"; rb="$(dir_bytes "$RUNNER_LOG_DIR")"; total=$((tb + rb))
     if [ "$total" -le 0 ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Log cleanup" "UMU log directories are already empty."; else msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup")" "$(tr_ui "UMU log directories are already empty.")"; else msg "$(tr_ui "Nettoyage des logs")" "$(tr_ui "Les repertoires de logs UMU sont deja vides.")"; fi
         return
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Clean UMU logs" "Toolbox logs: $(human_bytes "$tb")\nRunner logs: $(human_bytes "$rb")\nTotal: $(human_bytes "$total")\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
+        yesno "$(tr_ui "Clean UMU logs")" "$(tr_ui "Toolbox logs: $(human_bytes ")"$tb")\nRunner logs: $(human_bytes "$rb")\nTotal: $(human_bytes "$total")\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
     else
-        yesno "Nettoyer les logs UMU" "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
+        yesno "$(tr_ui "Nettoyer les logs UMU")" "$(tr_ui "Logs Toolbox : $(human_bytes ")"$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
     fi
     find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
     while IFS= read -r f; do
@@ -2895,15 +2962,15 @@ clean_umu_logs() {
         rm -f -- "$f" 2>/dev/null || true
     done < <(find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -print 2>/dev/null)
     log "umu_logs_cleanup=done bytes_before=$total"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Log cleanup" "UMU logs cleaned.\n\nPreviously used space: $(human_bytes "$total")\nThe current Toolbox log was preserved."; else msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."; fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup")" "$(tr_ui "UMU logs cleaned.\n\nPreviously used space: $(human_bytes ")"$total")\nThe current Toolbox log was preserved."; else msg "$(tr_ui "Nettoyage des logs")" "$(tr_ui "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes ")"$total")\nLe log Toolbox courant a ete conserve."; fi
 }
 
 associate_game() {
     local helper="$ROOT/umu-gameid-manager.py" title="$1" path="$2" tab candidates choice selected idx cscore ctitle gameid cstores store storeopts
     tab="$(printf '\t')"
     candidates="$(mktemp "$RUNNER_STAGING_ROOT/gameid-candidates.XXXXXX")" || return
-    python3 "$helper" candidates --title "$title" --limit 12 > "$candidates" || { rm -f "$candidates"; msg "Erreur" "Impossible de rechercher les correspondances GAMEID."; return; }
-    [ -s "$candidates" ] || { rm -f "$candidates"; msg "Aucune correspondance" "Aucun GAMEID candidat trouve pour :\n$title"; return; }
+    python3 "$helper" candidates --title "$title" --limit 12 > "$candidates" || { rm -f "$candidates"; msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de rechercher les correspondances GAMEID.")"; return; }
+    [ -s "$candidates" ] || { rm -f "$candidates"; msg "$(tr_ui "Aucune correspondance")" "$(tr_ui "Aucun GAMEID candidat trouve pour :\n$title")"; return; }
     if command -v dialog >/dev/null 2>&1; then
         local copts=() ci
         while IFS="$tab" read -r ci cscore ctitle gameid cstores; do
@@ -2929,20 +2996,20 @@ associate_game() {
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
         log "gameid_override=set title=$title matched_title=$ctitle score=$cscore gameid=$gameid store=$store"
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Association saved" "Game: $title\nMatch: $ctitle\nScore: $cscore\nGAMEID: $gameid\nSTORE: $store\n\nThis manual association takes priority over automatic detection on the next launch."; else msg "Association enregistree" "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."; fi
-    else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to save the association."; else msg "Erreur" "Impossible d enregistrer l association."; fi; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Association saved")" "$(tr_ui "Game: $title\nMatch: $ctitle\nScore: $cscore\nGAMEID: $gameid\nSTORE: $store\n\nThis manual association takes priority over automatic detection on the next launch.")"; else msg "$(tr_ui "Association enregistree")" "$(tr_ui "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement.")"; fi
+    else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Unable to save the association.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible d enregistrer l association.")"; fi; fi
 }
 
 global_game_scan() {
     local helper="$ROOT/umu-gameid-manager.py" scan tab kind total clear ambiguous none overrides list choice selected idx status score title path best gid remaining
     tab="$(printf '\t')"; scan="$(mktemp "$RUNNER_STAGING_ROOT/gameid-scan.XXXXXX")" || return
     clear; echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Scanning all Windows games...' || printf '%s' 'Analyse de tous les jeux Windows...')"
-    python3 "$helper" scan > "$scan" || { rm -f "$scan"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Scan failed" "Unable to analyze the gamelist and matching databases."; else msg "Analyse impossible" "Impossible d analyser le gamelist et les bases de correspondance."; fi; return; }
+    python3 "$helper" scan > "$scan" || { rm -f "$scan"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Scan failed")" "$(tr_ui "Unable to analyze the gamelist and matching databases.")"; else msg "$(tr_ui "Analyse impossible")" "$(tr_ui "Impossible d analyser le gamelist et les bases de correspondance.")"; fi; return; }
     IFS="$tab" read -r kind total clear ambiguous none overrides < "$scan"
     list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
     tail -n +2 "$scan" > "$list"; rm -f "$scan"
     if [ "$ambiguous" -eq 0 ]; then
-        rm -f "$list"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Global scan" "Games scanned: $total\nClear matches: $clear\nAmbiguous: 0\nNo match: $none\nManual associations: $overrides\n\nNo ambiguous match requires review.\nGames without a match remain available through Associate / edit a game."; else msg "Analyse globale" "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu."; fi; return
+        rm -f "$list"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Global scan")" "$(tr_ui "Games scanned: $total\nClear matches: $clear\nAmbiguous: 0\nNo match: $none\nManual associations: $overrides\n\nNo ambiguous match requires review.\nGames without a match remain available through Associate / edit a game.")"; else msg "$(tr_ui "Analyse globale")" "$(tr_ui "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu.")"; fi; return
     fi
 
     # Keep the scan results for this review session. After a manual association,
@@ -2951,7 +3018,7 @@ global_game_scan() {
         remaining="$(awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS" {n++} END{print n+0}' "$list")"
         if [ "$remaining" -eq 0 ]; then
             rm -f "$list"
-            if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Global scan" "All ambiguous games from this scan have been processed.\n\nNo new scan was started."; else msg "Analyse globale" "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance."; fi
+            if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Global scan")" "$(tr_ui "All ambiguous games from this scan have been processed.\n\nNo new scan was started.")"; else msg "$(tr_ui "Analyse globale")" "$(tr_ui "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance.")"; fi
             return
         fi
 
@@ -2990,15 +3057,15 @@ global_game_scan() {
 gameid_override_menu() {
     local helper="$ROOT/umu-gameid-manager.py" action selected idx title path list choice tab
     tab="$(printf '\t')"
-    [ -s "$helper" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Game compatibility" "GAMEID manager missing: $helper"; else msg "Compatibilite des jeux" "Gestionnaire GAMEID absent : $helper"; fi; return; }
+    [ -s "$helper" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Game compatibility")" "$(tr_ui "GAMEID manager missing: $helper")"; else msg "$(tr_ui "Compatibilite des jeux")" "$(tr_ui "Gestionnaire GAMEID absent : $helper")"; fi; return; }
     while true; do
         action="$(menu_choice "Compatibilite des jeux" "1" "Analyser tous les jeux" "2" "Associer / modifier un jeu" "3" "Afficher les associations manuelles" "4" "Supprimer une association" "0" "Retour")" || return
         case "$action" in
           1) global_game_scan ;;
           2)
-            [ -s "$WINDOWS_GAMELIST" ] || { msg "Erreur" "gamelist Windows introuvable :\n$WINDOWS_GAMELIST"; continue; }
+            [ -s "$WINDOWS_GAMELIST" ] || { msg "$(tr_ui "Erreur")" "$(tr_ui "gamelist Windows introuvable :\n$WINDOWS_GAMELIST")"; continue; }
             list="$(mktemp "$RUNNER_STAGING_ROOT/gameids.XXXXXX")" || continue
-            python3 "$helper" games > "$list" || { rm -f "$list"; msg "Erreur" "Impossible de lire le gamelist."; continue; }
+            python3 "$helper" games > "$list" || { rm -f "$list"; msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de lire le gamelist.")"; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local opts=() i n gp
                 while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
@@ -3011,13 +3078,13 @@ gameid_override_menu() {
           3)
             list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'No manual association.' || printf 'Aucune association manuelle.')"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Manual associations' || printf 'Associations manuelles')" "$list" ;;
           4)
-            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Manual associations" "No manual association."; else msg "Associations manuelles" "Aucune association manuelle."; fi; continue; }
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Manual associations")" "$(tr_ui "No manual association.")"; else msg "$(tr_ui "Associations manuelles")" "$(tr_ui "Aucune association manuelle.")"; fi; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
                 choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Delete an association" || printf "Supprimer une association")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the association to delete." || printf "Choisissez l association a supprimer.")" 28 105 18 "${dopts[@]}")" || continue
             else printf "%s\n" "$list"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice; fi
-            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Association deleted" "The game will use automatic detection again."; else msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; fi; else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to delete."; else msg "Erreur" "Suppression impossible."; fi; fi ;;
+            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Association deleted")" "$(tr_ui "The game will use automatic detection again.")"; else msg "$(tr_ui "Association supprimee")" "$(tr_ui "Le jeu utilisera de nouveau la detection automatique.")"; fi; else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Unable to delete.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Suppression impossible.")"; fi; fi ;;
           0|"") return ;;
         esac
     done
@@ -3059,7 +3126,7 @@ update_toolbox() {
     tag="$(basename "$latest_url")"
     case "$tag" in
         v*) latest="${tag#v}" ;;
-        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Toolbox update" "Unexpected GitHub tag: $tag"; else msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; fi; return ;;
+        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Toolbox update")" "$(tr_ui "Unexpected GitHub tag: $tag")"; else msg "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "Tag GitHub inattendu : $tag")"; fi; return ;;
     esac
 
     if [ "$latest" = "$TOOLBOX_VERSION" ]; then
@@ -3072,7 +3139,7 @@ def v(s): return tuple(int(x) for x in s.split('.'))
 sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
 PYVER
     then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Toolbox update" "Release $tag is not newer than the installed version ($TOOLBOX_VERSION)."; else msg "Mise a jour Toolbox" "La release $tag n est pas plus recente que la version installee ($TOOLBOX_VERSION)."; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Toolbox update")" "$(tr_ui "Release $tag is not newer than the installed version ($TOOLBOX_VERSION).")"; else msg "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "La release $tag n est pas plus recente que la version installee ($TOOLBOX_VERSION).")"; fi
         return
     fi
 
@@ -3082,9 +3149,9 @@ PYVER
 
     if [ "$startup_confirmed" != "1" ]; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            if ! yesno "Toolbox update" "Installed version: $TOOLBOX_VERSION\nNew version: $latest\n\nThe official package and its SHA-256 will be downloaded from GitHub and verified before replacement.\nThe current Toolbox will be backed up in:\n$UMU_BACKUP\n\nThe config/ directory will be preserved.\n\nInstall the update?"; then return; fi
+            if ! yesno "$(tr_ui "Toolbox update")" "$(tr_ui "Installed version: $TOOLBOX_VERSION\nNew version: $latest\n\nThe official package and its SHA-256 will be downloaded from GitHub and verified before replacement.\nThe current Toolbox will be backed up in:\n$UMU_BACKUP\n\nThe config/ directory will be preserved.\n\nInstall the update?")"; then return; fi
         else
-            if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+            if ! yesno "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?")"; then return; fi
         fi
     fi
 
@@ -3116,7 +3183,7 @@ PYVER
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
             dialog --ok-label "OK" --title "Toolbox update" --msgbox "Update complete.\n\n$TOOLBOX_VERSION -> $latest\n\nBackup:\n$backup\n\nThe new Toolbox will now restart." 18 90
         else
-            dialog --ok-label "Accepter" --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90
+            dialog --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" --msgbox "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Update complete.\n\n%s -> %s\n\nBackup:\n%s\n\nThe new Toolbox will now restart.' "$TOOLBOX_VERSION" "$latest" "$backup" || printf 'Mise a jour terminee.\n\n%s -> %s\n\nSauvegarde :\n%s\n\nLa nouvelle Toolbox va etre relancee.' "$TOOLBOX_VERSION" "$latest" "$backup")" 18 90
         fi
     fi
     exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
@@ -3138,9 +3205,9 @@ post_update_integration() {
     local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
     unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Toolbox update" "Toolbox updated: $previous -> $TOOLBOX_VERSION\n\nThe runner integration will now be upgraded automatically on all managed and integrated UMU runners.\n\nUnmanaged or modified runners will be ignored."
+        msg "$(tr_ui "Toolbox update")" "$(tr_ui "Toolbox updated: $previous -> $TOOLBOX_VERSION\n\nThe runner integration will now be upgraded automatically on all managed and integrated UMU runners.\n\nUnmanaged or modified runners will be ignored.")"
     else
-        msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et integres.\n\nLes runners non geres ou modifies seront ignores."
+        msg "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et integres.\n\nLes runners non geres ou modifies seront ignores.")"
     fi
     upgrade_integration 1
 }
@@ -3206,9 +3273,9 @@ startup_update_check() {
 
 documentation_about() {
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Documentation / About" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nSimplified Proton + UMU runner management for Batocera.\n\nMain features:\n- install GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU and DW-Proton-UMU;\n- delete a runner;\n- export and create shareable packages;\n- automatically protect UMU runners as read-only while games are running;\n- automatically verify integrity before launch;\n- safely clean UMU runtime data, graphics caches and logs;\n- manual GAMEID / STORE associations for games not recognized automatically.\n\nStandard Batocera runners, Wine-TKG and Kron4ek are not modified.\n\nDocumentation:\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs:\n$LOG_DIR"
+        msg "$(tr_ui "Documentation / About")" "$(tr_ui "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nSimplified Proton + UMU runner management for Batocera.\n\nMain features:\n- install GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU and DW-Proton-UMU;\n- delete a runner;\n- export and create shareable packages;\n- automatically protect UMU runners as read-only while games are running;\n- automatically verify integrity before launch;\n- safely clean UMU runtime data, graphics caches and logs;\n- manual GAMEID / STORE associations for games not recognized automatically.\n\nStandard Batocera runners, Wine-TKG and Kron4ek are not modified.\n\nDocumentation:\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs:\n$LOG_DIR")"
     else
-        msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;\n- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+        msg "$(tr_ui "Documentation / A propos")" "$(tr_ui "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;\n- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR")"
     fi
 }
 
@@ -3265,7 +3332,7 @@ if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
     if [ -n "$(installed_runners)" ]; then
         upgrade_integration 1
     else
-        msg "UMU Runner Toolbox installee" "L'installation de la Toolbox est terminee.\n\nAucun runner Proton UMU n'est encore installe. C'est normal lors d'une premiere installation.\n\nOuvrez UMU Runner Toolbox depuis le menu Ports de Batocera pour installer votre premier runner.\n\nLors de l'installation d'un runner, la Toolbox prepare automatiquement :\n- le runner Proton selectionne ;\n- UMU ;\n- le Steam Runtime requis.\n\nUne fois ces composants installes, le runner peut etre utilise sans nouveau telechargement."
+        msg "$(tr_ui "UMU Runner Toolbox installee")" "$(tr_ui "L'installation de la Toolbox est terminee.\n\nAucun runner Proton UMU n'est encore installe. C'est normal lors d'une premiere installation.\n\nOuvrez UMU Runner Toolbox depuis le menu Ports de Batocera pour installer votre premier runner.\n\nLors de l'installation d'un runner, la Toolbox prepare automatiquement :\n- le runner Proton selectionne ;\n- UMU ;\n- le Steam Runtime requis.\n\nUne fois ces composants installes, le runner peut etre utilise sans nouveau telechargement.")"
     fi
     exit 0
 fi
