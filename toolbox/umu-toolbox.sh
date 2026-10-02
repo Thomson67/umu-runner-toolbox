@@ -2462,7 +2462,12 @@ export_shareable_package() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing required Steam Runtime...' || printf '%s' 'Compression du Steam Runtime requis...')"
     if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime compression failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Echec de compression du Steam Runtime.")"; fi; return; fi
     xz -t "$runtime_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime XZ test failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Test XZ du Steam Runtime echoue.")"; fi; return; }
-    [ -s "$UMU_RUN" ] && cp -a "$UMU_RUN" "$pkgroot/payload/umu-run"
+    if [ ! -s "$UMU_RUN" ]; then
+        rm -rf "$work"
+        msg "$(i18n export_refused)" "umu-run is missing locally. The standalone package must contain UMU so that it remains fully offline."
+        return
+    fi
+    cp -a "$UMU_RUN" "$pkgroot/payload/umu-run"
     (cd "$pkgroot/payload" && sha256sum * > SHA256SUMS)
 
     cat > "$pkgroot/install.sh" <<'EOS'
@@ -2475,7 +2480,6 @@ UMU="/userdata/system/umu"
 [ "$(id -u)" -eq 0 ] || { echo "ERREUR: lancez cet installateur en root."; exit 1; }
 RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' -o -name 'GDK-Proton*-UMU.tar.xz' -o -name 'Proton-CachyOS-*-UMU.tar.xz' -o -name 'proton-EM-*-UMU.tar.xz' -o -name 'dwproton-*-UMU.tar.xz' \) | head -n1)"
 [ -n "$RUNARCH" ] || { echo "ERREUR: payload runner absent."; exit 1; }
-(cd "$PAYLOAD" && sha256sum -c "$(basename "$RUNARCH").sha256")
 RUNNER="$(basename "$RUNARCH" .tar.xz)"
 RTARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'steamrt2.tar.xz' -o -name 'steamrt3.tar.xz' -o -name 'steamrt4.tar.xz' -o -name 'steamrt4-arm64.tar.xz' \) | head -n1)"
 [ -n "$RTARCH" ] || { echo "ERREUR: Steam Runtime absent du package."; exit 1; }
@@ -2483,31 +2487,15 @@ RUNTIME="$(basename "$RTARCH" .tar.xz)"
 (cd "$PAYLOAD" && sha256sum -c SHA256SUMS)
 mkdir -p "$CUSTOM" "$UMU/backups" "$UMU/home/.local/share/umu"
 
-install_umu() {
-  command -v curl >/dev/null 2>&1 || { echo "ERREUR: curl est requis."; exit 1; }
-  command -v python3 >/dev/null 2>&1 || { echo "ERREUR: python3 est requis."; exit 1; }
-  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
-  echo "Recuperation de la derniere release officielle UMU..."
-  curl -fsSL --max-time 30 https://api.github.com/repos/Open-Wine-Components/umu-launcher/releases/latest -o "$tmp/release.json"
-  python3 - "$tmp/release.json" > "$tmp/urls" <<'PY2'
-import json,sys
-d=json.load(open(sys.argv[1])); tag=d.get('tag_name',''); asset=sum(([a.get('browser_download_url','')] for a in d.get('assets',[]) if a.get('browser_download_url','').endswith('zipapp.tar')),[]); chk=sum(([a.get('browser_download_url','')] for a in d.get('assets',[]) if a.get('browser_download_url','').endswith('umu-run.sha512sum')),[]); print(tag); print(asset[0] if asset else ''); print(chk[0] if chk else '')
-PY2
-  tag="$(sed -n '1p' "$tmp/urls")"; asset="$(sed -n '2p' "$tmp/urls")"; chk="$(sed -n '3p' "$tmp/urls")"
-  [ -n "$asset" ] || { echo "ERREUR: asset UMU zipapp introuvable."; exit 1; }
-  curl -fL --progress-bar "$asset" -o "$tmp/umu.tar"
-  mkdir "$tmp/x"; tar -xf "$tmp/umu.tar" -C "$tmp/x"
-  newrun="$(find "$tmp/x" -type f -name umu-run | head -n1)"; [ -s "$newrun" ] || { echo "ERREUR: umu-run absent."; exit 1; }
-  if [ -n "$chk" ]; then curl -fsSL "$chk" -o "$tmp/umu-run.sha512sum"; cp "$newrun" "$tmp/umu-run"; (cd "$tmp" && sha512sum -c umu-run.sha512sum); fi
-  if [ -s "$UMU/umu-run" ]; then cp -a "$UMU/umu-run" "$UMU/backups/umu-run-before-package-$(date '+%Y%m%d-%H%M%S')"; fi
-  cp -a "$newrun" "$UMU/umu-run"; chmod +x "$UMU/umu-run"; rm -f "$UMU/umu_run.py"; ln -s umu-run "$UMU/umu_run.py"; printf '%s\n' "$tag" > "$UMU/.umu_version"
-  rm -rf "$tmp"; trap - RETURN
-}
-
+[ -s "$PAYLOAD/umu-run" ] || { echo "ERREUR: umu-run absent du package."; exit 1; }
 if [ ! -s "$UMU/umu-run" ]; then
-  if [ -s "$PAYLOAD/umu-run" ]; then cp -a "$PAYLOAD/umu-run" "$UMU/umu-run"; chmod +x "$UMU/umu-run"; rm -f "$UMU/umu_run.py"; ln -s umu-run "$UMU/umu_run.py";
-  else install_umu; fi
-else echo "UMU deja present : conservation de l'installation existante."; fi
+  cp -a "$PAYLOAD/umu-run" "$UMU/umu-run"
+  chmod +x "$UMU/umu-run"
+  rm -f "$UMU/umu_run.py"
+  ln -s umu-run "$UMU/umu_run.py"
+else
+  echo "UMU deja present : conservation de l'installation existante."
+fi
 STAGE="$(mktemp -d /userdata/system/umu/package-staging.XXXXXX)"
 trap 'rm -rf "$STAGE"' EXIT
 echo "Preparation et verification de $RUNNER..."
