@@ -753,7 +753,7 @@ PY2
     fi
     if ! curl -fL --progress-bar "$asset" -o "$tmp/umu-launcher.tar"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Echec du telechargement de UMU $tag.")"
+        msg "$(i18n umu_install_failed)" "$(i18n umu_download_failed "$tag")"
         return 1
     fi
     mkdir -p "$tmp/extracted"
@@ -771,13 +771,13 @@ PY2
     if [ -n "$checksum" ]; then
         if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
             rm -rf "$tmp"
-            msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Impossible de telecharger le checksum SHA512 de UMU.")"
+            msg "$(i18n umu_install_failed)" "$(i18n umu_checksum_download_failed)"
             return 1
         fi
         cp "$newrun" "$tmp/umu-run"
         if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
             rm -rf "$tmp"
-            msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Le checksum SHA512 de UMU est invalide.")"
+            msg "$(i18n umu_install_failed)" "$(i18n umu_checksum_invalid)"
             return 1
         fi
     fi
@@ -845,7 +845,7 @@ update_umu() {
 
     if ! fetch_latest_umu_json > "$json"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Impossible de recuperer les informations de release UMU.")"
+        msg "$(i18n umu_error)" "$(i18n umu_release_info_failed)"
         return
     fi
 
@@ -876,14 +876,14 @@ PY
 
     if [ -z "$tag" ] || [ -z "$asset" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Release UMU invalide ou asset zipapp introuvable.")"
+        msg "$(i18n umu_error)" "$(i18n umu_release_asset_invalid)"
         return
     fi
 
     oldver="$(umu_version)"
     if printf '%s' "$oldver" | grep -q "^$tag"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "UMU")" "$(tr_ui "UMU $tag est deja installe.")"
+        msg "UMU" "$(i18n umu_already_installed "$tag")"
         return
     fi
 
@@ -966,7 +966,7 @@ rollback_umu() {
     local files count
     files="$(find "$UMU_BACKUP" -maxdepth 1 -type f -name 'umu-run-*' -printf '%f\n' 2>/dev/null | sort -r)"
     if [ -z "$files" ]; then
-        msg "$(tr_ui "Rollback UMU")" "$(tr_ui "Aucune sauvegarde UMU disponible.")"
+        msg "Rollback UMU" "$(i18n umu_backup_none)"
         return
     fi
 
@@ -992,7 +992,7 @@ rollback_umu() {
         chmod +x "$UMU_RUN"
         rm -f "$UMU_DIR/umu_run.py"
         ln -s umu-run "$UMU_DIR/umu_run.py"
-        msg "$(tr_ui "Rollback UMU")" "$(tr_ui "Sauvegarde restauree.\n\nVersion active : $(umu_version)")"
+        msg "Rollback UMU" "$(i18n umu_backup_restored "$(umu_version)")"
     fi
 }
 
@@ -1208,7 +1208,7 @@ install_gdk() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GDK-Proton releases...' || printf '%s' 'Chargement des releases GDK-Proton...')"
     if ! fetch_gdk_releases "$json"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Impossible de recuperer les releases GDK-Proton.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n releases_fetch_failed "GDK-Proton")"
         return
     fi
     menu_file="$tmp/menu.tsv"
@@ -1223,9 +1223,9 @@ install_gdk() {
     while IFS=$'\t' read -r name tarurl sha; do
         [ -n "$name" ] || continue
         if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
-            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
+            state="$(i18n state_installed_protected)"
         else
-            state="$(tr_ui "disponible")"
+            state="$(i18n state_available)"
         fi
         opts+=("$name" "$state")
     done < "$menu_file"
@@ -1245,14 +1245,14 @@ install_gdk() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(i18n release_invalid)" "$(i18n archive_missing "$name")"; return; }
     tarurl="$(printf '%s' "$line" | cut -f2)"
     sha="$(printf '%s' "$line" | cut -f3)"
     target="$CUSTOM_DIR/${name}-UMU"
 
     if [ -e "$target" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"
+        msg "$(i18n runner_protected)" "$(i18n runner_exists_body "$name-UMU")"
         return
     fi
 
@@ -1342,7 +1342,7 @@ EOF
 
     if [ -e "$target" ]; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"
+        msg "$(i18n conflict)" "$(i18n runner_conflict_body "$target")"
         return
     fi
 
@@ -1402,7 +1402,7 @@ install_cachy() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-CachyOS SLR releases...' || printf '%s' 'Chargement des releases Proton-CachyOS SLR...')"
     if ! fetch_cachy_releases "$json"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Impossible de recuperer les releases Proton-CachyOS.")"
+        msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n releases_fetch_failed "Proton-CachyOS")"
         return
     fi
     menu_file="$tmp/menu.tsv"
@@ -1416,7 +1416,7 @@ install_cachy() {
     local opts=() name tarurl sumurl state
     while IFS=$'\t' read -r name tarurl sumurl; do
         [ -n "$name" ] || continue
-        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"; else state="$(tr_ui "disponible (SLR x86_64)")"; fi
+        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then state="$(i18n state_installed_protected)"; else state="$(i18n state_available_slr)"; fi
         opts+=("$name" "$state")
     done < "$menu_file"
 
@@ -1431,11 +1431,11 @@ install_cachy() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(i18n release_invalid)" "$(i18n archive_missing "$name")"; return; }
     tarurl="$(printf '%s' "$line" | cut -f2)"
     sumurl="$(printf '%s' "$line" | cut -f3)"
     target="$CUSTOM_DIR/${name}-UMU"
-    if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(i18n runner_protected)" "$(i18n runner_exists_body "$name-UMU")"; return; fi
 
     if ! yesno "$(tr_ui "Installer $name-UMU")" \
 "Source : Proton-CachyOS SLR x86_64
@@ -1492,7 +1492,7 @@ EOF
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n runner_integrity_failed)"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
-    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(i18n conflict)" "$(i18n runner_conflict_body "$target")"; return; fi
     echo "$(i18n atomic_install "$name-UMU")"
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n runner_finalize_failed)"; return; fi
     rm -rf "$tmp" "$stage"
@@ -1545,7 +1545,7 @@ install_em() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-EM releases...' || printf '%s' 'Chargement des releases Proton-EM...')"
     if ! fetch_em_releases "$json"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de recuperer les releases Proton-EM.")"
+        msg "$(i18n runner_error "Proton-EM")" "$(i18n releases_fetch_failed "Proton-EM")"
         return
     fi
     menu_file="$tmp/menu.tsv"
@@ -1560,9 +1560,9 @@ install_em() {
     while IFS=$'\t' read -r name tag tarurl sumurl; do
         [ -n "$name" ] || continue
         if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
-            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
+            state="$(i18n state_installed_protected)"
         elif [ -z "$sumurl" ]; then
-            state="$(tr_ui "NON INSTALLABLE - checksum upstream absent")"
+            state="$(i18n state_not_installable_checksum)"
         else
             state="$(tr_ui "disponible") ($tag)"
         fi
@@ -1582,14 +1582,14 @@ install_em() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(i18n release_invalid)" "$(i18n archive_missing "$name")"; return; }
     tag="$(printf '%s' "$line" | cut -f2)"
     tarurl="$(printf '%s' "$line" | cut -f3)"
     sumurl="$(printf '%s' "$line" | cut -f4)"
     target="$CUSTOM_DIR/${name}-UMU"
     if [ -e "$target" ]; then
         if [ "$noninteractive" = "1" ] && verify_runner_manifest "$target"; then rm -rf "$tmp"; echo "already-installed: $name-UMU"; return 0; fi
-        rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return 2
+        rm -rf "$tmp"; msg "$(i18n runner_protected)" "$(i18n runner_exists_body "$name-UMU")"; return 2
     fi
 
     if [ -z "$sumurl" ]; then
@@ -1658,7 +1658,7 @@ EOF
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n runner_integrity_failed)"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
-    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(i18n conflict)" "$(i18n runner_conflict_body "$target")"; return; fi
     echo "$(i18n atomic_install "$name-UMU")"
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n runner_finalize_failed)"; return; fi
     rm -rf "$tmp" "$stage"
@@ -1712,7 +1712,7 @@ install_dw() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading DW-Proton releases...' || printf '%s' 'Chargement des releases DW-Proton...')"
     if ! fetch_dw_releases "$json"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de recuperer les releases DW-Proton.")"
+        msg "$(i18n runner_error "DW-Proton")" "$(i18n releases_fetch_failed "DW-Proton")"
         return
     fi
     menu_file="$tmp/menu.tsv"
@@ -1727,9 +1727,9 @@ install_dw() {
     while IFS=$'\t' read -r name tag tarurl sumurl; do
         [ -n "$name" ] || continue
         if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
-            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
+            state="$(i18n state_installed_protected)"
         elif [ -z "$sumurl" ]; then
-            state="$(tr_ui "NON INSTALLABLE - checksum upstream absent")"
+            state="$(i18n state_not_installable_checksum)"
         else
             state="$(tr_ui "disponible") ($tag)"
         fi
@@ -1747,12 +1747,12 @@ install_dw() {
 
     local line target
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
-    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive introuvable pour $name.")"; return; }
+    [ -n "$line" ] || { rm -rf "$tmp"; msg "$(i18n release_invalid)" "$(i18n archive_missing "$name")"; return; }
     tag="$(printf '%s' "$line" | cut -f2)"
     tarurl="$(printf '%s' "$line" | cut -f3)"
     sumurl="$(printf '%s' "$line" | cut -f4)"
     target="$CUSTOM_DIR/${name}-UMU"
-    if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(i18n runner_protected)" "$(i18n runner_exists_body "$name-UMU")"; return; fi
 
     if [ -z "$sumurl" ]; then
         rm -rf "$tmp"
@@ -1820,7 +1820,7 @@ EOF
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n runner_integrity_failed)"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
-    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
+    if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(i18n conflict)" "$(i18n runner_conflict_body "$target")"; return; fi
     echo "$(i18n atomic_install "$name-UMU")"
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n runner_finalize_failed)"; return; fi
     rm -rf "$tmp" "$stage"
@@ -1861,7 +1861,7 @@ install_ge() {
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GE-Proton releases...' || printf '%s' 'Chargement des releases GE-Proton...')"
     if ! fetch_ge_releases "$pages"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de recuperer les releases GE-Proton.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n releases_fetch_failed "GE-Proton")"
         return
     fi
 
@@ -1879,9 +1879,9 @@ install_ge() {
     while IFS=$'\t' read -r tag tarurl sumurl; do
         local state
         if [ -d "$CUSTOM_DIR/${tag}-UMU" ]; then
-            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
+            state="$(i18n state_installed_protected)"
         else
-            state="$(tr_ui "disponible")"
+            state="$(i18n state_available)"
         fi
         opts+=("$tag" "$state")
     done < "$menu_file"
@@ -2000,7 +2000,7 @@ Continuer ?"; then
         echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
             rm -rf "$tmp" "$stage"
-            msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de telecharger le checksum.")"
+            msg "$(i18n runner_error "GE-Proton")" "$(i18n checksum_download_failed)"
             return
         fi
         if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
@@ -2060,7 +2060,7 @@ EOF
     # Re-check the staged candidate after hashing.
     if ! verify_runner_manifest "$candidate"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Le runner a change pendant sa preparation. Installation annulee.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n runner_changed_staging)"
         return
     fi
 
