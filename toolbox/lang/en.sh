@@ -367,4 +367,5 @@ I18N=(
   [clean_logs_title]="Clean UMU logs"
   [clean_logs_prompt]="Toolbox logs: %s\\nRunner logs: %s\\nTotal: %s\\n\\nAll old logs will be deleted.\\nThe Toolbox log for this session will be preserved.\\n\\nContinue?"
   [log_cleanup_done]="UMU logs cleaned.\\n\\nPreviously used space: %s\\nThe current Toolbox log was preserved."
+  [cleanup_analysis_body]="UMU runtime data:\\n- compatdata: %s\\n- merged-prefixes: %s\\n- materialized-prefixes: %s\\n- gameviews: %s\\n- legacy TEST7: %s\\n- total: %s\\n\\nOptional graphics caches:\\n- Mesa shader cache: %s\\n- RADV builtin shaders: %s\\n- total: %s\\n\\nAlways preserved: umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, UMU backups and runners."
 )
