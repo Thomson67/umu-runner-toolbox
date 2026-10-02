@@ -100,6 +100,30 @@ ui() {
 
 load_language
 
+load_i18n() {
+    local catalog="$ROOT/lang/$TOOLBOX_LANGUAGE.sh"
+    declare -gA I18N=()
+    if [ -r "$catalog" ]; then
+        # Translation catalogs contain data only: one associative array.
+        # shellcheck disable=SC1090
+        source "$catalog"
+    fi
+}
+
+i18n() {
+    local key="$1" fmt
+    shift || true
+    fmt="${I18N[$key]-}"
+    if [ -z "$fmt" ]; then
+        printf '[missing translation: %s]' "$key"
+        log "i18n_missing key=$key language=$TOOLBOX_LANGUAGE"
+        return 1
+    fi
+    printf "$fmt" "$@"
+}
+
+load_i18n
+
 tr_ui() {
     local s="$1"
     [ "$TOOLBOX_LANGUAGE" = "en" ] || { printf '%s' "$s"; return; }
