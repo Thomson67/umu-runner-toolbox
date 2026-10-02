@@ -1136,7 +1136,7 @@ install_cachy() {
           --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Upstream-recommended SLR x86_64 build. Immutable installation.' || printf 'Build SLR x86_64 recommande upstream. Installation immutable.')"  \
           22 100 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
-        clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
+        clear; cut -f1 "$menu_file"; echo; printf "%s" "$(i18n version_to_install_prompt)"; read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
@@ -1448,8 +1448,8 @@ install_dw() {
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install DW-Proton + UMU' || printf 'Installer DW-Proton + UMU')" \
-          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Official dawn-winery/dwproton-mirror releases (x86_64). Immutable installation.' || printf 'Releases officielles dawn-winery/dwproton-mirror (x86_64). Installation immutable.')"  \
+        name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_dw_title)" \
+          --menu "$(i18n dw_menu_desc)" \
           24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
