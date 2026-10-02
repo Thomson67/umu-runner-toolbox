@@ -18,6 +18,87 @@ RUNNER_STAGING_ROOT="$ROOT/staging"
 GAMEID_OVERRIDES="$ROOT/config/gameid-overrides.csv"
 WINDOWS_GAMELIST="/userdata/roms/windows/gamelist.xml"
 RUNNER_LOG_DIR="/userdata/system/logs/umu-runner"
+LANGUAGE_FILE="$ROOT/config/language"
+TOOLBOX_LANGUAGE="fr"
+
+load_language() {
+    local saved=""
+    [ -s "$LANGUAGE_FILE" ] && saved="$(tr -d '\r\n[:space:]' < "$LANGUAGE_FILE" 2>/dev/null || true)"
+    case "$saved" in
+        en|fr) TOOLBOX_LANGUAGE="$saved" ;;
+        *) TOOLBOX_LANGUAGE="fr" ;;
+    esac
+}
+
+save_language() {
+    mkdir -p "$(dirname "$LANGUAGE_FILE")"
+    printf '%s\n' "$TOOLBOX_LANGUAGE" > "$LANGUAGE_FILE"
+}
+
+ui() {
+    local key="$1"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        case "$key" in
+            choose_action) printf '%s' "Choose an action:" ;;
+            continue_prompt) printf '%s' "Continue? [y/N] " ;;
+            press_enter) printf '%s' "Press Enter to continue..." ;;
+            connection_required) printf '%s' "Connection required" ;;
+            github_unreachable) printf '%s' "Unable to reach GitHub.\n\nCheck that Batocera is connected to the Internet." ;;
+            install_runner) printf '%s' "Install a Proton UMU runner" ;;
+            delete_runner) printf '%s' "Delete an UMU runner" ;;
+            export_runner) printf '%s' "Export / share a runner" ;;
+            game_compat) printf '%s' "Game compatibility" ;;
+            maintenance) printf '%s' "Maintenance and diagnostics" ;;
+            update_toolbox) printf '%s' "Update Toolbox" ;;
+            documentation) printf '%s' "Documentation / About" ;;
+            language) printf '%s' "Language" ;;
+            quit) printf '%s' "Quit" ;;
+            back) printf '%s' "Back" ;;
+            language_title) printf '%s' "Language / Langue" ;;
+            language_prompt) printf '%s' "Choose the Toolbox language:" ;;
+            language_changed) printf '%s' "Language changed" ;;
+            language_changed_text) printf '%s' "The Toolbox interface is now in English.\n\nThis choice is saved and will be kept after updates." ;;
+            update_available) printf '%s' "Update available" ;;
+            installed_version) printf '%s' "Installed version" ;;
+            new_version) printf '%s' "New version" ;;
+            update_question) printf '%s' "A new version of UMU Runner Toolbox is available.\n\nDownload, verify and install it now?" ;;
+            already_current) printf '%s' "The Toolbox is already up to date." ;;
+            no_update) printf '%s' "No newer stable release is available." ;;
+            *) printf '%s' "$key" ;;
+        esac
+    else
+        case "$key" in
+            choose_action) printf '%s' "Choisissez une action :" ;;
+            continue_prompt) printf '%s' "Continuer ? [y/N] " ;;
+            press_enter) printf '%s' "Appuyez sur Entree pour continuer..." ;;
+            connection_required) printf '%s' "Connexion requise" ;;
+            github_unreachable) printf '%s' "Impossible de joindre GitHub.\n\nVerifiez que Batocera est connecte a Internet." ;;
+            install_runner) printf '%s' "Installer un runner Proton UMU" ;;
+            delete_runner) printf '%s' "Supprimer un runner UMU" ;;
+            export_runner) printf '%s' "Exporter / partager un runner" ;;
+            game_compat) printf '%s' "Compatibilite des jeux" ;;
+            maintenance) printf '%s' "Maintenance et diagnostic" ;;
+            update_toolbox) printf '%s' "Mettre a jour la Toolbox" ;;
+            documentation) printf '%s' "Documentation / A propos" ;;
+            language) printf '%s' "Langue / Language" ;;
+            quit) printf '%s' "Quitter" ;;
+            back) printf '%s' "Retour" ;;
+            language_title) printf '%s' "Langue / Language" ;;
+            language_prompt) printf '%s' "Choisissez la langue de la Toolbox :" ;;
+            language_changed) printf '%s' "Langue modifiee" ;;
+            language_changed_text) printf '%s' "L'interface de la Toolbox est maintenant en francais.\n\nCe choix est enregistre et sera conserve apres les mises a jour." ;;
+            update_available) printf '%s' "Mise a jour disponible" ;;
+            installed_version) printf '%s' "Version installee" ;;
+            new_version) printf '%s' "Nouvelle version" ;;
+            update_question) printf '%s' "Une nouvelle version de UMU Runner Toolbox est disponible.\n\nLa telecharger, la verifier et l'installer maintenant ?" ;;
+            already_current) printf '%s' "La Toolbox est deja a jour." ;;
+            no_update) printf '%s' "Aucune release stable plus recente n'est disponible." ;;
+            *) printf '%s' "$key" ;;
+        esac
+    fi
+}
+
+load_language
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
 GDK_REPO="Weather-OS/GDK-Proton"
@@ -72,7 +153,7 @@ rotate_umu_logs() {
 rotate_umu_logs
 
 pause() {
-    printf '\nAppuyez sur Entree pour continuer...'
+    printf '\n%s' "$(ui press_enter)"
     read -r _
 }
 
@@ -111,7 +192,7 @@ menu_choice() {
     local title="$1"
     shift
     if command -v dialog >/dev/null 2>&1; then
-        dialog --stdout --title "$title" --menu "Choisissez une action :" 26 96 15 "$@"
+        dialog --stdout --title "$title" --menu "$(ui choose_action)" 26 96 15 "$@"
     else
         clear
         echo "==== $title ===="
@@ -148,7 +229,7 @@ input_box() {
 
 require_net() {
     if ! curl -fsS --connect-timeout 8 https://api.github.com/ >/dev/null 2>&1; then
-        msg "Connexion requise" "Impossible de joindre GitHub.\n\nVerifiez que Batocera est connecte a Internet."
+        msg "$(ui connection_required)" "$(ui github_unreachable)"
         return 1
     fi
     return 0
@@ -2647,6 +2728,7 @@ maintenance_menu() {
 }
 
 update_toolbox() {
+    local startup_confirmed="${1:-0}"
     require_net || return
     local base latest_url tag latest asset checksum download_base tmp pkg root newroot backup ts
 
@@ -2676,7 +2758,13 @@ PYVER
     checksum="$asset.sha256"
     download_base="$base/releases/download/$tag"
 
-    if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+    if [ "$startup_confirmed" != "1" ]; then
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            if ! yesno "Toolbox update" "Installed version: $TOOLBOX_VERSION\nNew version: $latest\n\nThe official package and its SHA-256 will be downloaded from GitHub and verified before replacement.\nThe current Toolbox will be backed up in:\n$UMU_BACKUP\n\nThe config/ directory will be preserved.\n\nInstall the update?"; then return; fi
+        else
+            if ! yesno "Mise a jour Toolbox" "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?"; then return; fi
+        fi
+    fi
 
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
     if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
@@ -2725,6 +2813,65 @@ post_update_integration() {
     upgrade_integration 1
 }
 
+language_menu() {
+    local choice
+    choice="$(menu_choice "$(ui language_title)" \
+        "fr" "Francais" \
+        "en" "English" \
+        "0" "$(ui back)")" || return
+    case "$choice" in
+        fr)
+            TOOLBOX_LANGUAGE="fr"
+            save_language
+            msg "$(ui language_changed)" "$(ui language_changed_text)"
+            ;;
+        en)
+            TOOLBOX_LANGUAGE="en"
+            save_language
+            msg "$(ui language_changed)" "$(ui language_changed_text)"
+            ;;
+        0|"") return ;;
+    esac
+}
+
+latest_stable_toolbox_version() {
+    local latest_url tag
+    latest_url="$(curl -fsSL --connect-timeout 5 --max-time 10 -o /dev/null -w '%{url_effective}' "https://github.com/$TOOLBOX_REPO/releases/latest" 2>/dev/null)" || return 1
+    tag="$(basename "$latest_url")"
+    case "$tag" in v*) printf '%s' "${tag#v}" ;; *) return 1 ;; esac
+}
+
+version_is_newer() {
+    python3 - "$1" "$2" <<'PYVER'
+import sys
+def v(s):
+    try:
+        return tuple(int(x) for x in s.split('.'))
+    except ValueError:
+        return ()
+cur, new = v(sys.argv[1]), v(sys.argv[2])
+sys.exit(0 if cur and new and new > cur else 1)
+PYVER
+}
+
+startup_update_check() {
+    [ "${UMU_TOOLBOX_SKIP_UPDATE_CHECK:-0}" = "1" ] && return 0
+    local latest=""
+    latest="$(latest_stable_toolbox_version)" || {
+        log "startup_update_check=offline_or_unavailable"
+        return 0
+    }
+    [ -n "$latest" ] || return 0
+    if ! version_is_newer "$TOOLBOX_VERSION" "$latest"; then
+        log "startup_update_check=no_update installed=$TOOLBOX_VERSION latest=$latest"
+        return 0
+    fi
+    log "startup_update_check=available installed=$TOOLBOX_VERSION latest=$latest"
+    if yesno "$(ui update_available)" "$(ui installed_version) : $TOOLBOX_VERSION\n$(ui new_version) : $latest\n\n$(ui update_question)"; then
+        update_toolbox 1
+    fi
+}
+
 documentation_about() {
     msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;
 - associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
@@ -2734,14 +2881,15 @@ main_menu() {
     while true; do
         local choice
         choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
-            "1" "Installer un runner Proton UMU" \
-            "2" "Supprimer un runner UMU" \
-            "3" "Exporter / partager un runner" \
-            "4" "Compatibilite des jeux" \
-            "5" "Maintenance et diagnostic" \
-            "6" "Mettre a jour la Toolbox" \
-            "7" "Documentation / A propos" \
-            "0" "Quitter")" || exit 0
+            "1" "$(ui install_runner)" \
+            "2" "$(ui delete_runner)" \
+            "3" "$(ui export_runner)" \
+            "4" "$(ui game_compat)" \
+            "5" "$(ui maintenance)" \
+            "6" "$(ui update_toolbox)" \
+            "7" "$(ui documentation)" \
+            "8" "$(ui language)" \
+            "0" "$(ui quit)")" || exit 0
         case "$choice" in
             1) install_runner_menu ;;
             2) delete_installed_runner ;;
@@ -2750,6 +2898,7 @@ main_menu() {
             5) maintenance_menu ;;
             6) update_toolbox ;;
             7) documentation_about ;;
+            8) language_menu ;;
             0|"") clear; exit 0 ;;
         esac
     done
@@ -2786,4 +2935,5 @@ if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
     exit 0
 fi
 post_update_integration
+startup_update_check
 main_menu
