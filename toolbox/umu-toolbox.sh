@@ -892,15 +892,15 @@ ensure_umu_for_runner() {
 prepare_runtime_for_runner() {
     local runner="$1"
     [ -s "$runner/toolmanifest.vdf" ] || { log "runtime_bootstrap=skipped runner=$runner reason=no-toolmanifest"; return 0; }
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Preparing required Steam Runtime...' || printf '%s' 'Preparation du Steam Runtime requis...')"
+    echo "$(i18n steamrt_prepare)"
     HOME="$UMU_DIR/home" XDG_CACHE_HOME="$UMU_DIR/cache" PROTONPATH="$runner" python3 "$(root_bridge)" "$UMU_RUN" --prepare-runtime
     local rc=$?
     if [ "$rc" -ne 0 ]; then
         log "runtime_bootstrap=failed runner=$runner rc=$rc"
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Steam Runtime" "Unable to prepare the Steam Runtime required by this runner.\n\nThe runner will not be installed so that every installation remains complete and usable offline."
+            msg "$(i18n steamrt_title)" "$(i18n steamrt_failed)"
         else
-            msg "Steam Runtime" "Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne."
+            msg "$(i18n steamrt_title)" "$(i18n steamrt_failed)"
         fi
         return "$rc"
     fi
@@ -1357,10 +1357,10 @@ Continuer ?"; then
     tarname="$(basename "$tarurl")"
 
     clear
-    [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name..." || echo "Telechargement de $name..."
+    echo "$(i18n downloading "$name")"
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Echec du telechargement.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n download_failed)"
         return
     fi
 
@@ -1376,7 +1376,7 @@ Continuer ?"; then
         log "WARNING GitHub asset digest absent for $name"
     fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
+    echo "$(i18n extracting_staging)"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
         msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Extraction impossible.")"
@@ -1388,7 +1388,7 @@ Continuer ?"; then
        [ ! -s "$extracted/files/bin/wine" ] ||
        [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Structure GDK-Proton inattendue. Rien n'a ete installe.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n runner_unexpected_structure "GDK-Proton")"
         return
     fi
 
@@ -1414,7 +1414,7 @@ EOF
 
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n runner_integrity_failed)"
         return
     fi
 
@@ -1426,20 +1426,16 @@ EOF
         return
     fi
 
-    echo "Installation atomique de $name-UMU..."
+    echo "$(i18n atomic_install "$name-UMU")"
     if ! mv "$candidate" "$target"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Impossible de finaliser l'installation.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n runner_finalize_failed)"
         return
     fi
 
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=GDK-Proton"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: GDK-Proton\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
-    else
-        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : GDK-Proton\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
-    fi
+    msg "$(i18n runner_installed)" "$(i18n runner_installed_body "$name-UMU" "GDK-Proton")"
 }
 
 fetch_cachy_releases() {
@@ -1536,8 +1532,8 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     stage="$RUNNER_STAGING_ROOT/${name}-UMU.$(date '+%Y%m%d-%H%M%S').$$"
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
-    clear; [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name (SLR x86_64)..." || echo "Telechargement de $name (SLR x86_64)..."
-    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Echec du telechargement.")"; return; fi
+    clear; echo "$(i18n downloading_build "$name" "SLR x86_64")"
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n download_failed)"; return; fi
 
     if [ -n "$sumurl" ]; then
         sumname="$(basename "$sumurl")"
@@ -1549,11 +1545,11 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         log "WARNING upstream SHA512 asset absent for $name"
     fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
+    echo "$(i18n extracting_staging)"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
-        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Structure Proton-CachyOS inattendue. Rien n'a ete installe.")"; return
+        rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n runner_unexpected_structure "Proton-CachyOS")"; return
     fi
 
     candidate="$stage/candidate"
@@ -1573,19 +1569,15 @@ SOURCE_SHA512_FILE=${sumurl:-unavailable}
 STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"; return; fi
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n runner_integrity_failed)"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
     if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
-    echo "Installation atomique de $name-UMU..."
-    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
+    echo "$(i18n atomic_install "$name-UMU")"
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n runner_finalize_failed)"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=Proton-CachyOS asset=SLR-x86_64"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: Proton-CachyOS\nBuild: SLR x86_64\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
-    else
-        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-CachyOS\nBuild : SLR x86_64\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
-    fi
+    msg "$(i18n runner_installed)" "$(i18n runner_installed_build_body "$name-UMU" "Proton-CachyOS" "SLR x86_64")"
 }
 
 fetch_em_releases() {
@@ -1701,8 +1693,8 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
     sumname="$(basename "$sumurl")"
-    clear; [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name..." || echo "Telechargement de $name..."
-    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Echec du telechargement.")"; return; fi
+    clear; echo "$(i18n downloading "$name")"
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n download_failed)"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA256...' || printf '%s' 'Verification SHA256 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
@@ -1718,11 +1710,11 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         fi
     fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
+    echo "$(i18n extracting_staging)"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
-        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Structure Proton-EM inattendue. Rien n'a ete installe.")"; return
+        rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n runner_unexpected_structure "Proton-EM")"; return
     fi
 
     candidate="$stage/candidate"
@@ -1743,19 +1735,15 @@ SOURCE_SHA256_FILE=$sumurl
 STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"; return; fi
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n runner_integrity_failed)"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
     if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
-    echo "Installation atomique de $name-UMU..."
-    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
+    echo "$(i18n atomic_install "$name-UMU")"
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n runner_finalize_failed)"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=Proton-EM tag=$tag"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: Proton-EM\nRelease: $tag\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
-    else
-        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-EM\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
-    fi
+    msg "$(i18n runner_installed)" "$(i18n runner_installed_release_body "$name-UMU" "Proton-EM" "$tag")"
 }
 fetch_dw_releases() {
     local out="$1"
@@ -1867,8 +1855,8 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
     sumname="$(basename "$sumurl")"
-    clear; [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name..." || echo "Telechargement de $name..."
-    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Echec du telechargement.")"; return; fi
+    clear; echo "$(i18n downloading "$name")"
+    if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n download_failed)"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
@@ -1884,11 +1872,11 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         fi
     fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
+    echo "$(i18n extracting_staging)"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
-        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Structure DW-Proton inattendue. Rien n'a ete installe.")"; return
+        rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n runner_unexpected_structure "DW-Proton")"; return
     fi
 
     candidate="$stage/candidate"
@@ -1909,19 +1897,15 @@ SOURCE_SHA512_FILE=$sumurl
 STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Controle d'integrite du runner prepare impossible.")"; return; fi
+    if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n runner_integrity_failed)"; return; fi
     if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
 
     if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation.")"; return; fi
-    echo "Installation atomique de $name-UMU..."
-    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
+    echo "$(i18n atomic_install "$name-UMU")"
+    if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n runner_finalize_failed)"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=DW-Proton tag=$tag"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: DW-Proton\nRelease: $tag\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
-    else
-        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : DW-Proton\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
-    fi
+    msg "$(i18n runner_installed)" "$(i18n runner_installed_release_body "$name-UMU" "DW-Proton" "$tag")"
 }
 
 install_runner_menu() {
@@ -2088,7 +2072,7 @@ Continuer ?"; then
     [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $tag..." || echo "Telechargement de $tag..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Echec du telechargement.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n download_failed)"
         return
     fi
 
@@ -2108,7 +2092,7 @@ Continuer ?"; then
         log "WARNING checksum absent for $tag"
     fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
+    echo "$(i18n extracting_staging)"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
         msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Extraction impossible. Rien n'a ete installe.")"
@@ -2121,7 +2105,7 @@ Continuer ?"; then
        [ ! -s "$extracted/files/bin/wine" ] ||
        [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Structure GE-Proton inattendue. Rien n'a ete installe.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n runner_unexpected_structure "GE-Proton")"
         return
     fi
 
@@ -2169,7 +2153,7 @@ EOF
         return
     fi
 
-    echo "Installation atomique de $tag-UMU..."
+    echo "$(i18n atomic_install "$tag-UMU")"
     if ! mv "$candidate" "$target"; then
         rm -rf "$tmp" "$stage"
         msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de finaliser l'installation. Les runners existants sont intacts.")"
