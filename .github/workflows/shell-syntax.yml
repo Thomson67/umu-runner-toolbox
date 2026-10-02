@@ -21,3 +21,8 @@ jobs:
           bash -n install.sh
           bash -n uninstall.sh
           bash -n packaging/install.sh
+          # Legacy translator must stay removed: all UI strings must use catalog keys.
+          if grep -n 'tr_ui' toolbox/umu-toolbox.sh; then
+            echo "ERROR: legacy tr_ui translator was reintroduced"
+            exit 1
+          fi
