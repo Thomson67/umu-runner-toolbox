@@ -330,7 +330,6 @@ tr_ui() {
     s="${s//Structure/Structure}"
     s="${s//Conflit/Conflict}"
     s="${s//Installation atomique de/Atomic installation of}"
-    s="${s//Runner installe/Runner installed}"
     s="${s//est installe comme NOUVEAU runner./is installed as a NEW runner.}"
     s="${s//Famille :/Family:}"
     s="${s//Statut :/Status:}"
