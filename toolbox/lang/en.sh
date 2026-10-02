@@ -276,4 +276,8 @@ I18N=(
   [integrity_unmanaged]="UNMANAGED"
   [integrity_missing]="MISSING"
   [integrity_unknown]="UNKNOWN"
+  [runner_compress_failed]="Runner compression failed."
+  [runner_xz_failed]="Runner XZ test failed."
+  [runtime_compress_failed]="Steam Runtime compression failed."
+  [runtime_xz_failed]="Steam Runtime XZ test failed."
 )
