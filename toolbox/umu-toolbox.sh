@@ -2078,6 +2078,15 @@ export_runner() {
         msg "$(i18n export_failed)" "$(i18n export_tar_failed "$LOG")"
     fi
 }
+create_tar_xz() {
+    local parent="$1" name="$2" dest="$3" level="${4:--3}"
+    local xz_opts="$level"
+    if xz --help 2>&1 | grep -q -- '-T'; then
+        xz_opts="-T0 $level"
+    fi
+    XZ_OPT="$xz_opts" tar -C "$parent" -cJf "$dest" -- "$name"
+}
+
 export_shareable_package() {
     local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size manifest appid runtime_variant runtime_src runtime_archive runtime_size
     runners="$(installed_runners)"
@@ -2137,7 +2146,7 @@ export_shareable_package() {
     export_dir="/userdata/system/umu/exports"
     mkdir -p "$export_dir"
     pkgname="${choice}-Batocera-UMU-Package-$(date '+%Y%m%d-%H%M%S')"
-    work="$(mktemp -d)"
+    work="$(mktemp -d "$RUNNER_STAGING_ROOT/share-package.XXXXXX")" || { msg "$(i18n export_failed)" "$(i18n update_tmp_failed)"; return; }
     pkgroot="$work/$pkgname"
     mkdir -p "$pkgroot/payload"
     runner_archive="$pkgroot/payload/${choice}.tar.xz"
@@ -2146,13 +2155,15 @@ export_shareable_package() {
     yesno "$(i18n confirm_package)" "$(i18n package_confirm_body "$choice" "$label" "$runtime_variant" "$appid" "$runtime_size")" || { rm -rf "$work"; return; }
 
     clear
+    echo "$(i18n package_compression_note)"
+    echo
     echo "$(i18n compressing_runner)"
-    if ! tar -C "$CUSTOM_DIR" -cJf "$runner_archive" -- "$choice"; then
+    if ! create_tar_xz "$CUSTOM_DIR" "$choice" "$runner_archive" "-3"; then
         rm -rf "$work"; msg "$(i18n error)" "$(i18n runner_compress_failed)"; return
     fi
     xz -t "$runner_archive" || { rm -rf "$work"; msg "$(i18n error)" "$(i18n runner_xz_failed)"; return; }
     echo "$(i18n compressing_runtime)"
-    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_compress_failed)"; return; fi
+    if ! create_tar_xz "$(dirname "$runtime_src")" "$runtime_variant" "$runtime_archive" "-3"; then rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_compress_failed)"; return; fi
     xz -t "$runtime_archive" || { rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_xz_failed)"; return; }
     if [ ! -s "$UMU_RUN" ]; then
         rm -rf "$work"
@@ -2251,7 +2262,7 @@ EOF
     (cd "$pkgroot" && sha256sum install.sh README.txt payload/* > SHA256SUMS)
     archive="$export_dir/${pkgname}.tar.xz"
     echo "$(i18n creating_final_package)"
-    if tar -C "$work" -cJf "$archive" -- "$pkgname" && xz -t "$archive"; then
+    if create_tar_xz "$work" "$pkgname" "$archive" "-0" && xz -t "$archive"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"; printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"; size="$(du -h "$archive" | awk '{print $1}')"
         rm -rf "$work"
         msg "$(i18n package_complete)" "$(i18n package_created "$archive" "$size" "$hash")"
