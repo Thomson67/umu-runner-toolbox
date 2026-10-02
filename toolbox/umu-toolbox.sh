@@ -1541,7 +1541,7 @@ install_runner_menu() {
             "3" "Proton-CachyOS (SLR x86_64)" \
             "4" "Proton-EM" \
             "5" "DW-Proton" \
-            "0" "Retour")" || return
+            "0" "$(i18n back)")" || return
         case "$choice" in
             1) install_ge ;;
             2) install_gdk ;;
@@ -2568,9 +2568,9 @@ associate_game() {
             [ -n "$ci" ] && [ -n "$ctitle" ] || continue
             copts+=("$ci" "$ctitle  [$gameid]  score=$cscore")
         done < "$candidates"
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Matches" || printf "Correspondances")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Batocera game: %s\\n\\nSelect the best match (1.000 = exact normalized title)." "$title" || printf "Jeu Batocera : %s\\n\\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." "$title")" 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
+        choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n matches_title)" --menu "$(i18n matches_prompt "$title")" 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
     else
-        cat "$candidates"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice
+        cat "$candidates"; printf "\n%s" "$(i18n number_prompt)"; read -r choice
     fi
     selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$candidates")"; rm -f "$candidates"
     [ -n "$selected" ] || return
@@ -2582,8 +2582,8 @@ associate_game() {
         elif command -v dialog >/dev/null 2>&1; then
             local sopts=() st
             for st in "${storeopts[@]}"; do [ -n "$st" ] && sopts+=("$st" "$st"); done
-            store="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose store" || printf "Choisir le store")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Match: %s\\nGAMEID: %s\\n\\nSelect the associated store." "$ctitle" "$gameid" || printf "Correspondance : %s\\nGAMEID : %s\\n\\nSelectionnez le store associe." "$ctitle" "$gameid")" 24 100 14 "${sopts[@]}")" || return
-        else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf 'Available stores: %s\nStore: ' "$cstores"; else printf 'Stores disponibles : %s\nStore : ' "$cstores"; fi; read -r store; fi
+            store="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n choose_store)" --menu "$(i18n choose_store_prompt "$ctitle" "$gameid")" 24 100 14 "${sopts[@]}")" || return
+        else printf "%b" "$(i18n stores_console_prompt "$cstores")"; read -r store; fi
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
         log "gameid_override=set title=$title matched_title=$ctitle score=$cscore gameid=$gameid store=$store"
@@ -2594,7 +2594,7 @@ associate_game() {
 global_game_scan() {
     local helper="$ROOT/umu-gameid-manager.py" scan tab kind total clear ambiguous none overrides list choice selected idx status score title path best gid remaining
     tab="$(printf '\t')"; scan="$(mktemp "$RUNNER_STAGING_ROOT/gameid-scan.XXXXXX")" || return
-    clear; echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Scanning all Windows games...' || printf '%s' 'Analyse de tous les jeux Windows...')"
+    clear; echo "$(i18n scanning_windows_games)"
     python3 "$helper" scan > "$scan" || { rm -f "$scan"; msg "$(i18n scan_failed)" "$(i18n scan_failed_body)"; return; }
     IFS="$tab" read -r kind total clear ambiguous none overrides < "$scan"
     list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
@@ -2618,13 +2618,13 @@ global_game_scan() {
             while IFS="$tab" read -r rec ri rs rscore rt rp rb rg; do
                 [ "$rec" = "ITEM" ] || continue
                 [ "$rs" = "AMBIGUOUS" ] || continue
-                label="[AMBIGU] $rt -> $rb [$rg] score=$rscore"
+                label="$(i18n ambiguous_label "$rt" "$rb" "$rg" "$rscore")"
                 opts+=("$ri" "$label")
             done < "$list"
-            choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Game compatibility - global scan' || printf 'Compatibilite des jeux - analyse globale')" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Games: %s | clear: %s | ambiguous remaining: %s/%s | no match: %s | manual: %s\n\nSelect a game to review. Cancel to return.' "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides" || printf 'Jeux : %s | clairs : %s | ambigus restants : %s/%s | sans match : %s | manuels : %s\n\nSelectionnez un jeu a examiner. Annuler pour revenir.' "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides")" 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
+            choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n global_scan_title)" --menu "$(i18n global_scan_review_prompt "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides")" 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
         else
             awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS"' "$list"
-            printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice
+            printf "\n%s" "$(i18n number_prompt)"; read -r choice
             [ -n "$choice" ] || { rm -f "$list"; return; }
         fi
 
@@ -2650,7 +2650,7 @@ gameid_override_menu() {
     tab="$(printf '\t')"
     [ -s "$helper" ] || { msg "$(i18n game_compat_title)" "$(i18n gameid_manager_missing "$helper")"; return; }
     while true; do
-        action="$(menu_choice "Compatibilite des jeux" "1" "Analyser tous les jeux" "2" "Associer / modifier un jeu" "3" "Afficher les associations manuelles" "4" "Supprimer une association" "0" "Retour")" || return
+        action="$(menu_choice "$(i18n game_compat_title)" "1" "$(i18n gameid_menu_scan)" "2" "$(i18n gameid_menu_associate)" "3" "$(i18n gameid_menu_show)" "4" "$(i18n gameid_menu_delete)" "0" "$(i18n back)")" || return
         case "$action" in
           1) global_game_scan ;;
           2)
@@ -2660,21 +2660,21 @@ gameid_override_menu() {
             if command -v dialog >/dev/null 2>&1; then
                 local opts=() i n gp
                 while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
-                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose a Windows game" || printf "Choisir un jeu Windows")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Select the game to associate." || printf "Selectionnez le jeu a associer.")" 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
-            else cat "$list"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice; fi
+                choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n choose_windows_game)" --menu "$(i18n choose_windows_game_prompt)" 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
+            else cat "$list"; printf "\n%s" "$(i18n number_prompt)"; read -r choice; fi
             selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
             IFS="$tab" read -r idx title path <<< "$selected"
             associate_game "$title" "$path" ;;
           3)
-            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'No manual association.' || printf 'Aucune association manuelle.')"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Manual associations' || printf 'Associations manuelles')" "$list" ;;
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="$(i18n manual_none)"; msg "$(i18n manual_associations)" "$list" ;;
           4)
             list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { msg "$(i18n manual_associations)" "$(i18n manual_none)"; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
-                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Delete an association" || printf "Supprimer une association")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the association to delete." || printf "Choisissez l association a supprimer.")" 28 105 18 "${dopts[@]}")" || continue
-            else printf "%s\n" "$list"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice; fi
+                choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n delete_association)" --menu "$(i18n delete_association_prompt)" 28 105 18 "${dopts[@]}")" || continue
+            else printf "%s\n" "$list"; printf "\n%s" "$(i18n number_prompt)"; read -r choice; fi
             if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "$(i18n association_deleted)" "$(i18n association_deleted_body)"; else msg "$(i18n error)" "$(i18n delete_impossible)"; fi ;;
           0|"") return ;;
         esac
