@@ -321,9 +321,9 @@ integrity_label_i18n() {
     local label
     label="$(runner_integrity_label "$1")"
     case "$label" in
-        OK) i18n integrity_ok ;;
+        "PROTEGE / OK"|OK|"PROTECTED / OK") i18n integrity_ok ;;
         MODIFIE|MODIFIED) i18n integrity_modified ;;
-        "NON GERE"|UNMANAGED) i18n integrity_unmanaged ;;
+        "NON MANAGE"|"NON GERE"|UNMANAGED) i18n integrity_unmanaged ;;
         ABSENT|MISSING) i18n integrity_missing ;;
         *) i18n integrity_unknown ;;
     esac
