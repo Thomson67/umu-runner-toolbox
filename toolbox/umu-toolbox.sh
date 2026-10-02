@@ -422,12 +422,12 @@ msg() {
     local title="$1"
     local text="$2"
     if command -v dialog >/dev/null 2>&1; then
-        dialog --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --title "$(tr_ui "$title")" --msgbox "$(tr_ui "$text")" 22 92
+        dialog --ok-label "$(i18n accept)" --title "$title" --msgbox "$text" 22 92
     else
         clear
-        echo "==== $(tr_ui "$title") ===="
+        echo "==== $title ===="
         echo
-        printf '%b\n' "$(tr_ui "$text")"
+        printf '%b\n' "$text"
         pause
     fi
 }
@@ -436,13 +436,13 @@ yesno() {
     local title="$1"
     local text="$2"
     if command -v dialog >/dev/null 2>&1; then
-        dialog --yes-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Yes' || printf 'Oui')" --no-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'No' || printf 'Non')" --title "$(tr_ui "$title")" --yesno "$(tr_ui "$text")" 20 92
+        dialog --yes-label "$(i18n yes)" --no-label "$(i18n no)" --title "$title" --yesno "$text" 20 92
         return $?
     fi
     clear
-    echo "==== $(tr_ui "$title") ===="
+    echo "==== $title ===="
     echo
-    printf '%b\n' "$(tr_ui "$text")"
+    printf '%b\n' "$text"
     echo
     printf "%s" "$(ui continue_prompt)"
     read -r ans
@@ -455,22 +455,22 @@ menu_choice() {
     local raw=("$@") translated=() i=0 label_idx
     while [ "$i" -lt "${#raw[@]}" ]; do
         label_idx=$((i + 1))
-        translated+=("${raw[$i]}" "$(tr_ui "${raw[$label_idx]}")")
+        translated+=("${raw[$i]}" "${raw[$label_idx]}")
         i=$((i + 2))
     done
     if command -v dialog >/dev/null 2>&1; then
         set -- "${translated[@]}"
-        dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$(tr_ui "$title")" --menu "$(ui choose_action)" 26 96 15 "$@"
+        dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$title" --menu "$(ui choose_action)" 26 96 15 "$@"
     else
         clear
-        echo "==== $(tr_ui "$title") ===="
+        echo "==== $title ===="
         echo
         local args=("$@")
         local i=0
         local label_idx
         while [ "$i" -lt "${#args[@]}" ]; do
             label_idx=$((i + 1))
-            printf '%s) %s\n' "${args[$i]}" "$(tr_ui "${args[$label_idx]}")"
+            printf '%s) %s\n' "${args[$i]}" "${args[$label_idx]}"
             i=$((i + 2))
         done
         echo
@@ -485,12 +485,12 @@ input_box() {
     local prompt="$2"
     local initial="${3-}"
     if command -v dialog >/dev/null 2>&1; then
-        dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$(tr_ui "$title")" --inputbox "$(tr_ui "$prompt")" 12 90 "$initial"
+        dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$title" --inputbox "$prompt" 12 90 "$initial"
     else
         clear
-        echo "==== $(tr_ui "$title") ===="
+        echo "==== $title ===="
         echo
-        echo "$(tr_ui "$prompt")"
+        echo "$prompt"
         printf "> "
         read -r value
         printf '%s' "${value:-$initial}"
@@ -2117,11 +2117,7 @@ upgrade_integration() {
     fi
 
     if [ "$auto" != "1" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            yesno "$(tr_ui "Install integration v$INTEGRATION_VERSION")" "$(tr_ui "This operation replaces ONLY the Batocera integration files (bin/wine, bin/wine64, bin/wineserver and UMU bridge) for runners whose manifest is currently valid.\n\nUpstream Wine/Proton files are not replaced.\nRunners already marked MODIFIED are refused.\n\nContinue?")" || return
-        else
-            yesno "$(tr_ui "Installer l'integration v$INTEGRATION_VERSION")" "$(tr_ui "Cette operation remplace UNIQUEMENT les fichiers d'integration Batocera (bin/wine, bin/wine64, bin/wineserver et pont UMU) des runners dont le manifest est actuellement sain.\n\nLes fichiers Wine/Proton upstream ne sont pas remplaces.\nLes runners deja MODIFIES sont refuses.\n\nContinuer ?")" || return
-        fi
+        yesno "$(i18n integration_install_title "$INTEGRATION_VERSION")" "$(i18n integration_upgrade_prompt)" || return
     fi
 
     while IFS= read -r r; do
@@ -2160,11 +2156,7 @@ upgrade_integration() {
         upgraded="$upgraded$r : v$INTEGRATION_VERSION OK\n"; changed=$((changed+1))
     done <<< "$runners"
     log "integration_upgrade=done changed=$changed"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Runners upgraded: $changed\n\n${upgraded:-None}\nRefused / ignored:\n${skipped:-None}\nErrors:\n${failed:-None}\n\nIntegration v$INTEGRATION_VERSION automatically protects ALL *-UMU runners as read-only during every UMU launch.")"
-    else
-        msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Runners mis a niveau : $changed\n\n${upgraded:-Aucun}\nRefuses / ignores :\n${skipped:-Aucun}\nErreurs :\n${failed:-Aucune}\n\nLa v$INTEGRATION_VERSION protege automatiquement TOUS les runners *-UMU en lecture seule pendant chaque lancement UMU.")"
-    fi
+    msg "$(i18n integration_title "$INTEGRATION_VERSION")" "$(i18n integration_upgrade_result "$changed" "${upgraded:-$(i18n none)}" "${skipped:-$(i18n none)}" "${failed:-$(i18n none)}" "$INTEGRATION_VERSION")"
 }
 
 scan_prefix_refs() {
@@ -2230,7 +2222,7 @@ orphan_runner_protections() {
             case ",$opts," in *,ro,*) if umount "$target" 2>>"$LOG"; then cleaned=$((cleaned+1)); log "orphan_runner_protection_unmounted=$target"; else failed="$failed$r\n"; fi ;; esac
         fi
     done <<< "$(installed_runners)"
-    msg "$(tr_ui "Protections runtime")" "$(tr_ui "Protections RO orphelines retirees : $cleaned\n\nEchecs :\n${failed:-Aucun}")"
+    msg "$(i18n runtime_protections)" "$(i18n orphan_result "$cleaned" "${failed:-$(i18n none)}")"
 }
 
 runtime_protection_status() {
@@ -2464,7 +2456,7 @@ export_shareable_package() {
     xz -t "$runtime_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime XZ test failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Test XZ du Steam Runtime echoue.")"; fi; return; }
     if [ ! -s "$UMU_RUN" ]; then
         rm -rf "$work"
-        msg "$(i18n export_refused)" "umu-run is missing locally. The standalone package must contain UMU so that it remains fully offline."
+        msg "$(i18n export_refused)" "$(i18n package_umu_missing)"
         return
     fi
     cp -a "$UMU_RUN" "$pkgroot/payload/umu-run"
@@ -3087,11 +3079,7 @@ PYVER
     download_base="$base/releases/download/$tag"
 
     if [ "$startup_confirmed" != "1" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            if ! yesno "$(tr_ui "Toolbox update")" "$(tr_ui "Installed version: $TOOLBOX_VERSION\nNew version: $latest\n\nThe official package and its SHA-256 will be downloaded from GitHub and verified before replacement.\nThe current Toolbox will be backed up in:\n$UMU_BACKUP\n\nThe config/ directory will be preserved.\n\nInstall the update?")"; then return; fi
-        else
-            if ! yesno "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "Version installee : $TOOLBOX_VERSION\nNouvelle version : $latest\n\nLe package officiel et son SHA-256 seront telecharges depuis GitHub et verifies avant remplacement.\nLa Toolbox actuelle sera sauvegardee dans :\n$UMU_BACKUP\n\nLe repertoire config/ sera conserve.\n\nInstaller la mise a jour ?")"; then return; fi
-        fi
+        if ! yesno "$(i18n toolbox_update_title)" "$(i18n update_confirm "$TOOLBOX_VERSION" "$latest" "$UMU_BACKUP")"; then return; fi
     fi
 
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to create the temporary directory." || printf '%s' "Impossible de creer le repertoire temporaire.")"; return; }
@@ -3143,11 +3131,7 @@ post_update_integration() {
     [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
     local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
     unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "$(tr_ui "Toolbox update")" "$(tr_ui "Toolbox updated: $previous -> $TOOLBOX_VERSION\n\nThe runner integration will now be upgraded automatically on all managed and integrated UMU runners.\n\nUnmanaged or modified runners will be ignored.")"
-    else
-        msg "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et integres.\n\nLes runners non geres ou modifies seront ignores.")"
-    fi
+    msg "$(i18n toolbox_update_title)" "$(i18n update_done "$previous" "$TOOLBOX_VERSION")"
     upgrade_integration 1
 }
 
