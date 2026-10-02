@@ -100,6 +100,103 @@ ui() {
 
 load_language
 
+tr_ui() {
+    local s="$1"
+    [ "$TOOLBOX_LANGUAGE" = "en" ] || { printf '%s' "$s"; return; }
+    # Centralized FR -> EN UI vocabulary. Longer/specific phrases first.
+    s="${s//INSTALLE \/ PROTEGE CONTRE ECRASEMENT/INSTALLED \/ OVERWRITE PROTECTED}"
+    s="${s//NON INSTALLABLE - checksum upstream absent/NOT INSTALLABLE - upstream checksum missing}"
+    s="${s//disponible (SLR x86_64)/available (SLR x86_64)}"
+    s="${s//disponible/AVAILABLE}"
+    s="${s//PROTEGE \/ OK/PROTECTED \/ OK}"
+    s="${s//NON MANAGE/UNMANAGED}"
+    s="${s//MODIFIE/MODIFIED}"
+    s="${s//EXPERIMENTAL/EXPERIMENTAL}"
+    s="${s//PROTEGEE/PROTECTED}"
+    s="${s//Aucun/Aucun}" # retained for specific full translations below
+    case "$s" in
+        "Installer un runner Proton UMU") s="Install a Proton UMU runner" ;;
+        "Maintenance et diagnostic") s="Maintenance and diagnostics" ;;
+        "Diagnostic UMU complet") s="Full UMU diagnostics" ;;
+        "Reparer / mettre a niveau l'integration UMU") s="Repair / upgrade UMU integration" ;;
+        "Nettoyer les donnees runtime UMU") s="Clean UMU runtime data" ;;
+        "Nettoyer les logs UMU") s="Clean UMU logs" ;;
+        "Nettoyer les protections RO orphelines") s="Clean orphaned read-only protections" ;;
+        "Desinstallation") s="Uninstall" ;;
+        "Retour") s="Back" ;;
+        "Exporter / partager un runner") s="Export / share a runner" ;;
+        "Compatibilite des jeux") s="Game compatibility" ;;
+        "Documentation / A propos") s="Documentation / About" ;;
+        "Mise a jour Toolbox") s="Toolbox update" ;;
+        "Runner installe") s="Runner installed" ;;
+        "Runner protege") s="Protected runner" ;;
+        "Release invalide") s="Invalid release" ;;
+        "Release introuvable") s="Release not found" ;;
+        "Tag invalide") s="Invalid tag" ;;
+        "Conflit") s="Conflict" ;;
+        "Erreur") s="Error" ;;
+        "Protections runtime") s="Runtime protections" ;;
+        "Protection runtime") s="Runtime protection" ;;
+        "Nettoyage annule") s="Cleanup cancelled" ;;
+        "Desinstallation refusee") s="Uninstall refused" ;;
+        "Desinstallation annulee") s="Uninstall cancelled" ;;
+        "Desinstallation complete") s="Complete uninstall" ;;
+        "Toolbox desinstallee") s="Toolbox uninstalled" ;;
+        "Supprimer un runner UMU") s="Delete an UMU runner" ;;
+        "Confirmer la suppression") s="Confirm deletion" ;;
+        "Runner supprime") s="Runner deleted" ;;
+        "Correspondances") s="Matches" ;;
+        "Choisir le store") s="Choose store" ;;
+        "Choisir un jeu Windows") s="Choose a Windows game" ;;
+        "Associations manuelles") s="Manual associations" ;;
+        "Supprimer une association") s="Delete an association" ;;
+        "Association supprimee") s="Association deleted" ;;
+        "Association enregistree") s="Association saved" ;;
+        "Analyse globale") s="Global analysis" ;;
+        "Analyse impossible") s="Analysis failed" ;;
+        "Aucune correspondance") s="No match" ;;
+        "Etat de l'installation") s="Installation status" ;;
+        "Runners Proton + UMU") s="Proton + UMU runners" ;;
+        "Rollback UMU") s="UMU rollback" ;;
+        "Mise a jour UMU") s="UMU update" ;;
+        "UMU mis a jour") s="UMU updated" ;;
+        "Erreur UMU") s="UMU error" ;;
+        "Installation UMU impossible") s="UMU installation failed" ;;
+        "Installation du runner annulee") s="Runner installation cancelled" ;;
+        "Steam Runtime") s="Steam Runtime" ;;
+    esac
+    s="${s//Installer /Install }"
+    s="${s//Erreur /Error }"
+    s="${s//Aucune release /No }"
+    s="${s//Impossible de recuperer les releases /Unable to retrieve }"
+    s="${s//Aucun runner UMU installe/No UMU runner installed}"
+    s="${s//Aucun runner Proton-UMU gere installe/No managed Proton-UMU runner installed}"
+    s="${s//existe deja/ already exists}"
+    s="${s//Aucune reinstallation sur place n'est autorisee/In-place reinstallation is not allowed}"
+    s="${s//Archive introuvable pour/Archive not found for}"
+    s="${s//Version a installer/Version to install}"
+    s="${s//Installation immutable/Immutable installation}"
+    s="${s//un runner existant ne sera jamais remplace/an existing runner will never be replaced}"
+    s="${s//Releases officielles/Official releases}"
+    s="${s//Aucun runner existant ne sera modifie/No existing runner will be modified}"
+    s="${s//Destination finale/Final destination}"
+    s="${s//Destination/Destination}"
+    s="${s//Verification/Verification}"
+    s="${s//obligatoire/required}"
+    s="${s//lorsque disponible/when available}"
+    s="${s//Le runner sera construit dans une zone temporaire puis controle avant installation/The runner will be built in a temporary staging area and verified before installation}"
+    s="${s//Continuer ?/Continue?}"
+    s="${s//Saisir un tag exact/Enter an exact tag}"
+    s="${s//Saisissez le tag exact/Enter the exact tag}"
+    s="${s//Format attendu/Expected format}"
+    s="${s//n'a pas ete trouve sur GitHub/was not found on GitHub}"
+    s="${s//Aucune modification n'a ete effectuee/No changes were made}"
+    s="${s//Version installee/Installed version}"
+    s="${s//Nouvelle version/New version}"
+    s="${s//La Toolbox est deja a jour/The Toolbox is already up to date}"
+    printf '%s' "$s"
+}
+
 GE_REPO="GloriousEggroll/proton-ge-custom"
 GDK_REPO="Weather-OS/GDK-Proton"
 CACHY_REPO="CachyOS/proton-cachyos"
@@ -161,12 +258,12 @@ msg() {
     local title="$1"
     local text="$2"
     if command -v dialog >/dev/null 2>&1; then
-        dialog --title "$title" --msgbox "$text" 22 92
+        dialog --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --title "$(tr_ui "$title")" --msgbox "$(tr_ui "$text")" 22 92
     else
         clear
-        echo "==== $title ===="
+        echo "==== $(tr_ui "$title") ===="
         echo
-        printf '%b\n' "$text"
+        printf '%b\n' "$(tr_ui "$text")"
         pause
     fi
 }
@@ -175,7 +272,7 @@ yesno() {
     local title="$1"
     local text="$2"
     if command -v dialog >/dev/null 2>&1; then
-        dialog --title "$title" --yesno "$text" 20 92
+        dialog --yes-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Yes' || printf 'Oui')" --no-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'No' || printf 'Non')" --title "$(tr_ui "$title")" --yesno "$(tr_ui "$text")" 20 92
         return $?
     fi
     clear
@@ -192,7 +289,7 @@ menu_choice() {
     local title="$1"
     shift
     if command -v dialog >/dev/null 2>&1; then
-        dialog --stdout --title "$title" --menu "$(ui choose_action)" 26 96 15 "$@"
+        dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$(tr_ui "$title")" --menu "$(ui choose_action)" 26 96 15 "$@"
     else
         clear
         echo "==== $title ===="
@@ -204,7 +301,7 @@ menu_choice() {
             i=$((i+2))
         done
         echo
-        printf "Choix : "
+        printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Choice: ' || printf 'Choix : ')"
         read -r choice
         printf '%s' "$choice"
     fi
@@ -215,7 +312,7 @@ input_box() {
     local prompt="$2"
     local initial="${3-}"
     if command -v dialog >/dev/null 2>&1; then
-        dialog --stdout --title "$title" --inputbox "$prompt" 12 90 "$initial"
+        dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$(tr_ui "$title")" --inputbox "$(tr_ui "$prompt")" 12 90 "$initial"
     else
         clear
         echo "==== $title ===="
@@ -359,7 +456,7 @@ protect_runner() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --title "Creer une reference d'integrite" \
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Creer une reference d'integrite" \
             --menu "Une reference existante n'est JAMAIS remplacee." \
             22 90 14 "${opts[@]}")" || return
     else
@@ -553,7 +650,7 @@ ensure_umu_for_runner() {
 prepare_runtime_for_runner() {
     local runner="$1"
     [ -s "$runner/toolmanifest.vdf" ] || { log "runtime_bootstrap=skipped runner=$runner reason=no-toolmanifest"; return 0; }
-    echo "Preparation du Steam Runtime requis..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Preparing required Steam Runtime...' || printf '%s' 'Preparation du Steam Runtime requis...')"
     HOME="$UMU_DIR/home" XDG_CACHE_HOME="$UMU_DIR/cache" PROTONPATH="$runner" python3 "$(root_bridge)" "$UMU_RUN" --prepare-runtime
     local rc=$?
     if [ "$rc" -ne 0 ]; then
@@ -573,7 +670,7 @@ update_umu() {
     require_net || return
 
     clear
-    echo "Recherche de la derniere version UMU..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Checking latest UMU version...' || printf '%s' 'Recherche de la derniere version UMU...')"
     log "UMU update started"
 
     local json tag asset checksum tmp oldver
@@ -660,7 +757,7 @@ Installer UMU $tag ?"; then
     fi
 
     if [ -n "$checksum" ]; then
-        echo "Verification SHA512..."
+        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying SHA512...' || printf '%s' 'Verification SHA512...')"
         if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
             rm -rf "$tmp"
             msg "Erreur UMU" "Impossible de telecharger le checksum."
@@ -714,7 +811,7 @@ rollback_umu() {
 
     local choice
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --title "Rollback UMU" --menu "Choisissez la sauvegarde a restaurer :" 20 90 12 "${opts[@]}")" || return
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Rollback UMU" --menu "Choisissez la sauvegarde a restaurer :" 20 90 12 "${opts[@]}")" || return
     else
         clear
         echo "$files"
@@ -942,7 +1039,7 @@ install_gdk() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/gdk-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "Chargement des releases GDK-Proton..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GDK-Proton releases...' || printf '%s' 'Chargement des releases GDK-Proton...')"
     if ! fetch_gdk_releases "$json"; then
         rm -rf "$tmp"
         msg "Erreur GDK-Proton" "Impossible de recuperer les releases GDK-Proton."
@@ -960,22 +1057,22 @@ install_gdk() {
     while IFS=$'\t' read -r name tarurl sha; do
         [ -n "$name" ] || continue
         if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
-            state="INSTALLE / PROTEGE CONTRE ECRASEMENT"
+            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
         else
-            state="disponible"
+            state="$(tr_ui "disponible")"
         fi
         opts+=("$name" "$state")
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --title "Installer GDK-Proton + UMU" \
-          --menu "Installation immutable : un runner existant ne sera jamais remplace." \
+        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install GDK-Proton + UMU' || printf 'Installer GDK-Proton + UMU')" \
+          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Immutable installation: an existing runner will never be replaced.' || printf 'Installation immutable : un runner existant ne sera jamais remplace.')"  \
           22 96 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
         cut -f1 "$menu_file"
         echo
-        printf "Version a installer : "
+        printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"
         read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
@@ -1022,7 +1119,7 @@ Continuer ?"; then
     fi
 
     if [ -n "$sha" ]; then
-        echo "Verification SHA256 GitHub..."
+        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying GitHub SHA256...' || printf '%s' 'Verification SHA256 GitHub...')"
         actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ "$actual" != "$sha" ]; then
             rm -rf "$tmp" "$stage"
@@ -1033,7 +1130,7 @@ Continuer ?"; then
         log "WARNING GitHub asset digest absent for $name"
     fi
 
-    echo "Extraction en staging..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
         msg "Erreur GDK-Proton" "Extraction impossible."
@@ -1141,7 +1238,7 @@ install_cachy() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/cachy-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "Chargement des releases Proton-CachyOS SLR..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-CachyOS SLR releases...' || printf '%s' 'Chargement des releases Proton-CachyOS SLR...')"
     if ! fetch_cachy_releases "$json"; then
         rm -rf "$tmp"
         msg "Erreur Proton-CachyOS" "Impossible de recuperer les releases Proton-CachyOS."
@@ -1158,16 +1255,16 @@ install_cachy() {
     local opts=() name tarurl sumurl state
     while IFS=$'\t' read -r name tarurl sumurl; do
         [ -n "$name" ] || continue
-        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then state="INSTALLE / PROTEGE CONTRE ECRASEMENT"; else state="disponible (SLR x86_64)"; fi
+        if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"; else state="$(tr_ui "disponible (SLR x86_64)")"; fi
         opts+=("$name" "$state")
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --title "Installer Proton-CachyOS + UMU" \
-          --menu "Build SLR x86_64 recommande upstream. Installation immutable." \
+        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install Proton-CachyOS + UMU' || printf 'Installer Proton-CachyOS + UMU')" \
+          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Upstream-recommended SLR x86_64 build. Immutable installation.' || printf 'Build SLR x86_64 recommande upstream. Installation immutable.')"  \
           22 100 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
-        clear; cut -f1 "$menu_file"; echo; printf "Version a installer : "; read -r name
+        clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
@@ -1199,7 +1296,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
 
     if [ -n "$sumurl" ]; then
         sumname="$(basename "$sumurl")"
-        echo "Verification SHA512 upstream..."
+        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname"); then
             rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Checksum SHA512 upstream invalide. Rien n'a ete installe."; return
         fi
@@ -1207,7 +1304,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         log "WARNING upstream SHA512 asset absent for $name"
     fi
 
-    echo "Extraction en staging..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Extraction XZ impossible."; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
@@ -1284,7 +1381,7 @@ install_em() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/em-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "Chargement des releases Proton-EM..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-EM releases...' || printf '%s' 'Chargement des releases Proton-EM...')"
     if ! fetch_em_releases "$json"; then
         rm -rf "$tmp"
         msg "Erreur Proton-EM" "Impossible de recuperer les releases Proton-EM."
@@ -1302,9 +1399,9 @@ install_em() {
     while IFS=$'\t' read -r name tag tarurl sumurl; do
         [ -n "$name" ] || continue
         if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
-            state="INSTALLE / PROTEGE CONTRE ECRASEMENT"
+            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
         elif [ -z "$sumurl" ]; then
-            state="NON INSTALLABLE - checksum upstream absent"
+            state="$(tr_ui "NON INSTALLABLE - checksum upstream absent")"
         else
             state="disponible ($tag)"
         fi
@@ -1314,11 +1411,11 @@ install_em() {
     if [ -n "$requested" ]; then
         name="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --title "Installer Proton-EM + UMU" \
-          --menu "Releases officielles BananaWorks07/Proton. Installation immutable." \
+        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install Proton-EM + UMU' || printf 'Installer Proton-EM + UMU')" \
+          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Official BananaWorks07/Proton releases. Immutable installation.' || printf 'Releases officielles BananaWorks07/Proton. Installation immutable.')"  \
           24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
-        clear; cut -f1 "$menu_file"; echo; printf "Version a installer : "; read -r name
+        clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
@@ -1358,7 +1455,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     clear; echo "Telechargement de $name..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Echec du telechargement."; return; fi
 
-    echo "Verification SHA256 upstream..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA256...' || printf '%s' 'Verification SHA256 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
         rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Impossible de telecharger le checksum SHA-256 upstream."; return
     fi
@@ -1372,7 +1469,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         fi
     fi
 
-    echo "Extraction en staging..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Extraction XZ impossible."; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
@@ -1451,7 +1548,7 @@ install_dw() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/dw-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "Chargement des releases DW-Proton..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading DW-Proton releases...' || printf '%s' 'Chargement des releases DW-Proton...')"
     if ! fetch_dw_releases "$json"; then
         rm -rf "$tmp"
         msg "Erreur DW-Proton" "Impossible de recuperer les releases DW-Proton."
@@ -1469,9 +1566,9 @@ install_dw() {
     while IFS=$'\t' read -r name tag tarurl sumurl; do
         [ -n "$name" ] || continue
         if [ -d "$CUSTOM_DIR/${name}-UMU" ]; then
-            state="INSTALLE / PROTEGE CONTRE ECRASEMENT"
+            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
         elif [ -z "$sumurl" ]; then
-            state="NON INSTALLABLE - checksum upstream absent"
+            state="$(tr_ui "NON INSTALLABLE - checksum upstream absent")"
         else
             state="disponible ($tag)"
         fi
@@ -1479,11 +1576,11 @@ install_dw() {
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --title "Installer DW-Proton + UMU" \
-          --menu "Releases officielles dawn-winery/dwproton-mirror (x86_64). Installation immutable." \
+        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install DW-Proton + UMU' || printf 'Installer DW-Proton + UMU')" \
+          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Official dawn-winery/dwproton-mirror releases (x86_64). Immutable installation.' || printf 'Releases officielles dawn-winery/dwproton-mirror (x86_64). Installation immutable.')"  \
           24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
-        clear; cut -f1 "$menu_file"; echo; printf "Version a installer : "; read -r name
+        clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
@@ -1520,7 +1617,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     clear; echo "Telechargement de $name..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Echec du telechargement."; return; fi
 
-    echo "Verification SHA512 upstream..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
         rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Impossible de telecharger le checksum SHA-512 upstream."; return
     fi
@@ -1534,7 +1631,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         fi
     fi
 
-    echo "Extraction en staging..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Extraction XZ impossible."; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
@@ -1573,7 +1670,7 @@ EOF
 install_runner_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "Installer un runner Proton UMU" \
+        choice="$(menu_choice "$(tr_ui "Installer un runner Proton UMU")" \
             "1" "GE-Proton" \
             "2" "GDK-Proton" \
             "3" "Proton-CachyOS (SLR x86_64)" \
@@ -1600,7 +1697,7 @@ install_ge() {
     pages="$tmp/releases.pages"
 
     clear
-    echo "Chargement des releases GE-Proton..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GE-Proton releases...' || printf '%s' 'Chargement des releases GE-Proton...')"
     if ! fetch_ge_releases "$pages"; then
         rm -rf "$tmp"
         msg "Erreur GE-Proton" "Impossible de recuperer les releases GE-Proton."
@@ -1621,9 +1718,9 @@ install_ge() {
     while IFS=$'\t' read -r tag tarurl sumurl; do
         local state
         if [ -d "$CUSTOM_DIR/${tag}-UMU" ]; then
-            state="INSTALLE / PROTEGE CONTRE ECRASEMENT"
+            state="$(tr_ui "INSTALLE / PROTEGE CONTRE ECRASEMENT")"
         else
-            state="disponible"
+            state="$(tr_ui "disponible")"
         fi
         opts+=("$tag" "$state")
     done < "$menu_file"
@@ -1633,15 +1730,15 @@ install_ge() {
     if [ -n "$requested" ]; then
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
-        tag="$(dialog --stdout --title "Installer GE-Proton + UMU" \
-            --menu "Installation immutable : un runner existant ne sera jamais remplace." \
+        tag="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install GE-Proton + UMU' || printf 'Installer GE-Proton + UMU')" \
+            --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Immutable installation: an existing runner will never be replaced.' || printf 'Installation immutable : un runner existant ne sera jamais remplace.')"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
         cut -f1 "$menu_file"
         echo "MANUAL"
         echo
-        printf "Version a installer : "
+        printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"
         read -r tag
     fi
     [ -n "$tag" ] || { rm -rf "$tmp"; return; }
@@ -1739,7 +1836,7 @@ Continuer ?"; then
     fi
 
     if [ -n "$sumurl" ]; then
-        echo "Verification SHA512 upstream..."
+        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
             rm -rf "$tmp" "$stage"
             msg "Erreur GE-Proton" "Impossible de telecharger le checksum."
@@ -1754,7 +1851,7 @@ Continuer ?"; then
         log "WARNING checksum absent for $tag"
     fi
 
-    echo "Extraction en staging..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Extracting to staging...' || printf '%s' 'Extraction en staging...')"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
         msg "Erreur GE-Proton" "Extraction impossible. Rien n'a ete installe."
@@ -2055,7 +2152,7 @@ export_runner() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --title "Exporter un runner" \
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Exporter un runner" \
             --menu "Choisissez le runner a empaqueter en .tar.xz. Un runner MODIFIE ne peut pas etre exporte." \
             22 100 14 "${opts[@]}")" || return
     else
@@ -2165,7 +2262,7 @@ export_shareable_package() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --title "Creer un package partageable" \\
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Creer un package partageable" \\
             --menu "Le package contient le runner, un installateur autonome et la documentation. UMU sera installe/mis a jour depuis sa release officielle sur la machine cible." \\
             22 105 14 "${opts[@]}")" || return
     else
@@ -2203,7 +2300,7 @@ export_shareable_package() {
     fi
 
     clear
-    echo "Compression du runner..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing runner...' || printf '%s' 'Compression du runner...')"
     if ! tar -C "$CUSTOM_DIR" -cJf "$runner_archive" -- "$choice"; then
         rm -rf "$work"; msg "Erreur" "Echec de compression du runner."; return
     fi
@@ -2299,7 +2396,7 @@ EOF
 
     (cd "$pkgroot" && sha256sum install.sh README.txt payload/* > SHA256SUMS)
     archive="$export_dir/${pkgname}.tar.xz"
-    echo "Creation du package final..."
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Creating final package...' || printf '%s' 'Creation du package final...')"
     if tar -C "$work" -cJf "$archive" -- "$pkgname" && xz -t "$archive"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"; printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"; size="$(du -h "$archive" | awk '{print $1}')"
         rm -rf "$work"
@@ -2326,7 +2423,7 @@ delete_installed_runner() {
         [ -n "$r" ] && opts+=("$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")")
     done <<< "$runners"
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --title "Supprimer un runner UMU" --menu \
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Supprimer un runner UMU" --menu \
             "Choisissez le runner a supprimer. Les jeux, prefixes et sauvegardes ne seront pas supprimes." \
             26 100 15 "${opts[@]}")" || return
     else
@@ -2548,7 +2645,7 @@ uninstall_everything() {
 uninstall_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "Desinstallation" \
+        choice="$(menu_choice "$(tr_ui "Desinstallation")" \
             "1" "Desinstaller uniquement la Toolbox" \
             "2" "Desinstaller UMU + tous les runners UMU" \
             "3" "Desinstaller Toolbox + UMU + runners" \
@@ -2591,7 +2688,7 @@ associate_game() {
             [ -n "$ci" ] && [ -n "$ctitle" ] || continue
             copts+=("$ci" "$ctitle  [$gameid]  score=$cscore")
         done < "$candidates"
-        choice="$(dialog --stdout --title "Correspondances" --menu "Jeu Batocera : $title\n\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Correspondances" --menu "Jeu Batocera : $title\n\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
     else
         cat "$candidates"; printf "\nNumero : "; read -r choice
     fi
@@ -2605,7 +2702,7 @@ associate_game() {
         elif command -v dialog >/dev/null 2>&1; then
             local sopts=() st
             for st in "${storeopts[@]}"; do [ -n "$st" ] && sopts+=("$st" "$st"); done
-            store="$(dialog --stdout --title "Choisir le store" --menu "Correspondance : $ctitle\nGAMEID : $gameid\n\nSelectionnez le store associe." 24 100 14 "${sopts[@]}")" || return
+            store="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Choisir le store" --menu "Correspondance : $ctitle\nGAMEID : $gameid\n\nSelectionnez le store associe." 24 100 14 "${sopts[@]}")" || return
         else printf 'Stores disponibles : %s\nStore : ' "$cstores"; read -r store; fi
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
@@ -2617,7 +2714,7 @@ associate_game() {
 global_game_scan() {
     local helper="$ROOT/umu-gameid-manager.py" scan tab kind total clear ambiguous none overrides list choice selected idx status score title path best gid remaining
     tab="$(printf '\t')"; scan="$(mktemp "$RUNNER_STAGING_ROOT/gameid-scan.XXXXXX")" || return
-    clear; echo "Analyse de tous les jeux Windows..."
+    clear; echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Scanning all Windows games...' || printf '%s' 'Analyse de tous les jeux Windows...')"
     python3 "$helper" scan > "$scan" || { rm -f "$scan"; msg "Analyse impossible" "Impossible d analyser le gamelist et les bases de correspondance."; return; }
     IFS="$tab" read -r kind total clear ambiguous none overrides < "$scan"
     list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
@@ -2644,7 +2741,7 @@ global_game_scan() {
                 label="[AMBIGU] $rt -> $rb [$rg] score=$rscore"
                 opts+=("$ri" "$label")
             done < "$list"
-            choice="$(dialog --stdout --title "Compatibilite des jeux - analyse globale" --menu "Jeux : $total | clairs : $clear | ambigus restants : $remaining/$ambiguous | sans match : $none | manuels : $overrides\n\nSelectionnez un jeu a examiner. Annuler pour revenir." 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
+            choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Compatibilite des jeux - analyse globale" --menu "Jeux : $total | clairs : $clear | ambigus restants : $remaining/$ambiguous | sans match : $none | manuels : $overrides\n\nSelectionnez un jeu a examiner. Annuler pour revenir." 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
         else
             awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS"' "$list"
             printf "\nNumero : "; read -r choice
@@ -2683,7 +2780,7 @@ gameid_override_menu() {
             if command -v dialog >/dev/null 2>&1; then
                 local opts=() i n gp
                 while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
-                choice="$(dialog --stdout --title "Choisir un jeu Windows" --menu "Selectionnez le jeu a associer." 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
+                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Choisir un jeu Windows" --menu "Selectionnez le jeu a associer." 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
             else cat "$list"; printf "\nNumero : "; read -r choice; fi
             selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
@@ -2696,7 +2793,7 @@ gameid_override_menu() {
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
-                choice="$(dialog --stdout --title "Supprimer une association" --menu "Choisissez l association a supprimer." 28 105 18 "${dopts[@]}")" || continue
+                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Supprimer une association" --menu "Choisissez l association a supprimer." 28 105 18 "${dopts[@]}")" || continue
             else printf "%s\n" "$list"; printf "\nNumero : "; read -r choice; fi
             if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; else msg "Erreur" "Suppression impossible."; fi ;;
           0|"") return ;;
@@ -2707,13 +2804,13 @@ gameid_override_menu() {
 maintenance_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "Maintenance et diagnostic" \
-            "1" "Diagnostic UMU complet" \
-            "2" "Reparer / mettre a niveau l'integration UMU" \
-            "3" "Nettoyer les donnees runtime UMU" \
-            "4" "Nettoyer les logs UMU" \
-            "5" "Nettoyer les protections RO orphelines" \
-            "6" "Desinstallation" \
+        choice="$(menu_choice "$(tr_ui "Maintenance et diagnostic")" \
+            "1" "$(tr_ui "Diagnostic UMU complet")" \
+            "2" "$(tr_ui "Reparer / mettre a niveau l'integration UMU")" \
+            "3" "$(tr_ui "Nettoyer les donnees runtime UMU")" \
+            "4" "$(tr_ui "Nettoyer les logs UMU")" \
+            "5" "$(tr_ui "Nettoyer les protections RO orphelines")" \
+            "6" "$(tr_ui "Desinstallation")" \
             "0" "Retour")" || return
         case "$choice" in
             1) verify_install ;;
