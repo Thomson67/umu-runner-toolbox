@@ -1256,7 +1256,7 @@ install_gdk() {
         return
     fi
 
-    if ! yesno "$(tr_ui "Installer $name-UMU")" \
+    if ! yesno "$(i18n install_named "$name-UMU")" \
 "Le runner sera construit dans une zone temporaire puis controle avant installation.
 
 Destination :
@@ -1289,7 +1289,7 @@ Continuer ?"; then
         actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ "$actual" != "$sha" ]; then
             rm -rf "$tmp" "$stage"
-            msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Checksum SHA256 GitHub invalide. Rien n'a ete installe.")"
+            msg "$(i18n runner_error "GDK-Proton")" "$(i18n checksum_invalid_github)"
             return
         fi
     else
@@ -1299,7 +1299,7 @@ Continuer ?"; then
     echo "$(i18n extracting_staging)"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Extraction impossible.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n extract_failed_simple)"
         return
     fi
 
@@ -1437,7 +1437,7 @@ install_cachy() {
     target="$CUSTOM_DIR/${name}-UMU"
     if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(i18n runner_protected)" "$(i18n runner_exists_body "$name-UMU")"; return; fi
 
-    if ! yesno "$(tr_ui "Installer $name-UMU")" \
+    if ! yesno "$(i18n install_named "$name-UMU")" \
 "Source : Proton-CachyOS SLR x86_64
 Verification : SHA-512 upstream lorsque disponible
 Destination :
@@ -1459,14 +1459,14 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         sumname="$(basename "$sumurl")"
         echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname"); then
-            rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Checksum SHA512 upstream invalide. Rien n'a ete installe.")"; return
+            rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n checksum_invalid_sha512)"; return
         fi
     else
         log "WARNING upstream SHA512 asset absent for $name"
     fi
 
     echo "$(i18n extracting_staging)"
-    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n extract_xz_failed)"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n runner_unexpected_structure "Proton-CachyOS")"; return
@@ -1564,7 +1564,7 @@ install_em() {
         elif [ -z "$sumurl" ]; then
             state="$(i18n state_not_installable_checksum)"
         else
-            state="$(tr_ui "disponible") ($tag)"
+            state="$(i18n state_available) ($tag)"
         fi
         opts+=("$name" "$state")
     done < "$menu_file"
@@ -1597,7 +1597,7 @@ install_em() {
         msg "$(tr_ui "Proton-EM non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-256 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
         return
     fi
-    if [ "$noninteractive" != "1" ] && ! yesno "$(tr_ui "Installer $name-UMU")" \
+    if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$name-UMU")" \
 "Source : BananaWorks07/Proton ($tag)
 Verification : SHA-256 upstream obligatoire
 Destination :
@@ -1626,12 +1626,12 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
         actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-            rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Checksum SHA-256 upstream invalide. Rien n'a ete installe.")"; return
+            rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n checksum_invalid_sha256)"; return
         fi
     fi
 
     echo "$(i18n extracting_staging)"
-    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n extract_xz_failed)"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n runner_unexpected_structure "Proton-EM")"; return
@@ -1731,7 +1731,7 @@ install_dw() {
         elif [ -z "$sumurl" ]; then
             state="$(i18n state_not_installable_checksum)"
         else
-            state="$(tr_ui "disponible") ($tag)"
+            state="$(i18n state_available) ($tag)"
         fi
         opts+=("$name" "$state")
     done < "$menu_file"
@@ -1759,7 +1759,7 @@ install_dw() {
         msg "$(tr_ui "DW-Proton non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-512 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
         return
     fi
-    if ! yesno "$(tr_ui "Installer $name-UMU")" \
+    if ! yesno "$(i18n install_named "$name-UMU")" \
 "Source : dawn-winery/dwproton-mirror ($tag)
 Verification : SHA-512 upstream obligatoire
 Destination :
@@ -1788,12 +1788,12 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
         expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
         actual="$(sha512sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-            rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Checksum SHA-512 upstream invalide. Rien n'a ete installe.")"; return
+            rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n checksum_invalid_sha512)"; return
         fi
     fi
 
     echo "$(i18n extracting_staging)"
-    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Extraction XZ impossible.")"; return; fi
+    if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n extract_xz_failed)"; return; fi
     extracted="$(find "$stage/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     if [ -z "$extracted" ] || [ ! -s "$extracted/proton" ] || [ ! -s "$extracted/files/bin/wine" ] || [ ! -s "$extracted/files/bin/wineserver" ]; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n runner_unexpected_structure "DW-Proton")"; return
@@ -1831,7 +1831,7 @@ EOF
 install_runner_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(tr_ui "Installer un runner Proton UMU")" \
+        choice="$(menu_choice "$(i18n install_runner_menu)" \
             "1" "GE-Proton" \
             "2" "GDK-Proton" \
             "3" "Proton-CachyOS (SLR x86_64)" \
@@ -1960,7 +1960,7 @@ Pour remplacer exceptionnellement ce runner, archivez-le d'abord depuis le menu 
         return
     fi
 
-    if [ "$noninteractive" != "1" ] && ! yesno "$(tr_ui "Installer $tag-UMU")" \
+    if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$tag-UMU")" \
 "Le runner sera construit dans une zone temporaire puis controle avant installation.
 
 Destination finale :
@@ -2005,7 +2005,7 @@ Continuer ?"; then
         fi
         if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
             rm -rf "$tmp" "$stage"
-            msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Checksum SHA512 upstream invalide. Rien n'a ete installe.")"
+            msg "$(i18n runner_error "GE-Proton")" "$(i18n checksum_invalid_sha512)"
             return
         fi
     else
@@ -2097,7 +2097,7 @@ list_runners() {
         out="${out}${r}  [$r_state]\n"
     done <<< "$(installed_runners)"
     [ -n "$out" ] || out="(aucun runner UMU installe)"
-    msg "$(tr_ui "Runners Proton + UMU")" "$(tr_ui "$out")"
+    msg "$(i18n runner_list_title)" "$out"
 }
 
 upgrade_integration() {
@@ -2598,11 +2598,7 @@ delete_installed_runner() {
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; fi
         return
     fi
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Confirm deletion")" "$(tr_ui "Permanently delete:\n\n$CUSTOM_DIR/$choice\n\nGames, .wine/.pc/.wsquashfs prefixes, wine-bottles and save data will not be deleted.\n\nContinue?")" || return
-    else
-        yesno "$(tr_ui "Confirmer la suppression")" "$(tr_ui "Supprimer definitivement :\n\n$CUSTOM_DIR/$choice\n\nLes jeux, prefixes .wine/.pc/.wsquashfs, wine-bottles et sauvegardes ne seront pas supprimes.\n\nContinuer ?")" || return
-    fi
+    yesno "$(i18n confirm_delete)" "$(i18n delete_confirm_body "$CUSTOM_DIR/$choice")" || return
     if rm -rf --one-file-system "$CUSTOM_DIR/$choice"; then
         log "Runner deleted by user: $choice"
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
@@ -2701,7 +2697,7 @@ clean_umu_runtime_data() {
     msg "$(i18n cleanup_analysis)" "$report"
 
     if [ "$total_game" -gt 0 ]; then
-        if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : ${total_game_h}\n\nLes repertoires eux-memes seront conserves. Continuer ?")"; then
+        if yesno "$(i18n cleanup_runtime_title)" "$(i18n cleanup_runtime_prompt "$compat" "$merged" "$materialized" "$gameviews" "${total_game_h}")"; then
             if umu_game_active; then
                 msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee.")"
                 return
@@ -2721,9 +2717,9 @@ clean_umu_runtime_data() {
 
     # Shader caches are reconstructible but deliberately opt-in: deleting them
     # can cause shader recompilation/stutter on subsequent launches.
-    if [ "$total_gpu" -gt 0 ] && yesno "$(tr_ui "Caches graphiques (facultatif)")" "$(tr_ui "Les caches graphiques occupent ${total_gpu_h}.\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?")"; then
+    if [ "$total_gpu" -gt 0 ] && yesno "$(i18n gpu_cache_title)" "$(i18n gpu_cache_prompt "${total_gpu_h}")"; then
         if umu_game_active; then
-            msg "$(tr_ui "Caches non supprimes")" "$(tr_ui "Un lancement UMU est maintenant actif. Les caches graphiques ont ete conserves.")"
+            msg "$(i18n gpu_cache_kept)" "$(i18n gpu_cache_active)"
             return
         fi
         clear_dir_contents "$mesa"
@@ -2837,7 +2833,7 @@ uninstall_everything() {
 uninstall_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(tr_ui "Desinstallation")" \
+        choice="$(menu_choice "$(i18n uninstall_menu)" \
             "1" "Desinstaller uniquement la Toolbox" \
             "2" "Desinstaller UMU + tous les runners UMU" \
             "3" "Desinstaller Toolbox + UMU + runners" \
