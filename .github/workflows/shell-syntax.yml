@@ -26,3 +26,54 @@ jobs:
             echo "ERROR: legacy tr_ui translator was reintroduced"
             exit 1
           fi
+
+      - name: Validate i18n catalogs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          shell = Path("toolbox/umu-toolbox.sh").read_text(encoding="utf-8")
+          catalogs = {
+              "en": Path("toolbox/lang/en.sh").read_text(encoding="utf-8"),
+              "fr": Path("toolbox/lang/fr.sh").read_text(encoding="utf-8"),
+          }
+
+          def keys(text):
+              found = re.findall(r'^\s*\[([A-Za-z0-9_]+)\]=', text, re.M)
+              duplicates = sorted({k for k in found if found.count(k) > 1})
+              return found, set(found), duplicates
+
+          parsed = {lang: keys(text) for lang, text in catalogs.items()}
+          failed = False
+
+          for lang, (_, _, duplicates) in parsed.items():
+              if duplicates:
+                  failed = True
+                  print(f"ERROR: duplicate {lang} keys: {', '.join(duplicates)}")
+
+          en_keys = parsed["en"][1]
+          fr_keys = parsed["fr"][1]
+          only_en = sorted(en_keys - fr_keys)
+          only_fr = sorted(fr_keys - en_keys)
+          if only_en:
+              failed = True
+              print("ERROR: keys only in en:", ", ".join(only_en))
+          if only_fr:
+              failed = True
+              print("ERROR: keys only in fr:", ", ".join(only_fr))
+
+          referenced = set(re.findall(r'\b(?:i18n|ui)\s+([A-Za-z0-9_]+)', shell))
+          missing_en = sorted(referenced - en_keys)
+          missing_fr = sorted(referenced - fr_keys)
+          if missing_en:
+              failed = True
+              print("ERROR: referenced keys missing from en:", ", ".join(missing_en))
+          if missing_fr:
+              failed = True
+              print("ERROR: referenced keys missing from fr:", ", ".join(missing_fr))
+
+          print(f"i18n OK: {len(en_keys)} keys, {len(referenced)} referenced")
+          raise SystemExit(1 if failed else 0)
+          PY
