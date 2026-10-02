@@ -387,4 +387,5 @@ I18N=(
   [diag_runner_modified]="[ALERT] %s: CRITICAL FILES MODIFIED | protection %s"
   [diag_runner_unmanaged]="[INFO] %s: unmanaged | protection %s"
   [diag_footer]="Immutable policy: automatic read-only protection during UMU games.\\nLogs: max 20 files / max 30 days per category.\\n%s\\n%s"
+  [package_compression_note]="Compression can take several minutes depending on the runner, Steam Runtime and CPU. The Toolbox is still working while tar/xz uses CPU."
 )
