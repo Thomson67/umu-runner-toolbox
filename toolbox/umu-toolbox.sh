@@ -617,7 +617,7 @@ protect_runner() {
     local runners choice r state
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "$(tr_ui "Creer une reference")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"
+        msg "$(i18n create_reference)" "$(i18n export_none)"
         return
     fi
 
@@ -671,7 +671,7 @@ TOOLBOX_VERSION=$TOOLBOX_VERSION
 STATUS=validated
 VALIDATED_AT=$(date -Is 2>/dev/null || date)
 EOF
-    msg "$(tr_ui "Reference creee")" "$(tr_ui "$choice est maintenant reference. Cette empreinte ne sera plus remplacee par la Toolbox.")"
+    msg "$(i18n reference_created)" "$(i18n reference_created_body "$choice")"
 }
 
 
@@ -1906,7 +1906,7 @@ install_ge() {
 
     local line tarurl sumurl tag_json
     if [ -n "$requested" ]; then
-        if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then rm -rf "$tmp"; msg "$(tr_ui "Tag invalide")" "$(tr_ui "Format attendu : GE-Proton11-4")"; return 2; fi
+        if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then rm -rf "$tmp"; msg "$(i18n tag_invalid)" "$(i18n ge_tag_expected)"; return 2; fi
         tag_json="$tmp/tag.json"
         if ! fetch_ge_tag "$tag" "$tag_json"; then rm -rf "$tmp"; msg "$(tr_ui "Release introuvable")" "$(tr_ui "$tag n'a pas ete trouve sur GitHub.")"; return 3; fi
         line="$(resolve_ge_tag "$tag" "$tag_json")"
@@ -1916,7 +1916,7 @@ install_ge() {
         }
         if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then
             rm -rf "$tmp"
-            msg "$(tr_ui "Tag invalide")" "$(tr_ui "Format attendu : GE-Proton11-4")"
+            msg "$(i18n tag_invalid)" "$(i18n ge_tag_expected)"
             return
         fi
         tag_json="$tmp/tag.json"
@@ -1932,13 +1932,13 @@ install_ge() {
 
     if ge_tag_blocked "$tag"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Runner non pris en charge")" "$(tr_ui "$tag est volontairement bloque par cette version de la Toolbox.\n\nGE-Proton10-30 a GE-Proton10-34 ont ete constates non fonctionnels avec cette integration Batocera + UMU (echec de lancement / exit 245).\n\nGE-Proton10-29 et les versions 11.x ne sont pas concernes.")"
+        msg "$(i18n runner_unsupported)" "$(i18n ge_blocked "$tag")"
         return
     fi
 
     if [ -z "$line" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Release invalide")" "$(tr_ui "Archive x86_64 introuvable pour $tag.")"
+        msg "$(i18n release_invalid)" "$(i18n archive_x64_missing "$tag")"
         return
     fi
 
@@ -2104,7 +2104,7 @@ upgrade_integration() {
     local auto="${1:-0}"
     local runners r base changed=0 skipped="" upgraded="" failed="" tmpstage
     runners="$(installed_runners)"
-    [ -n "$runners" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "No UMU runner installed.")"; else msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Aucun runner UMU installe.")"; fi; return; }
+    [ -n "$runners" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "No UMU runner installed.")"; else msg "$(i18n integration_title "$INTEGRATION_VERSION")" "$(i18n no_runner_installed)"; fi; return; }
 
     if umu_process_active; then
         log "integration_upgrade=deferred reason=umu_process_activity"
@@ -2209,7 +2209,7 @@ runner_has_runtime_mount() {
 orphan_runner_protections() {
     local r target opts report="" found=0
     if umu_process_active; then
-        msg "$(tr_ui "Protections runtime")" "$(tr_ui "Un processus UMU/Wine est encore actif.\n\nLes protections des runners sont donc considerees comme actives et ne seront pas demontees.")"
+        msg "$(i18n runtime_protections)" "$(i18n runtime_active_protected)"
         return 2
     fi
     while IFS= read -r r; do
@@ -2219,7 +2219,7 @@ orphan_runner_protections() {
             case ",$opts," in *,ro,*) report="$report$r [RO]\n"; found=$((found+1)) ;; esac
         fi
     done <<< "$(installed_runners)"
-    if [ "$found" -eq 0 ]; then msg "$(tr_ui "Protections runtime")" "$(tr_ui "Aucune protection RO orpheline detectee.")"; return 0; fi
+    if [ "$found" -eq 0 ]; then msg "$(i18n runtime_protections)" "$(i18n runtime_no_orphan)"; return 0; fi
     if ! yesno "$(tr_ui "Protections RO orphelines")" "$(tr_ui "Aucun lancement UMU actif n'est detecte, mais $found runner(s) reste(nt) monte(s) en lecture seule :\n\n$report\nCela peut arriver apres un crash ou un kill force.\n\nDemonter uniquement ces protections RO orphelines ?")"; then return 0; fi
     if umu_process_active; then msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Une activite UMU a ete detectee. Aucun montage n'a ete retire.")"; return 2; fi
     local cleaned=0 failed=""
@@ -2247,7 +2247,7 @@ runtime_protection_status() {
         else report="$report[normal] $r (sera protege RO au lancement UMU)\n"; fi
     done <<< "$(installed_runners)"
     if [ "$active" -eq 1 ]; then report="$report\nActivite UMU detectee : les protections RO sont attendues."; else report="$report\nAucune activite UMU detectee. Une ligne [RO ORPHELIN] peut etre nettoyee avec l'option Maintenance dediee."; fi
-    msg "$(tr_ui "Protection runtime")" "$(tr_ui "${report:-Aucun runner UMU.}")"
+    msg "$(i18n runtime_protection)" "${report:-$(i18n no_umu_runner)}"
 }
 
 verify_install() {
@@ -2289,7 +2289,7 @@ verify_install() {
         esac
     done <<< "$(installed_runners)"
     report="$report\nPolitique immutable : protection RO automatique pendant les jeux UMU.\nLogs : 20 fichiers max / 30 jours max par categorie.\n$LOG_DIR\n$RUNNER_LOG_DIR"
-    msg "$(tr_ui "Diagnostic UMU complet")" "$(tr_ui "$report")"
+    msg "$(i18n diagnostic_full)" "$report"
 }
 
 export_runner() {
