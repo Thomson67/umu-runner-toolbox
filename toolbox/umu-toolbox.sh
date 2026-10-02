@@ -2344,13 +2344,22 @@ clean_umu_runtime_data() {
     legacy_p_b="$(dir_bytes "$legacy_prefixes")"
     legacy_g_b="$(dir_bytes "$legacy_gameviews")"
     total_game=$((cb + mb + mat_b + gv_b + legacy_p_b + legacy_g_b))
-    total_game_h="${total_game_h}"
+    total_game_h="$(human_bytes "$total_game")"
     mesa_b="$(dir_bytes "$mesa")"
     radv_b="$(dir_bytes "$radv")"
     total_gpu=$((mesa_b + radv_b))
-    total_gpu_h="${total_gpu_h}"
+    total_gpu_h="$(human_bytes "$total_gpu")"
 
-    report="Donnees runtime UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- materialized-prefixes : $(human_bytes "$mat_b")\n- gameviews : $(human_bytes "$gv_b")\n- anciens TEST7 : $(human_bytes "$((legacy_p_b + legacy_g_b))")\n- total : ${total_game_h}\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : ${total_gpu_h}\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
+    report="$(i18n cleanup_analysis_body \
+        "$(human_bytes "$cb")" \
+        "$(human_bytes "$mb")" \
+        "$(human_bytes "$mat_b")" \
+        "$(human_bytes "$gv_b")" \
+        "$(human_bytes "$((legacy_p_b + legacy_g_b))")" \
+        "$total_game_h" \
+        "$(human_bytes "$mesa_b")" \
+        "$(human_bytes "$radv_b")" \
+        "$total_gpu_h")"
     msg "$(i18n cleanup_analysis)" "$report"
 
     if [ "$total_game" -gt 0 ]; then
