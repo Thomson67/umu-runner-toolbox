@@ -271,4 +271,9 @@ I18N=(
   [integrity_manifest_install_failed]="Impossible de creer l'empreinte d'integrite. Rien n'a ete installe."
   [install_target_conflict]="%s est apparu pendant l'installation. Aucun fichier n'a ete ecrase."
   [install_finalize_safe_failed]="Impossible de finaliser l'installation. Les runners existants sont intacts."
+  [integrity_ok]="OK"
+  [integrity_modified]="MODIFIE"
+  [integrity_unmanaged]="NON GERE"
+  [integrity_missing]="ABSENT"
+  [integrity_unknown]="INCONNU"
 )
