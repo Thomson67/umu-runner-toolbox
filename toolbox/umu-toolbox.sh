@@ -1312,7 +1312,7 @@ Continuer ?"; then
     tarname="$(basename "$tarurl")"
 
     clear
-    echo "Telechargement de $name..."
+    [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name..." || echo "Telechargement de $name..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
         msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Echec du telechargement.")"
@@ -1492,7 +1492,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     stage="$RUNNER_STAGING_ROOT/${name}-UMU.$(date '+%Y%m%d-%H%M%S').$$"
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
-    clear; echo "Telechargement de $name (SLR x86_64)..."
+    clear; [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name (SLR x86_64)..." || echo "Telechargement de $name (SLR x86_64)..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Echec du telechargement.")"; return; fi
 
     if [ -n "$sumurl" ]; then
@@ -1653,7 +1653,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
     sumname="$(basename "$sumurl")"
-    clear; echo "Telechargement de $name..."
+    clear; [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name..." || echo "Telechargement de $name..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Echec du telechargement.")"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA256...' || printf '%s' 'Verification SHA256 upstream...')"
@@ -1815,7 +1815,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     mkdir -p "$stage/download" "$stage/extracted"
     tarname="$(basename "$tarurl")"
     sumname="$(basename "$sumurl")"
-    clear; echo "Telechargement de $name..."
+    clear; [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $name..." || echo "Telechargement de $name..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Echec du telechargement.")"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
@@ -2029,7 +2029,7 @@ Continuer ?"; then
     fi
 
     clear
-    echo "Telechargement de $tag..."
+    [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $tag..." || echo "Telechargement de $tag..."
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
         msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Echec du telechargement.")"
