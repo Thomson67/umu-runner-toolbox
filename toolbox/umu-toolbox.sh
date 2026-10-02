@@ -2927,21 +2927,34 @@ uninstall_menu() {
 
 
 clean_umu_logs() {
-    local tb rb total f
+    local tb rb total f tb_h rb_h total_h
     if umu_game_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup refused")" "$(tr_ui "An UMU launch is currently active.\n\nClose the game before cleaning Runner logs so the complete session diagnostics are preserved.")"; else msg "$(tr_ui "Nettoyage des logs refuse")" "$(tr_ui "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session.")"; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Log cleanup refused" "An UMU launch is currently active.\n\nClose the game before cleaning Runner logs so the complete session diagnostics are preserved."
+        else
+            msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."
+        fi
         return
     fi
     mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
-    tb="$(dir_bytes "$LOG_DIR")"; rb="$(dir_bytes "$RUNNER_LOG_DIR")"; total=$((tb + rb))
+    tb="$(dir_bytes "$LOG_DIR")"
+    rb="$(dir_bytes "$RUNNER_LOG_DIR")"
+    total=$((tb + rb))
     if [ "$total" -le 0 ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup")" "$(tr_ui "UMU log directories are already empty.")"; else msg "$(tr_ui "Nettoyage des logs")" "$(tr_ui "Les repertoires de logs UMU sont deja vides.")"; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Log cleanup" "UMU log directories are already empty."
+        else
+            msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."
+        fi
         return
     fi
+    tb_h="$(human_bytes "$tb")"
+    rb_h="$(human_bytes "$rb")"
+    total_h="$(human_bytes "$total")"
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Clean UMU logs")" "$(tr_ui "Toolbox logs: $(human_bytes "$tb")\nRunner logs: $(human_bytes "$rb")\nTotal: $(human_bytes "$total")\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
+        yesno "Clean UMU logs" "Toolbox logs: $tb_h\nRunner logs: $rb_h\nTotal: $total_h\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
     else
-        yesno "$(tr_ui "Nettoyer les logs UMU")" "$(tr_ui "Logs Toolbox : $(human_bytes "$tb")\nLogs Runner : $(human_bytes "$rb")\nTotal : $(human_bytes "$total")\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
+        yesno "Nettoyer les logs UMU" "Logs Toolbox : $tb_h\nLogs Runner : $rb_h\nTotal : $total_h\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
     fi
     find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
     while IFS= read -r f; do
@@ -2950,7 +2963,11 @@ clean_umu_logs() {
         rm -f -- "$f" 2>/dev/null || true
     done < <(find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -print 2>/dev/null)
     log "umu_logs_cleanup=done bytes_before=$total"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Log cleanup")" "$(tr_ui "UMU logs cleaned.\n\nPreviously used space: $(human_bytes "$total")\nThe current Toolbox log was preserved."; else msg "$(tr_ui "Nettoyage des logs")" "$(tr_ui "Logs UMU nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total")\nLe log Toolbox courant a ete conserve."; fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Log cleanup" "UMU logs cleaned.\n\nPreviously used space: $total_h\nThe current Toolbox log was preserved."
+    else
+        msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $total_h\nLe log Toolbox courant a ete conserve."
+    fi
 }
 
 associate_game() {
