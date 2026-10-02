@@ -2376,7 +2376,7 @@ export_shareable_package() {
     local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size manifest appid runtime_variant runtime_src runtime_archive runtime_size
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Package partageable" "Aucun runner Proton-UMU gere installe."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Shareable package" "No managed Proton-UMU runner is installed."; else msg "Package partageable" "Aucun runner Proton-UMU gere installe."; fi
         return
     fi
 
@@ -2392,26 +2392,26 @@ export_shareable_package() {
             22 105 14 "${opts[@]}")" || return
     else
         clear
-        echo "==== Creer un package partageable ===="
+        echo "==== $([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Create a shareable package' || printf 'Creer un package partageable') ===="
         echo
         while IFS= read -r r; do
             [ -n "$r" ] && printf '%s  [%s]\n' "$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")"
         done <<< "$runners"
         echo
-        printf "Runner a partager : "
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf "Runner to share: "; else printf "Runner a partager : "; fi
         read -r choice
     fi
     [ -n "$choice" ] || return
 
     base="$CUSTOM_DIR/$choice"
-    [ -d "$base" ] || { msg "Erreur" "Runner introuvable : $choice"; return; }
+    [ -d "$base" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner not found: $choice"; else msg "Erreur" "Runner introuvable : $choice"; fi; return; }
     label="$(runner_integrity_label "$base")"
     if [ "$label" != "PROTEGE / OK" ] || ! verify_runner_manifest "$base"; then
-        msg "Export refuse" "$choice n'est pas dans un etat sain et gere. Le package partageable n'a pas ete cree."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "$choice is not in a healthy managed state. The shareable package was not created."; else msg "Export refuse" "$choice n est pas dans un etat sain et gere. Le package partageable n a pas ete cree."; fi
         return
     fi
     manifest="$base/toolmanifest.vdf"
-    [ -s "$manifest" ] || { msg "Export refuse" "toolmanifest.vdf absent : Steam Runtime requis indeterminable."; return; }
+    [ -s "$manifest" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "toolmanifest.vdf is missing: the required Steam Runtime cannot be determined."; else msg "Export refuse" "toolmanifest.vdf absent : Steam Runtime requis indeterminable."; fi; return; }
     appid="$(grep -Eo '"require_tool_appid"[[:space:]]*"?[0-9]+"?' "$manifest" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' || true)"
     case "$appid" in
         1391110) runtime_variant="steamrt2" ;;
@@ -2426,7 +2426,7 @@ export_shareable_package() {
         return
     fi
     runtime_size="$(du -sh "$runtime_src" 2>/dev/null | awk 'NR==1{print $1}')"
-    command -v xz >/dev/null 2>&1 || { msg "Export impossible" "La commande xz est absente."; return; }
+    command -v xz >/dev/null 2>&1 || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export unavailable" "The xz command is missing."; else msg "Export impossible" "La commande xz est absente."; fi; return; }
 
     export_dir="/userdata/system/umu/exports"
     mkdir -p "$export_dir"
@@ -2437,19 +2437,24 @@ export_shareable_package() {
     runner_archive="$pkgroot/payload/${choice}.tar.xz"
     runtime_archive="$pkgroot/payload/${runtime_variant}.tar.xz"
 
-    if ! yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?"; then
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        yesno "Confirm package creation" "Runner: $choice\nIntegrity: $(tr_ui "$label")\nRequired Steam Runtime: $runtime_variant (appid $appid)\nInstalled runtime size: $runtime_size\n\nThe standalone package will contain the complete runner AND its required Steam Runtime so it can be installed offline.\n\nCreate the package?" || { rm -rf "$work"; return; }
+    else
+        yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?" || { rm -rf "$work"; return; }
+    fi
+    if false; then
         rm -rf "$work"; return
     fi
 
     clear
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing runner...' || printf '%s' 'Compression du runner...')"
     if ! tar -C "$CUSTOM_DIR" -cJf "$runner_archive" -- "$choice"; then
-        rm -rf "$work"; msg "Erreur" "Echec de compression du runner."; return
+        rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner compression failed."; else msg "Erreur" "Echec de compression du runner."; fi; return
     fi
-    xz -t "$runner_archive" || { rm -rf "$work"; msg "Erreur" "Test XZ du runner echoue."; return; }
+    xz -t "$runner_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner XZ test failed."; else msg "Erreur" "Test XZ du runner echoue."; fi; return; }
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing required Steam Runtime...' || printf '%s' 'Compression du Steam Runtime requis...')"
-    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; msg "Erreur" "Echec de compression du Steam Runtime."; return; fi
-    xz -t "$runtime_archive" || { rm -rf "$work"; msg "Erreur" "Test XZ du Steam Runtime echoue."; return; }
+    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Steam Runtime compression failed."; else msg "Erreur" "Echec de compression du Steam Runtime."; fi; return; fi
+    xz -t "$runtime_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Steam Runtime XZ test failed."; else msg "Erreur" "Test XZ du Steam Runtime echoue."; fi; return; }
     [ -s "$UMU_RUN" ] && cp -a "$UMU_RUN" "$pkgroot/payload/umu-run"
     (cd "$pkgroot/payload" && sha256sum * > SHA256SUMS)
 
@@ -2907,7 +2912,7 @@ associate_game() {
         done < "$candidates"
         choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Matches" || printf "Correspondances")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Batocera game: %s\\n\\nSelect the best match (1.000 = exact normalized title)." "$title" || printf "Jeu Batocera : %s\\n\\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." "$title")" 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
     else
-        cat "$candidates"; printf "\nNumero : "; read -r choice
+        cat "$candidates"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice
     fi
     selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$candidates")"; rm -f "$candidates"
     [ -n "$selected" ] || return
@@ -2920,19 +2925,19 @@ associate_game() {
             local sopts=() st
             for st in "${storeopts[@]}"; do [ -n "$st" ] && sopts+=("$st" "$st"); done
             store="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose store" || printf "Choisir le store")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Match: %s\\nGAMEID: %s\\n\\nSelect the associated store." "$ctitle" "$gameid" || printf "Correspondance : %s\\nGAMEID : %s\\n\\nSelectionnez le store associe." "$ctitle" "$gameid")" 24 100 14 "${sopts[@]}")" || return
-        else printf 'Stores disponibles : %s\nStore : ' "$cstores"; read -r store; fi
+        else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf 'Available stores: %s\nStore: ' "$cstores"; else printf 'Stores disponibles : %s\nStore : ' "$cstores"; fi; read -r store; fi
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
         log "gameid_override=set title=$title matched_title=$ctitle score=$cscore gameid=$gameid store=$store"
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Association saved" "Game: $title\nMatch: $ctitle\nScore: $cscore\nGAMEID: $gameid\nSTORE: $store\n\nThis manual association takes priority over automatic detection on the next launch."; else msg "Association enregistree" "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement."; fi
-    else msg "Erreur" "Impossible d enregistrer l association."; fi
+    else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to save the association."; else msg "Erreur" "Impossible d enregistrer l association."; fi; fi
 }
 
 global_game_scan() {
     local helper="$ROOT/umu-gameid-manager.py" scan tab kind total clear ambiguous none overrides list choice selected idx status score title path best gid remaining
     tab="$(printf '\t')"; scan="$(mktemp "$RUNNER_STAGING_ROOT/gameid-scan.XXXXXX")" || return
     clear; echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Scanning all Windows games...' || printf '%s' 'Analyse de tous les jeux Windows...')"
-    python3 "$helper" scan > "$scan" || { rm -f "$scan"; msg "Analyse impossible" "Impossible d analyser le gamelist et les bases de correspondance."; return; }
+    python3 "$helper" scan > "$scan" || { rm -f "$scan"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Scan failed" "Unable to analyze the gamelist and matching databases."; else msg "Analyse impossible" "Impossible d analyser le gamelist et les bases de correspondance."; fi; return; }
     IFS="$tab" read -r kind total clear ambiguous none overrides < "$scan"
     list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
     tail -n +2 "$scan" > "$list"; rm -f "$scan"
@@ -2961,7 +2966,7 @@ global_game_scan() {
             choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Game compatibility - global scan' || printf 'Compatibilite des jeux - analyse globale')" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Games: %s | clear: %s | ambiguous remaining: %s/%s | no match: %s | manual: %s\n\nSelect a game to review. Cancel to return.' "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides" || printf 'Jeux : %s | clairs : %s | ambigus restants : %s/%s | sans match : %s | manuels : %s\n\nSelectionnez un jeu a examiner. Annuler pour revenir.' "$total" "$clear" "$remaining" "$ambiguous" "$none" "$overrides")" 34 120 20 "${opts[@]}")" || { rm -f "$list"; return; }
         else
             awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS"' "$list"
-            printf "\nNumero : "; read -r choice
+            printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice
             [ -n "$choice" ] || { rm -f "$list"; return; }
         fi
 
@@ -2985,7 +2990,7 @@ global_game_scan() {
 gameid_override_menu() {
     local helper="$ROOT/umu-gameid-manager.py" action selected idx title path list choice tab
     tab="$(printf '\t')"
-    [ -s "$helper" ] || { msg "Compatibilite des jeux" "Gestionnaire GAMEID absent : $helper"; return; }
+    [ -s "$helper" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Game compatibility" "GAMEID manager missing: $helper"; else msg "Compatibilite des jeux" "Gestionnaire GAMEID absent : $helper"; fi; return; }
     while true; do
         action="$(menu_choice "Compatibilite des jeux" "1" "Analyser tous les jeux" "2" "Associer / modifier un jeu" "3" "Afficher les associations manuelles" "4" "Supprimer une association" "0" "Retour")" || return
         case "$action" in
@@ -2998,7 +3003,7 @@ gameid_override_menu() {
                 local opts=() i n gp
                 while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
                 choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose a Windows game" || printf "Choisir un jeu Windows")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Select the game to associate." || printf "Selectionnez le jeu a associer.")" 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
-            else cat "$list"; printf "\nNumero : "; read -r choice; fi
+            else cat "$list"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice; fi
             selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
             IFS="$tab" read -r idx title path <<< "$selected"
@@ -3011,7 +3016,7 @@ gameid_override_menu() {
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
                 choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Delete an association" || printf "Supprimer une association")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the association to delete." || printf "Choisissez l association a supprimer.")" 28 105 18 "${dopts[@]}")" || continue
-            else printf "%s\n" "$list"; printf "\nNumero : "; read -r choice; fi
+            else printf "%s\n" "$list"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice; fi
             if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Association deleted" "The game will use automatic detection again."; else msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; fi; else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to delete."; else msg "Erreur" "Suppression impossible."; fi; fi ;;
           0|"") return ;;
         esac
