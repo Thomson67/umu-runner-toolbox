@@ -387,4 +387,5 @@ I18N=(
   [diag_runner_modified]="[ALERTE] %s : FICHIERS CRITIQUES MODIFIES | protection %s"
   [diag_runner_unmanaged]="[INFO] %s : non gere | protection %s"
   [diag_footer]="Politique immutable : protection RO automatique pendant les jeux UMU.\\nLogs : 20 fichiers max / 30 jours max par categorie.\\n%s\\n%s"
+  [package_compression_note]="La compression peut prendre plusieurs minutes selon le runner, le Steam Runtime et le processeur. La Toolbox continue de travailler tant que tar/xz utilise le CPU."
 )
