@@ -190,7 +190,7 @@ tr_ui() {
     s="${s//Saisissez le tag exact/Enter the exact tag}"
     s="${s//Format attendu/Expected format}"
     s="${s//n a pas ete trouve sur GitHub/was not found on GitHub}"
-    s="${s//Aucune modification n'a ete effectuee/No changes were made}"
+    s="${s//Aucune modification effectuee/No changes made}"
     s="${s//Version installee/Installed version}"
     s="${s//Nouvelle version/New version}"
     s="${s//La Toolbox est deja a jour/The Toolbox is already up to date}"
