@@ -354,4 +354,5 @@ I18N=(
   [choose_windows_game_prompt]="Selectionnez le jeu a associer."
   [delete_association]="Supprimer une association"
   [delete_association_prompt]="Choisissez l'association a supprimer."
+  [update_restart_complete]="Mise a jour terminee.\\n\\n%s -> %s\\n\\nSauvegarde :\\n%s\\n\\nLa nouvelle Toolbox va etre relancee."
 )
