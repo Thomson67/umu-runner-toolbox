@@ -2346,7 +2346,7 @@ tar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"
     fi
 }
 export_shareable_package() {
-    local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size
+    local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size manifest appid runtime_variant runtime_src runtime_archive runtime_size
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
         msg "Package partageable" "Aucun runner Proton-UMU gere installe."
@@ -2383,6 +2383,22 @@ export_shareable_package() {
         msg "Export refuse" "$choice n'est pas dans un etat sain et gere. Le package partageable n'a pas ete cree."
         return
     fi
+    manifest="$base/toolmanifest.vdf"
+    [ -s "$manifest" ] || { msg "Export refuse" "toolmanifest.vdf absent : Steam Runtime requis indeterminable."; return; }
+    appid="$(sed -n 's/.*"require_tool_appid"[[:space:]]*"{0,1}([0-9][0-9]*)"{0,1}.*/\1/p' "$manifest" | head -n1)"
+    case "$appid" in
+        1391110) runtime_variant="steamrt2" ;;
+        1628350) runtime_variant="steamrt3" ;;
+        4183110) runtime_variant="steamrt4" ;;
+        4185400) runtime_variant="steamrt4-arm64" ;;
+        *) msg "Export refuse" "Steam Runtime appid non gere ou absent : ${appid:-aucun}"; return ;;
+    esac
+    runtime_src="$UMU_DIR/home/.local/share/umu/$runtime_variant"
+    if [ ! -d "$runtime_src" ] || [ ! -s "$runtime_src/_v2-entry-point" ] || [ ! -s "$runtime_src/VERSIONS.txt" ] || [ ! -s "$runtime_src/mtree.txt.gz" ] || [ ! -d "$runtime_src/pressure-vessel" ]; then
+        msg "Export refuse" "Le Steam Runtime requis $runtime_variant est absent ou incomplet. Preparez le runner puis recommencez."
+        return
+    fi
+    runtime_size="$(du -sh "$runtime_src" 2>/dev/null | awk 'NR==1{print $1}')"
     command -v xz >/dev/null 2>&1 || { msg "Export impossible" "La commande xz est absente."; return; }
 
     export_dir="/userdata/system/umu/exports"
@@ -2392,8 +2408,9 @@ export_shareable_package() {
     pkgroot="$work/$pkgname"
     mkdir -p "$pkgroot/payload"
     runner_archive="$pkgroot/payload/${choice}.tar.xz"
+    runtime_archive="$pkgroot/payload/${runtime_variant}.tar.xz"
 
-    if ! yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\n\nLe package autonome :\n- contient le runner complet ;\n- installe umu-run officiel si necessaire ;\n- laisse UMU telecharger steamrt4 au premier lancement si absent ;\n- remplace un runner homonyme apres verification ;\n- ne contient pas steamrt4 afin d'eviter une archive enorme.\n\nCreer le package ?"; then
+    if ! yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?"; then
         rm -rf "$work"; return
     fi
 
@@ -2403,7 +2420,11 @@ export_shareable_package() {
         rm -rf "$work"; msg "Erreur" "Echec de compression du runner."; return
     fi
     xz -t "$runner_archive" || { rm -rf "$work"; msg "Erreur" "Test XZ du runner echoue."; return; }
-    (cd "$pkgroot/payload" && sha256sum "${choice}.tar.xz" > "${choice}.tar.xz.sha256")
+    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing required Steam Runtime...' || printf '%s' 'Compression du Steam Runtime requis...')"
+    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; msg "Erreur" "Echec de compression du Steam Runtime."; return; fi
+    xz -t "$runtime_archive" || { rm -rf "$work"; msg "Erreur" "Test XZ du Steam Runtime echoue."; return; }
+    [ -s "$UMU_RUN" ] && cp -a "$UMU_RUN" "$pkgroot/payload/umu-run"
+    (cd "$pkgroot/payload" && sha256sum * > SHA256SUMS)
 
     cat > "$pkgroot/install.sh" <<'EOS'
 #!/bin/bash
@@ -2417,7 +2438,11 @@ RUNARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'GE-Proton*-UMU.tar.xz' 
 [ -n "$RUNARCH" ] || { echo "ERREUR: payload runner absent."; exit 1; }
 (cd "$PAYLOAD" && sha256sum -c "$(basename "$RUNARCH").sha256")
 RUNNER="$(basename "$RUNARCH" .tar.xz)"
-mkdir -p "$CUSTOM" "$UMU/backups"
+RTARCH="$(find "$PAYLOAD" -maxdepth 1 -type f \( -name 'steamrt2.tar.xz' -o -name 'steamrt3.tar.xz' -o -name 'steamrt4.tar.xz' -o -name 'steamrt4-arm64.tar.xz' \) | head -n1)"
+[ -n "$RTARCH" ] || { echo "ERREUR: Steam Runtime absent du package."; exit 1; }
+RUNTIME="$(basename "$RTARCH" .tar.xz)"
+(cd "$PAYLOAD" && sha256sum -c SHA256SUMS)
+mkdir -p "$CUSTOM" "$UMU/backups" "$UMU/home/.local/share/umu"
 
 install_umu() {
   command -v curl >/dev/null 2>&1 || { echo "ERREUR: curl est requis."; exit 1; }
@@ -2440,20 +2465,32 @@ PY2
   rm -rf "$tmp"; trap - RETURN
 }
 
-if [ ! -s "$UMU/umu-run" ]; then install_umu; else echo "UMU deja present : conservation de l'installation existante."; fi
+if [ ! -s "$UMU/umu-run" ]; then
+  if [ -s "$PAYLOAD/umu-run" ]; then cp -a "$PAYLOAD/umu-run" "$UMU/umu-run"; chmod +x "$UMU/umu-run"; rm -f "$UMU/umu_run.py"; ln -s umu-run "$UMU/umu_run.py";
+  else install_umu; fi
+else echo "UMU deja present : conservation de l'installation existante."; fi
 STAGE="$(mktemp -d /userdata/system/umu/package-staging.XXXXXX)"
 trap 'rm -rf "$STAGE"' EXIT
 echo "Preparation et verification de $RUNNER..."
 tar -xJf "$RUNARCH" -C "$STAGE"
+mkdir -p "$STAGE/runtime"
+tar -xJf "$RTARCH" -C "$STAGE/runtime"
+RT="$STAGE/runtime/$RUNTIME"
+[ -s "$RT/_v2-entry-point" ] && [ -s "$RT/VERSIONS.txt" ] && [ -s "$RT/mtree.txt.gz" ] && [ -d "$RT/pressure-vessel" ] || { echo "ERREUR: Steam Runtime invalide."; exit 1; }
 MAN="$STAGE/$RUNNER/umu-batocera/integrity.sha256"
 [ -f "$MAN" ] || { echo "ERREUR: manifest absent apres extraction."; exit 1; }
 (cd "$STAGE/$RUNNER" && sha256sum -c "$MAN")
 echo "Installation de $RUNNER..."
 rm -rf --one-file-system "$CUSTOM/$RUNNER"
 mv "$STAGE/$RUNNER" "$CUSTOM/$RUNNER"
+rm -rf "$UMU/home/.local/share/umu/$RUNTIME"
+mv "$RT" "$UMU/home/.local/share/umu/$RUNTIME"
+rm -f "$UMU/home/.local/share/umu/$RUNTIME/umu"
+ln -s _v2-entry-point "$UMU/home/.local/share/umu/$RUNTIME/umu"
+printf 'ok\n' > "$UMU/home/.local/share/umu/$RUNTIME/.installed.ok"
 rm -rf "$STAGE"; trap - EXIT
 echo
-echo "Installation terminee. Le runtime steamrt4 sera telecharge automatiquement par UMU au premier lancement s'il n'est pas deja present."
+echo "Installation terminee. Le Steam Runtime $RUNTIME fourni dans le package est installe."
 echo "Le runner est disponible dans /userdata/system/wine/custom/$RUNNER"
 EOS
     chmod +x "$pkgroot/install.sh"
@@ -2462,7 +2499,7 @@ EOS
 BATOCERA - PACKAGE PARTAGEABLE $choice
 ========================================
 
-Ce package installe le runner $choice et prepare l'infrastructure UMU minimale.
+Ce package installe le runner $choice et son Steam Runtime requis ($runtime_variant).
 Il est destine a une Batocera qui possede ou non deja UMU.
 
 INSTALLATION
@@ -2473,7 +2510,7 @@ INSTALLATION
      chmod +x install.sh
      ./install.sh
 4. Une connexion Internet est necessaire uniquement si umu-run n'est pas deja installe.
-5. Au premier lancement d'un jeu UMU, steamrt4 peut etre telecharge automatiquement par UMU.
+5. Le Steam Runtime exact requis par ce runner ($runtime_variant) est inclus dans le package et installe hors ligne.
 6. Le runner apparait ensuite dans les choix Wine/Windows de Batocera sous le nom : $choice
 
 COMPATIBILITE
