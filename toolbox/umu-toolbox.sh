@@ -2494,12 +2494,9 @@ export_shareable_package() {
     runtime_archive="$pkgroot/payload/${runtime_variant}.tar.xz"
 
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Confirm package creation")" "$(tr_ui "Runner: $choice\nIntegrity: $(tr_ui ")"$label")\nRequired Steam Runtime: $runtime_variant (appid $appid)\nInstalled runtime size: $runtime_size\n\nThe standalone package will contain the complete runner AND its required Steam Runtime so it can be installed offline.\n\nCreate the package?" || { rm -rf "$work"; return; }
+        yesno "Confirm package creation" "Runner: $choice\nIntegrity: $label\nRequired Steam Runtime: $runtime_variant (appid $appid)\nInstalled runtime size: $runtime_size\n\nThe standalone package will contain the complete runner AND its required Steam Runtime so it can be installed offline.\n\nCreate the package?" || { rm -rf "$work"; return; }
     else
-        yesno "$(tr_ui "Confirmer le package")" "$(tr_ui "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?")" || { rm -rf "$work"; return; }
-    fi
-    if false; then
-        rm -rf "$work"; return
+        yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?" || { rm -rf "$work"; return; }
     fi
 
     clear
