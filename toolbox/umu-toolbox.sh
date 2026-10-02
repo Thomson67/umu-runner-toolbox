@@ -2773,7 +2773,7 @@ clean_umu_runtime_data() {
     msg "$(tr_ui "Analyse du nettoyage UMU")" "$(tr_ui "$report")"
 
     if [ "$total_game" -gt 0 ]; then
-        if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : $(human_bytes ")"$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?"; then
+        if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : $(human_bytes "$total_game")\n\nLes repertoires eux-memes seront conserves. Continuer ?")"; then
             if umu_game_active; then
                 msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee.")"
                 return
@@ -2785,7 +2785,7 @@ clean_umu_runtime_data() {
             clear_dir_contents "$legacy_prefixes"
             clear_dir_contents "$legacy_gameviews"
             log "umu_cleanup_game_data=done bytes_before=$total_game"
-            msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Donnees runtime nettoyees.\n\nEspace precedemment occupe : $(human_bytes ")"$total_game")"
+            msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Donnees runtime nettoyees.\n\nEspace precedemment occupe : $(human_bytes "$total_game")")"
         fi
     else
         msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Les donnees runtime UMU sont deja vides.\n\nAucune donnee runtime a supprimer.")"
@@ -2793,7 +2793,7 @@ clean_umu_runtime_data() {
 
     # Shader caches are reconstructible but deliberately opt-in: deleting them
     # can cause shader recompilation/stutter on subsequent launches.
-    if [ "$total_gpu" -gt 0 ] && yesno "$(tr_ui "Caches graphiques (facultatif)")" "$(tr_ui "Les caches graphiques occupent $(human_bytes ")"$total_gpu").\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?"; then
+    if [ "$total_gpu" -gt 0 ] && yesno "$(tr_ui "Caches graphiques (facultatif)")" "$(tr_ui "Les caches graphiques occupent $(human_bytes "$total_gpu").\n\nIls peuvent etre reconstruits automatiquement, mais leur suppression peut provoquer de la recompilation de shaders et des saccades temporaires aux prochains lancements.\n\nLes supprimer aussi ?")"; then
         if umu_game_active; then
             msg "$(tr_ui "Caches non supprimes")" "$(tr_ui "Un lancement UMU est maintenant actif. Les caches graphiques ont ete conserves.")"
             return
@@ -2801,7 +2801,7 @@ clean_umu_runtime_data() {
         clear_dir_contents "$mesa"
         clear_dir_contents "$radv"
         log "umu_cleanup_gpu_cache=done bytes_before=$total_gpu"
-        msg "$(tr_ui "Caches graphiques")" "$(tr_ui "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : $(human_bytes ")"$total_gpu")"
+        msg "$(tr_ui "Caches graphiques")" "$(tr_ui "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : $(human_bytes "$total_gpu")")"
     fi
 }
 
