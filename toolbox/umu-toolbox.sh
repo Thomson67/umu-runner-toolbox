@@ -65,302 +65,6 @@ i18n() {
 
 load_i18n
 
-tr_ui() {
-    local s="$1"
-    [ "$TOOLBOX_LANGUAGE" = "en" ] || { printf '%s' "$s"; return; }
-    # Centralized FR -> EN UI vocabulary. Longer/specific phrases first.
-    s="${s//INSTALLE \/ PROTEGE CONTRE ECRASEMENT/INSTALLED \/ OVERWRITE PROTECTED}"
-    s="${s//NON INSTALLABLE - checksum upstream absent/NOT INSTALLABLE - upstream checksum missing}"
-    s="${s//disponible (SLR x86_64)/available (SLR x86_64)}"
-    s="${s//disponible/AVAILABLE}"
-    s="${s//PROTEGE \/ OK/PROTECTED \/ OK}"
-    s="${s//NON MANAGE/UNMANAGED}"
-    s="${s//MODIFIE/MODIFIED}"
-    s="${s//EXPERIMENTAL/EXPERIMENTAL}"
-    s="${s//PROTEGEE/PROTECTED}"
-    s="${s//Aucun/Aucun}" # retained for specific full translations below
-    case "$s" in
-        "Installer un runner Proton UMU") s="Install a Proton UMU runner" ;;
-        "Maintenance et diagnostic") s="Maintenance and diagnostics" ;;
-        "Diagnostic UMU complet") s="Full UMU diagnostics" ;;
-        "Reparer / mettre a niveau l'integration UMU") s="Repair / upgrade UMU integration" ;;
-        "Nettoyer les donnees runtime UMU") s="Clean UMU runtime data" ;;
-        "Nettoyer les logs UMU") s="Clean UMU logs" ;;
-        "Nettoyer les protections RO orphelines") s="Clean orphaned read-only protections" ;;
-        "Desinstallation") s="Uninstall" ;;
-        "Retour") s="Back" ;;
-        "Exporter / partager un runner") s="Export / share a runner" ;;
-        "Creer un package partageable/autonome (recommande)") s="Create a shareable/standalone package (recommended)" ;;
-        "Exporter le runner seul (.tar.xz)") s="Export the runner only (.tar.xz)" ;;
-        "Compatibilite des jeux") s="Game compatibility" ;;
-        "Analyser tous les jeux") s="Scan all games" ;;
-        "Associer / modifier un jeu") s="Associate / edit a game" ;;
-        "Afficher les associations manuelles") s="Show manual associations" ;;
-        "Supprimer une association") s="Delete an association" ;;
-        "Documentation / A propos") s="Documentation / About" ;;
-        "Mise a jour Toolbox") s="Toolbox update" ;;
-        "Runner installe") s="Runner installed" ;;
-        "Runner protege") s="Protected runner" ;;
-        "Release invalide") s="Invalid release" ;;
-        "Release introuvable") s="Release not found" ;;
-        "Tag invalide") s="Invalid tag" ;;
-        "Conflit") s="Conflict" ;;
-        "Erreur") s="Error" ;;
-        "Protections runtime") s="Runtime protections" ;;
-        "Protection runtime") s="Runtime protection" ;;
-        "Nettoyage annule") s="Cleanup cancelled" ;;
-        "Desinstallation refusee") s="Uninstall refused" ;;
-        "Desinstallation annulee") s="Uninstall cancelled" ;;
-        "Desinstallation complete") s="Complete uninstall" ;;
-        "Toolbox desinstallee") s="Toolbox uninstalled" ;;
-        "Supprimer un runner UMU") s="Delete an UMU runner" ;;
-        "Confirmer la suppression") s="Confirm deletion" ;;
-        "Runner supprime") s="Runner deleted" ;;
-        "Correspondances") s="Matches" ;;
-        "Choisir le store") s="Choose store" ;;
-        "Choisir un jeu Windows") s="Choose a Windows game" ;;
-        "Associations manuelles") s="Manual associations" ;;
-        "Supprimer une association") s="Delete an association" ;;
-        "Association supprimee") s="Association deleted" ;;
-        "Association enregistree") s="Association saved" ;;
-        "Analyse globale") s="Global analysis" ;;
-        "Analyse impossible") s="Analysis failed" ;;
-        "Aucune correspondance") s="No match" ;;
-        "Etat de l'installation") s="Installation status" ;;
-        "Runners Proton + UMU") s="Proton + UMU runners" ;;
-        "Rollback UMU") s="UMU rollback" ;;
-        "Mise a jour UMU") s="UMU update" ;;
-        "UMU mis a jour") s="UMU updated" ;;
-        "Erreur UMU") s="UMU error" ;;
-        "Installation UMU impossible") s="UMU installation failed" ;;
-        "Installation du runner annulee") s="Runner installation cancelled" ;;
-        "Steam Runtime") s="Steam Runtime" ;;
-        "Desinstaller uniquement la Toolbox") s="Uninstall Toolbox only" ;;
-        "Desinstaller UMU + tous les runners UMU") s="Uninstall UMU + all UMU runners" ;;
-        "Desinstaller Toolbox + UMU + runners") s="Uninstall Toolbox + UMU + runners" ;;
-        "Nettoyage UMU refuse") s="UMU cleanup refused" ;;
-        "Analyse du nettoyage UMU") s="UMU cleanup analysis" ;;
-        "Nettoyer les donnees runtime") s="Clean runtime data" ;;
-        "Nettoyage UMU") s="UMU cleanup" ;;
-        "Caches graphiques (facultatif)") s="Graphics caches (optional)" ;;
-        "Caches non supprimes") s="Caches not deleted" ;;
-        "Caches graphiques") s="Graphics caches" ;;
-        "Nettoyage des logs refuse") s="Log cleanup refused" ;;
-        "Nettoyage des logs") s="Log cleanup" ;;
-        "Protections RO orphelines") s="Orphaned read-only protections" ;;
-        "Suppression refusee") s="Deletion refused" ;;
-        "Desinstaller la Toolbox") s="Uninstall Toolbox" ;;
-        "Desinstaller UMU + runners") s="Uninstall UMU + runners" ;;
-        "UMU desinstalle") s="UMU uninstalled" ;;
-    esac
-    s="${s//Installer /Install }"
-    s="${s//Erreur /Error }"
-    s="${s//Aucune release /No }"
-    s="${s//Impossible de recuperer les releases /Unable to retrieve }"
-    s="${s//Aucun runner UMU installe/No UMU runner installed}"
-    s="${s//Aucun runner Proton-UMU gere installe/No managed Proton-UMU runner installed}"
-    s="${s//existe deja/ already exists}"
-    s="${s//Aucune reinstallation sur place n est autorisee/In-place reinstallation is not allowed}"
-    s="${s//Archive introuvable pour/Archive not found for}"
-    s="${s//Version a installer/Version to install}"
-    s="${s//Installation immutable/Immutable installation}"
-    s="${s//un runner existant ne sera jamais remplace/an existing runner will never be replaced}"
-    s="${s//Releases officielles/Official releases}"
-    s="${s//Aucun runner existant ne sera modifie/No existing runner will be modified}"
-    s="${s//Destination finale/Final destination}"
-    s="${s//Destination/Destination}"
-    s="${s//Verification/Verification}"
-    s="${s//obligatoire/required}"
-    s="${s//lorsque disponible/when available}"
-    s="${s//Le runner sera construit dans une zone temporaire puis controle avant installation/The runner will be built in a temporary staging area and verified before installation}"
-    s="${s//Continuer ?/Continue?}"
-    s="${s//Saisir un tag exact/Enter an exact tag}"
-    s="${s//Saisissez le tag exact/Enter the exact tag}"
-    s="${s//Format attendu/Expected format}"
-    s="${s//n a pas ete trouve sur GitHub/was not found on GitHub}"
-    s="${s//Aucune modification effectuee/No changes made}"
-    s="${s//Version installee/Installed version}"
-    s="${s//Nouvelle version/New version}"
-    s="${s//La Toolbox est deja a jour/The Toolbox is already up to date}"
-    s="${s//present mais non fonctionnel/present but not working}"
-    s="${s//umu-run absent/umu-run missing}"
-    s="${s//aucun Steam Runtime declare/no Steam Runtime declared}"
-    s="${s//runtime appid /runtime appid }"
-    s="${s// non reconnu/ unknown}"
-    s="${s// present/ present}"
-    s="${s// absent ou incomplet/ missing or incomplete}"
-    s="${s//Aucun Steam Runtime requis par les runners installes/No Steam Runtime required by installed runners}"
-    s="${s//Runners \/ integrite \/ protection/Runners \/ integrity \/ protection}"
-    s="${s//incomplet/incomplete}"
-    s="${s//RO actif/RO active}"
-    s="${s//RO ORPHELIN/ORPHANED RO}"
-    s="${s//MONTAGE RW/RW MOUNT}"
-    s="${s//integrite valide/integrity valid}"
-    s="${s//protection/protection}"
-    s="${s//FICHIERS CRITIQUES MODIFIES/CRITICAL FILES MODIFIED}"
-    s="${s//non manage/unmanaged}"
-    s="${s//Politique immutable : protection RO automatique pendant les jeux UMU./Immutable policy: automatic read-only protection during UMU games.}"
-    s="${s//Logs : 20 fichiers max \/ 30 jours max par categorie./Logs: max 20 files \/ max 30 days per category.}"
-    s="${s//Un processus UMU\/Wine est encore actif./An UMU\/Wine process is still active.}"
-    s="${s//Aucune protection RO orpheline detectee./No orphaned read-only protection detected.}"
-    s="${s//Aucun lancement UMU actif n est detecte/No active UMU launch is detected}"
-    s="${s//Cela peut arriver apres un crash ou un kill force./This can happen after a crash or forced termination.}"
-    s="${s//Demonter uniquement ces protections RO orphelines ?/Unmount only these orphaned read-only protections?}"
-    s="${s//Une activite UMU a ete detectee./UMU activity was detected.}"
-    s="${s//Aucun montage n a ete retire./No mount was removed.}"
-    s="${s//Protections RO orphelines retirees/Orphaned read-only protections removed}"
-    s="${s//Echecs/Failures}"
-    s="${s//Migration reportee/Upgrade deferred}"
-    s="${s//Aucun runner n a ete modifie./No runner was modified.}"
-    s="${s//Fermez le jeu/Close the game}"
-    s="${s//Cette operation remplace UNIQUEMENT les fichiers d integration Batocera/This operation replaces ONLY the Batocera integration files}"
-    s="${s//Les fichiers Wine\/Proton upstream ne sont pas remplaces./Upstream Wine\/Proton files are not replaced.}"
-    s="${s//Les runners deja MODIFIES sont refuses./Runners already marked MODIFIED are refused.}"
-    s="${s//Runners mis a niveau/Runners upgraded}"
-    s="${s//Refuses \/ ignores/Refused \/ ignored}"
-    s="${s//Erreurs/Errors}"
-    s="${s//Donnees runtime UMU/UMU runtime data}"
-    s="${s//anciens TEST7/legacy TEST7}"
-    s="${s//Caches graphiques facultatifs/Optional graphics caches}"
-    s="${s//Sont toujours conserves/Always preserved}"
-    s="${s//sauvegardes UMU et runners/UMU save data and runners}"
-    s="${s//Supprimer le contenu runtime UMU/Delete UMU runtime data}"
-    s="${s//ainsi que les anciens repertoires TEST7 eventuels./and any legacy TEST7 directories.}"
-    s="${s//Espace actuellement occupe/Currently used space}"
-    s="${s//Les repertoires eux-memes seront conserves./The directories themselves will be preserved.}"
-    s="${s//Donnees runtime nettoyees./Runtime data cleaned.}"
-    s="${s//Espace precedemment occupe/Previously used space}"
-    s="${s//Les donnees runtime UMU sont deja vides./UMU runtime data is already empty.}"
-    s="${s//Aucune donnee runtime a supprimer./No runtime data to delete.}"
-    s="${s//Les caches graphiques occupent/Graphics caches use}"
-    s="${s//Les supprimer aussi ?/Delete them too?}"
-    s="${s//Caches Mesa\/RADV nettoyes./Mesa\/RADV caches cleaned.}"
-    s="${s//Les repertoires de logs UMU sont deja vides./UMU log directories are already empty.}"
-    s="${s//Logs Toolbox/Toolbox logs}"
-    s="${s//Logs Runner/Runner logs}"
-    s="${s//Tous les anciens logs seront supprimes./All old logs will be deleted.}"
-    s="${s//Le log Toolbox de cette session sera conserve./The Toolbox log for this session will be preserved.}"
-    s="${s//Logs UMU nettoyes./UMU logs cleaned.}"
-    s="${s//Le log Toolbox courant a ete conserve./The current Toolbox log was preserved.}"
-    s="${s//Cette operation va supprimer/This operation will delete}"
-    s="${s//Seront conserves/Will be preserved}"
-    s="${s//La Toolbox sera CONSERVEE./The Toolbox will be PRESERVED.}"
-    s="${s//Les runners classiques ne seront PAS touches./Classic runners will NOT be touched.}"
-    s="${s//Cette operation est destructive./This operation is destructive.}"
-    s="${s//La Toolbox a ete conservee./The Toolbox was preserved.}"
-    s="${s//Exporter un runner/Export a runner}"
-    s="${s//Aucun runner Proton-UMU gere installe./No managed Proton-UMU runner is installed.}"
-    s="${s//Runner introuvable/Runner not found}"
-    s="${s//Export refuse/Export refused}"
-    s="${s//Export impossible/Export unavailable}"
-    s="${s//Confirmer l export/Confirm export}"
-    s="${s//Export echoue/Export failed}"
-    s="${s//Export termine/Export complete}"
-    s="${s//Creer un package partageable/Create a shareable package}"
-    s="${s//Package partageable/Shareable package}"
-    s="${s//Confirmer le package/Confirm package}"
-    s="${s//Package termine/Package complete}"
-    s="${s//Compatibilite des jeux/Game compatibility}"
-    s="${s//Gestionnaire GAMEID absent/GAMEID manager missing}"
-    s="${s//Analyser tous les jeux/Scan all games}"
-    s="${s//Associer \/ modifier un jeu/Associate \/ edit a game}"
-    s="${s//Afficher les associations manuelles/Show manual associations}"
-    s="${s//Supprimer une association/Delete an association}"
-    s="${s//Aucune correspondance/No match}"
-    s="${s//Correspondances/Matches}"
-    s="${s//Choisir le store/Choose store}"
-    s="${s//Association enregistree/Association saved}"
-    s="${s//Analyse impossible/Scan failed}"
-    s="${s//Analyse globale/Global scan}"
-    s="${s//Associations manuelles/Manual associations}"
-    s="${s//Association supprimee/Association deleted}"
-    s="${s//Suppression impossible./Unable to delete.}"
-    s="${s//Creer une reference/Create an integrity reference}"
-    s="${s//Aucun runner Proton-UMU gere installe./No managed Proton-UMU runner is installed.}"
-    s="${s//Erreur/Error}"
-    s="${s//Impossible de/Unable to}"
-    s="${s//Installation UMU impossible/UMU installation failed}"
-    s="${s//Installation du runner annulee/Runner installation cancelled}"
-    s="${s//Erreur UMU/UMU error}"
-    s="${s//Mise a jour UMU/UMU update}"
-    s="${s//Telechargement/Downloading}"
-    s="${s//Aucune sauvegarde UMU disponible./No UMU backup is available.}"
-    s="${s//Sauvegarde restauree./Backup restored.}"
-    s="${s//Release invalide/Invalid release}"
-    s="${s//Archive introuvable/Archive not found}"
-    s="${s//Runner protege/Protected runner}"
-    s="${s//Structure/Structure}"
-    s="${s//Conflit/Conflict}"
-    s="${s//Installation atomique de/Atomic installation of}"
-    s="${s//est installe comme NOUVEAU runner./is installed as a NEW runner.}"
-    s="${s//Famille :/Family:}"
-    s="${s//Statut :/Status:}"
-    s="${s//Integrite : PROTEGEE/Integrity: PROTECTED}"
-    s="${s//non installable/cannot be installed}"
-    s="${s//Cette release/This release}"
-    s="${s//ne fournit pas de checksum/does not provide an upstream checksum}"
-    s="${s//Tag invalide/Invalid tag}"
-    s="${s//Format attendu :/Expected format:}"
-    s="${s//Runner non pris en charge/Unsupported runner}"
-    s="${s//Release/Release}"
-    s="${s//Archive x86_64 introuvable/x86_64 archive not found}"
-    s="${s//Le runner a change pendant sa preparation. Installation annulee./The runner changed during preparation. Installation cancelled.}"
-    s="${s//Analyse du prefixe/Prefix analysis}"
-    s="${s//Protections runtime/Runtime protections}"
-    s="${s//Protection runtime/Runtime protection}"
-    s="${s//Protections RO orphelines/Orphaned RO protections}"
-    s="${s//Nettoyage annule/Cleanup cancelled}"
-    s="${s//Aucune protection RO orpheline detectee./No orphaned RO protection detected.}"
-    s="${s//Exporter un runner/Export a runner}"
-    s="${s//Runner introuvable/Runner not found}"
-    s="${s//Export termine/Export complete}"
-    s="${s//Export echoue/Export failed}"
-    s="${s//Suppression refusee/Deletion refused}"
-    s="${s//Supprimer un runner/Delete a runner}"
-    s="${s//Confirmer la suppression/Confirm deletion}"
-    s="${s//Runner supprime/Runner deleted}"
-    s="${s//Nettoyage UMU refuse/UMU cleanup refused}"
-    s="${s//Analyse du nettoyage UMU/UMU cleanup analysis}"
-    s="${s//Nettoyer les donnees runtime/Clean runtime data}"
-    s="${s//Caches graphiques (facultatif)/Graphics caches (optional)}"
-    s="${s//Caches non supprimes/Caches not deleted}"
-    s="${s//Caches graphiques/Graphics caches}"
-    s="${s//Aucune correspondance/No match}"
-    s="${s//Aucun GAMEID candidat trouve pour :/No GAMEID candidate found for:}"
-    s="${s//gamelist Windows introuvable :/Windows gamelist not found:}"
-    s="${s//Impossible de lire le gamelist./Unable to read the gamelist.}"
-    s="${s//Etat de l installation/Installation status}"
-    s="${s//absent (sera telecharge par UMU au besoin)/missing (will be downloaded by UMU if needed)}"
-    s="${s//(aucun)/(none)}"
-    s="${s//Installer /Install }"
-    s="${s//Version installee :/Installed version:}"
-    s="${s//Derniere version :/Latest version:}"
-    s="${s//steamrt4, les saves et les prefixes ne seront pas supprimes./steamrt4, saves and prefixes will not be deleted.}"
-    s="${s//Continuer ?/Continue?}"
-    s="${s//Le runner sera construit dans une zone temporaire puis controle avant installation./The runner will be built in a temporary area and verified before installation.}"
-    s="${s//Destination finale :/Final destination:}"
-    s="${s//Destination :/Destination:}"
-    s="${s//Aucun runner existant ne sera modifie./No existing runner will be modified.}"
-    s="${s//Verification :/Verification:}"
-    s="${s//obligatoire/required}"
-    s="${s//lorsque disponible/when available}"
-    s="${s//Nom exact de la sauvegarde :/Exact backup name:}"
-    s="${s//PROTEGE \/ OK/PROTECTED \/ OK}"
-    s="${s//MODIFIE/MODIFIED}"
-    s="${s//NON MANAGE/UNMANAGED}"
-    s="${s//Export refuse/Export refused}"
-    s="${s//est signale MODIFIE./is marked MODIFIED.}"
-    s="${s//ne possede pas encore de manifest de reference./does not have an integrity reference manifest yet.}"
-    s="${s//Runner exporte avec succes./Runner exported successfully.}"
-    s="${s//Archive :/Archive:}"
-    s="${s//Taille :/Size:}"
-    s="${s//inconnue/unknown}"
-    s="${s//Pour restaurer manuellement sur une autre Batocera :/To restore manually on another Batocera:}"
-    s="${s//absent (sera telecharge par UMU au besoin)/missing (will be downloaded by UMU if needed)}"
-    s="${s//(aucun)/(none)}"
-    printf '%s' "$s"
-}
-
 GE_REPO="GloriousEggroll/proton-ge-custom"
 GDK_REPO="Weather-OS/GDK-Proton"
 CACHY_REPO="CachyOS/proton-cachyos"
@@ -688,27 +392,22 @@ EOF
 
 
 show_status() {
-    local uv runtime runners
+    local uv runtime runners rr rr_state
     uv="$(umu_version)"
     if find "$UMU_DIR/home/.local/share/umu" -maxdepth 1 -type d -name 'steamrt*' -print -quit 2>/dev/null | grep -q .; then
-        runtime="present"
+        runtime="$(i18n runtime_present)"
     else
-        runtime="absent (sera telecharge par UMU au besoin)"
+        runtime="$(i18n runtime_missing_lazy)"
     fi
     runners=""
-    local rr
     while IFS= read -r rr; do
         [ -n "$rr" ] || continue
-        local rr_state="$(runner_integrity_label "$CUSTOM_DIR/$rr")"
-        runners="${runners}${rr}  [$rr_state]\n"
+        rr_state="$(integrity_label_i18n "$CUSTOM_DIR/$rr")"
+        runners="${runners}${rr}  [${rr_state}]\\n"
     done <<< "$(installed_runners)"
-    [ -n "$runners" ] || runners="(aucun)"
+    [ -n "$runners" ] || runners="$(i18n none_parenthesized)"
 
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Installation status" "Toolbox: v$TOOLBOX_VERSION\nBatocera UMU integration: v$INTEGRATION_VERSION\n\nUMU: $uv\nUMU Steam Runtime: $(tr_ui "$runtime")\n\nInstalled UMU runners:\n$(tr_ui "$runners")\n\nPROTECTED / OK: valid integrity reference\nMODIFIED: critical files differ\nUNMANAGED: no integrity reference created yet\n\nToolbox logs:\n$LOG_DIR"
-    else
-        msg "Etat de l installation" "Toolbox : v$TOOLBOX_VERSION\nCouche Batocera UMU : v$INTEGRATION_VERSION\n\nUMU : $uv\nSteam Runtime UMU : $runtime\n\nRunners UMU installes :\n$runners\n\nPROTEGE / OK : empreinte valide\nMODIFIE : fichiers critiques differents\nNON MANAGE : aucune reference encore creee\n\nLogs Toolbox :\n$LOG_DIR"
-    fi
+    msg "$(i18n status_title)" "$(i18n status_body "$TOOLBOX_VERSION" "$INTEGRATION_VERSION" "$uv" "$runtime" "$runners" "$LOG_DIR")"
 }
 
 install_umu_if_missing() {
@@ -1227,7 +926,7 @@ install_gdk() {
     build_gdk_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur GDK-Proton")" "$(tr_ui "Aucune release GDK-Proton compatible n'a ete trouvee.")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n release_compatible_none "GDK-Proton")"
         return
     fi
 
@@ -1421,7 +1120,7 @@ install_cachy() {
     build_cachy_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Aucune release SLR x86_64 compatible n'a ete trouvee.")"
+        msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n release_slr_none)"
         return
     fi
 
@@ -1564,7 +1263,7 @@ install_em() {
     build_em_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Aucune release Proton-EM .tar.xz compatible n'a ete trouvee.")"
+        msg "$(i18n runner_error "Proton-EM")" "$(i18n release_tar_compatible_none "Proton-EM")"
         return
     fi
 
@@ -1731,7 +1430,7 @@ install_dw() {
     build_dw_menu "$json" "$menu_file"
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Aucune release DW-Proton .tar.xz compatible n'a ete trouvee.")"
+        msg "$(i18n runner_error "DW-Proton")" "$(i18n release_tar_compatible_none "DW-Proton")"
         return
     fi
 
@@ -1883,7 +1582,7 @@ install_ge() {
 
     if [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Aucune release x86_64 compatible n'a ete trouvee.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n release_compatible_none "x86_64")"
         return
     fi
 
@@ -3014,7 +2713,7 @@ maintenance_menu() {
         local choice
         choice="$(menu_choice "$(i18n maintenance_title)" \
             "1" "$(i18n diagnostic_full)" \
-            "2" "$(tr_ui "Reparer / mettre a niveau l'integration UMU")" \
+            "2" "$(i18n repair_integration)" \
             "3" "$(i18n clean_runtime)" \
             "4" "$(i18n clean_logs)" \
             "5" "$(i18n clean_ro)" \
