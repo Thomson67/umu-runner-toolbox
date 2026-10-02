@@ -1394,12 +1394,11 @@ EOF
 
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=GDK-Proton"
-    msg "Runner installe" \
-"$name-UMU est installe comme NOUVEAU runner.
-
-Famille : GDK-Proton
-Statut : EXPERIMENTAL
-Integrite : PROTEGEE"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: GDK-Proton\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+    else
+        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : GDK-Proton\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    fi
 }
 
 fetch_cachy_releases() {
@@ -1541,7 +1540,11 @@ EOF
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-CachyOS")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=Proton-CachyOS asset=SLR-x86_64"
-    msg "$(tr_ui "Runner installe")" "$(tr_ui "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-CachyOS\nBuild : SLR x86_64\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE")"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: Proton-CachyOS\nBuild: SLR x86_64\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+    else
+        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-CachyOS\nBuild : SLR x86_64\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    fi
 }
 
 fetch_em_releases() {
@@ -1707,7 +1710,11 @@ EOF
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=Proton-EM tag=$tag"
-    msg "$(tr_ui "Runner installe")" "$(tr_ui "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-EM\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE")"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: Proton-EM\nRelease: $tag\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+    else
+        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : Proton-EM\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    fi
 }
 fetch_dw_releases() {
     local out="$1"
@@ -1869,7 +1876,11 @@ EOF
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de finaliser l'installation.")"; return; fi
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${name}-UMU provider=DW-Proton tag=$tag"
-    msg "$(tr_ui "Runner installe")" "$(tr_ui "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : DW-Proton\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE")"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Runner installed" "$name-UMU is installed as a NEW runner.\n\nFamily: DW-Proton\nRelease: $tag\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+    else
+        msg "Runner installe" "$name-UMU est installe comme NOUVEAU runner.\n\nFamille : DW-Proton\nRelease : $tag\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE"
+    fi
 }
 
 install_runner_menu() {
@@ -2126,17 +2137,11 @@ EOF
 
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${tag}-UMU"
-    msg "Runner installe" \
-"$tag-UMU est installe comme NOUVEAU runner.
-
-Statut : EXPERIMENTAL
-Integrite : PROTEGEE
-
-Apres validation en jeu, utilisez :
-Proteger / valider un runner
-pour le marquer comme connu fonctionnel.
-
-Une autre version GE-Proton-UMU ne modifiera jamais ce dossier."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Runner installed" "$tag-UMU is installed as a NEW runner.\n\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED\n\nAfter validating it in-game, use:\nProtect / validate a runner\nto mark it as known working.\n\nAnother GE-Proton-UMU version will never modify this directory."
+    else
+        msg "Runner installe" "$tag-UMU est installe comme NOUVEAU runner.\n\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE\n\nApres validation en jeu, utilisez :\nProteger / valider un runner\npour le marquer comme connu fonctionnel.\n\nUne autre version GE-Proton-UMU ne modifiera jamais ce dossier."
+    fi
 }
 
 list_runners() {
