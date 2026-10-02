@@ -388,4 +388,8 @@ I18N=(
   [diag_runner_unmanaged]="[INFO] %s: unmanaged | protection %s"
   [diag_footer]="Immutable policy: automatic read-only protection during UMU games.\\nLogs: max 20 files / max 30 days per category.\\n%s\\n%s"
   [package_compression_note]="Compression can take several minutes depending on the runner, Steam Runtime and CPU. The Toolbox is still working while tar/xz uses CPU."
+  [install_confirm_basic]="The runner will be built in a temporary area and verified before installation.\\n\\nDestination:\\n%s\\n\\nNo existing runner will be modified.\\n\\nContinue?"
+  [install_confirm_source]="Source: %s\\nVerification: %s\\nDestination:\\n%s\\n\\nNo existing runner will be modified.\\n\\nContinue?"
+  [verify_sha512_upstream_required]="mandatory upstream SHA-512"
+  [verify_sha256_upstream_required]="mandatory upstream SHA-256"
 )
