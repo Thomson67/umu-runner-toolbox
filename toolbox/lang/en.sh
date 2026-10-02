@@ -271,4 +271,9 @@ I18N=(
   [integrity_manifest_install_failed]="Unable to create the integrity fingerprint. Nothing was installed."
   [install_target_conflict]="%s appeared during installation. No file was overwritten."
   [install_finalize_safe_failed]="Unable to finalize the installation. Existing runners are intact."
+  [integrity_ok]="OK"
+  [integrity_modified]="MODIFIED"
+  [integrity_unmanaged]="UNMANAGED"
+  [integrity_missing]="MISSING"
+  [integrity_unknown]="UNKNOWN"
 )
