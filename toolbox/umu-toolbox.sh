@@ -2973,7 +2973,10 @@ update_toolbox() {
         return
     }
     tag="$(basename "$latest_url")"
-    case "$tag" in v*) latest="${tag#v}" ;; *) msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "Tag GitHub inattendu : $tag"; return ;; esac
+    case "$tag" in
+        v*) latest="${tag#v}" ;;
+        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Toolbox update" "Unexpected GitHub tag: $tag"; else msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; fi; return ;;
+    esac
 
     if [ "$latest" = "$TOOLBOX_VERSION" ]; then
         msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The Toolbox is already up to date.\n\nInstalled version: $TOOLBOX_VERSION" || printf '%s' "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION")"
@@ -2985,7 +2988,7 @@ def v(s): return tuple(int(x) for x in s.split('.'))
 sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
 PYVER
     then
-        msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Toolbox update" "Release $tag is not newer than the installed version ($TOOLBOX_VERSION)."; else msg "Mise a jour Toolbox" "La release $tag n est pas plus recente que la version installee ($TOOLBOX_VERSION)."; fi
         return
     fi
 
@@ -3025,7 +3028,13 @@ PYVER
 
     chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
     rm -rf "$tmp"
-    if command -v dialog >/dev/null 2>&1; then dialog --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90; fi
+    if command -v dialog >/dev/null 2>&1; then
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            dialog --ok-label "OK" --title "Toolbox update" --msgbox "Update complete.\n\n$TOOLBOX_VERSION -> $latest\n\nBackup:\n$backup\n\nThe new Toolbox will now restart." 18 90
+        else
+            dialog --ok-label "Accepter" --title "Mise a jour Toolbox" --msgbox "Mise a jour terminee.\n\n$TOOLBOX_VERSION -> $latest\n\nSauvegarde :\n$backup\n\nLa nouvelle Toolbox va etre relancee." 18 90
+        fi
+    fi
     exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
 }
 
@@ -3044,7 +3053,11 @@ post_update_integration() {
     [ "${UMU_TOOLBOX_POST_UPDATE:-0}" = "1" ] || return 0
     local previous="${UMU_TOOLBOX_PREVIOUS_VERSION:-inconnue}"
     unset UMU_TOOLBOX_POST_UPDATE UMU_TOOLBOX_PREVIOUS_VERSION
-    msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL'integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et intègres.\n\nLes runners non geres ou modifies seront ignores."
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Toolbox update" "Toolbox updated: $previous -> $TOOLBOX_VERSION\n\nThe runner integration will now be upgraded automatically on all managed and integrated UMU runners.\n\nUnmanaged or modified runners will be ignored."
+    else
+        msg "Mise a jour Toolbox" "Toolbox mise a jour : $previous -> $TOOLBOX_VERSION\n\nL integration runner va maintenant etre mise a niveau automatiquement sur tous les runners UMU geres et integres.\n\nLes runners non geres ou modifies seront ignores."
+    fi
     upgrade_integration 1
 }
 
