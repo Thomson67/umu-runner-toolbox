@@ -661,7 +661,7 @@ Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
     fi
 
     if ! write_manifest "$r"; then
-        msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de creer le manifest d'integrite de $choice.")"
+        msg "$(i18n error)" "$(i18n reference_manifest_failed "$choice")"
         return
     fi
     mkdir -p "$(runner_info_dir "$r")"
@@ -730,7 +730,7 @@ install_umu_if_missing() {
     json="$tmp/release.json"
     if ! curl -fsSL --max-time 30 "https://api.github.com/repos/$UMU_REPO/releases/latest" -o "$json"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Impossible de recuperer la derniere release officielle UMU.\n\nLe runner ne sera pas installe tant que umu-run n'est pas disponible.")"
+        msg "$(i18n umu_install_impossible)" "$(i18n umu_release_fetch_failed)"
         return 1
     fi
 
@@ -760,7 +760,7 @@ PY2
 )"
     if [ -z "$tag" ] || [ -z "$asset" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "La derniere release UMU ne contient pas l'archive zipapp attendue.")"
+        msg "$(i18n umu_install_impossible)" "$(i18n umu_zipapp_missing)"
         return 1
     fi
     if ! curl -fL --progress-bar "$asset" -o "$tmp/umu-launcher.tar"; then
@@ -771,13 +771,13 @@ PY2
     mkdir -p "$tmp/extracted"
     if ! tar -xf "$tmp/umu-launcher.tar" -C "$tmp/extracted"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "Impossible d'extraire UMU $tag.")"
+        msg "$(i18n umu_install_impossible)" "$(i18n umu_extract_version_failed "$tag")"
         return 1
     fi
     newrun="$(find "$tmp/extracted" -type f -name umu-run -print -quit)"
     if [ -z "$newrun" ] || [ ! -s "$newrun" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "umu-run est absent de l'archive UMU $tag.")"
+        msg "$(i18n umu_install_impossible)" "$(i18n umu_run_version_missing "$tag")"
         return 1
     fi
     if [ -n "$checksum" ]; then
@@ -795,7 +795,7 @@ PY2
     fi
     if ! python3 "$(root_bridge)" "$newrun" --version >/dev/null 2>&1; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Installation UMU impossible")" "$(tr_ui "La nouvelle copie de umu-run ne passe pas le test d'execution Batocera. Aucun remplacement n'a ete effectue.")"
+        msg "$(i18n umu_install_impossible)" "$(i18n umu_exec_test_failed)"
         return 1
     fi
 
@@ -817,7 +817,7 @@ ensure_umu_for_runner() {
     if install_umu_if_missing; then
         return 0
     fi
-    msg "$(tr_ui "Installation du runner annulee")" "$(tr_ui "UMU est indispensable pour installer et lancer un runner Proton-UMU.\n\nAucun runner n'a ete installe.")"
+    msg "$(i18n runner_install_cancelled)" "$(i18n umu_required_runner)"
     return 1
 }
 
@@ -899,7 +899,7 @@ PY
         return
     fi
 
-    if ! yesno "$(tr_ui "Mise a jour UMU")" \
+    if ! yesno "$(i18n umu_update)"" \
 "Version installee : $oldver
 Derniere version : $tag
 
@@ -915,14 +915,14 @@ Installer UMU $tag ?"; then
     echo "Telechargement UMU $tag..."
     if ! curl -fL --progress-bar "$asset" -o "$tmp/umu-launcher.tar"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Echec du telechargement.")"
+        msg "$(i18n umu_error)" "$(i18n download_failed_simple)"
         return
     fi
 
     mkdir -p "$tmp/extracted"
     if ! tar -xf "$tmp/umu-launcher.tar" -C "$tmp/extracted"; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Impossible d'extraire l'archive.")"
+        msg "$(i18n umu_error)" "$(i18n archive_extract_failed)"
         return
     fi
 
@@ -930,7 +930,7 @@ Installer UMU $tag ?"; then
     newrun="$(find "$tmp/extracted" -type f -name umu-run | head -n1)"
     if [ -z "$newrun" ] || [ ! -s "$newrun" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Erreur UMU")" "$(tr_ui "umu-run est absent de l'archive.")"
+        msg "$(i18n umu_error)" "$(i18n umu_archive_missing)"
         return
     fi
 
@@ -1606,7 +1606,7 @@ install_em() {
 
     if [ -z "$sumurl" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "Proton-EM non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-256 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
+        msg "$(i18n proton_not_installable "Proton-EM")" "$(i18n checksum_required_sha256 "$tag")"
         return
     fi
     if [ "$noninteractive" != "1" ] && ! yesno "$(i18n install_named "$name-UMU")" \
@@ -1768,7 +1768,7 @@ install_dw() {
 
     if [ -z "$sumurl" ]; then
         rm -rf "$tmp"
-        msg "$(tr_ui "DW-Proton non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-512 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
+        msg "$(i18n proton_not_installable "DW-Proton")" "$(i18n checksum_required_sha512 "$tag")"
         return
     fi
     if ! yesno "$(i18n install_named "$name-UMU")" \
@@ -1920,7 +1920,7 @@ install_ge() {
     if [ -n "$requested" ]; then
         if ! printf '%s' "$tag" | grep -Eq '^GE-Proton[0-9]+-[0-9]+$'; then rm -rf "$tmp"; msg "$(i18n tag_invalid)" "$(i18n ge_tag_expected)"; return 2; fi
         tag_json="$tmp/tag.json"
-        if ! fetch_ge_tag "$tag" "$tag_json"; then rm -rf "$tmp"; msg "$(tr_ui "Release introuvable")" "$(tr_ui "$tag n'a pas ete trouve sur GitHub.")"; return 3; fi
+        if ! fetch_ge_tag "$tag" "$tag_json"; then rm -rf "$tmp"; msg "$(i18n release_not_found)" "$(i18n release_not_found_body "$tag")"; return 3; fi
         line="$(resolve_ge_tag "$tag" "$tag_json")"
     elif [ "$tag" = "MANUAL" ]; then
         tag="$(input_box "Version GE-Proton" "Saisissez le tag exact, par exemple GE-Proton11-4 :" "GE-Proton11-4")" || {
@@ -1934,7 +1934,7 @@ install_ge() {
         tag_json="$tmp/tag.json"
         if ! fetch_ge_tag "$tag" "$tag_json"; then
             rm -rf "$tmp"
-            msg "$(tr_ui "Release introuvable")" "$(tr_ui "$tag n'a pas ete trouve sur GitHub.")"
+            msg "$(i18n release_not_found)" "$(i18n release_not_found_body "$tag")"
             return
         fi
         line="$(resolve_ge_tag "$tag" "$tag_json")"
