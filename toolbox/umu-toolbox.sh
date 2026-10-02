@@ -2711,17 +2711,17 @@ update_toolbox() {
 
     base="https://github.com/$TOOLBOX_REPO"
     latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
-        msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to determine the latest GitHub release.\n\nNo changes were made." || printf '%s' "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee.")"
+        msg "$(i18n toolbox_update_title)" "$(i18n update_latest_failed)"
         return
     }
     tag="$(basename "$latest_url")"
     case "$tag" in
         v*) latest="${tag#v}" ;;
-        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(i18n toolbox_update_title)" "$(i18n update_bad_tag "$tag")"; else msg "$(i18n toolbox_update_title)" "$(i18n update_bad_tag "$tag")"; fi; return ;;
+        *) msg "$(i18n toolbox_update_title)" "$(i18n update_bad_tag "$tag")"; return ;;
     esac
 
     if [ "$latest" = "$TOOLBOX_VERSION" ]; then
-        msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The Toolbox is already up to date.\n\nInstalled version: $TOOLBOX_VERSION" || printf '%s' "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION")"
+        msg "$(i18n toolbox_update_title)" "$(i18n update_current "$TOOLBOX_VERSION")"
         return
     fi
     if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
@@ -2742,36 +2742,32 @@ PYVER
         if ! yesno "$(i18n toolbox_update_title)" "$(i18n update_confirm "$TOOLBOX_VERSION" "$latest" "$UMU_BACKUP")"; then return; fi
     fi
 
-    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to create the temporary directory." || printf '%s' "Impossible de creer le repertoire temporaire.")"; return; }
-    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to download the package.\n\nNo changes were made." || printf '%s' "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee.")"; return; fi
-    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Checksum missing for $tag.\n\nNo changes were made." || printf '%s' "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee.")"; return; fi
-    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "SHA-256 verification failed.\n\nNo changes were made." || printf '%s' "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee.")"; return; fi
-    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to extract the package." || printf '%s' "Extraction du package impossible.")"; return; fi
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "$(i18n toolbox_update_title)" "$(i18n update_tmp_failed)"; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_download_failed)"; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_checksum_missing "$tag")"; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_checksum_failed)"; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_extract_failed)"; return; fi
 
     pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     root="$pkg/toolbox"
-    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Invalid package structure." || printf '%s' "Structure du package invalide.")"; return; fi
-    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Package VERSION mismatch." || printf '%s' "VERSION du package incoherente.")"; return; fi
-    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The new version script is invalid." || printf '%s' "Le script de la nouvelle version est invalide.")"; return; fi
-    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The new version Python resolver is invalid." || printf '%s' "Le resolver Python de la nouvelle version est invalide.")"; return; fi
-    if [ -s "$root/umu-gameid-manager.py" ] && ! python3 -m py_compile "$root/umu-gameid-manager.py" 2>/dev/null; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The new version GAMEID manager is invalid." || printf '%s' "Le gestionnaire GAMEID de la nouvelle version est invalide.")"; return; fi
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_structure_invalid)"; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_version_mismatch)"; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_script_invalid)"; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_resolver_invalid)"; return; fi
+    if [ -s "$root/umu-gameid-manager.py" ] && ! python3 -m py_compile "$root/umu-gameid-manager.py" 2>/dev/null; then rm -rf "$tmp"; msg "$(i18n toolbox_update_title)" "$(i18n update_manager_invalid)"; return; fi
 
     newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
-    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to prepare the new Toolbox." || printf '%s' "Preparation de la nouvelle Toolbox impossible.")"; return; }
-    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to preserve config/." || printf '%s' "Impossible de conserver config/.")"; return; }; fi
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "$(i18n toolbox_update_title)" "$(i18n update_prepare_failed)"; return; }
+    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "$(i18n toolbox_update_title)" "$(i18n update_config_failed)"; return; }; fi
 
     ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
-    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to back up the current Toolbox." || printf '%s' "Sauvegarde de la Toolbox actuelle impossible.")"; return; fi
-    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Replacement failed. An automatic restore was attempted." || printf '%s' "Echec du remplacement. Une restauration automatique a ete tentee.")"; return; fi
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "$(i18n toolbox_update_title)" "$(i18n update_backup_failed)"; return; fi
+    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "$(i18n toolbox_update_title)" "$(i18n update_replace_failed)"; return; fi
 
     chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
     rm -rf "$tmp"
     if command -v dialog >/dev/null 2>&1; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            dialog --ok-label "OK" --title "Toolbox update" --msgbox "Update complete.\n\n$TOOLBOX_VERSION -> $latest\n\nBackup:\n$backup\n\nThe new Toolbox will now restart." 18 90
-        else
-            dialog --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" --msgbox "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Update complete.\n\n%s -> %s\n\nBackup:\n%s\n\nThe new Toolbox will now restart.' "$TOOLBOX_VERSION" "$latest" "$backup" || printf 'Mise a jour terminee.\n\n%s -> %s\n\nSauvegarde :\n%s\n\nLa nouvelle Toolbox va etre relancee.' "$TOOLBOX_VERSION" "$latest" "$backup")" 18 90
-        fi
+        dialog --ok-label "$(i18n accept)" --title "$(i18n toolbox_update_title)" --msgbox "$(i18n update_restart_complete "$TOOLBOX_VERSION" "$latest" "$backup")" 18 90
     fi
     exec env UMU_TOOLBOX_POST_UPDATE=1 UMU_TOOLBOX_PREVIOUS_VERSION="$TOOLBOX_VERSION" "$ROOT/umu-toolbox.sh"
 }
