@@ -296,4 +296,7 @@ I18N=(
   [runtime_missing_lazy]="absent (sera telecharge par UMU au besoin)"
   [none_parenthesized]="(aucun)"
   [status_body]="Toolbox : v%s\\nCouche Batocera UMU : v%s\\n\\nUMU : %s\\nSteam Runtime UMU : %s\\n\\nRunners UMU installes :\\n%s\\n\\nPROTEGE / OK : empreinte valide\\nMODIFIE : fichiers critiques differents\\nNON MANAGE : aucune reference encore creee\\n\\nLogs Toolbox :\\n%s"
+  [install_dw_title]="Installer DW-Proton + UMU"
+  [dw_menu_desc]="Releases officielles dawn-winery/dwproton-mirror (x86_64). Installation immutable."
+  [version_to_install_prompt]="Version a installer : "
 )
