@@ -2027,7 +2027,7 @@ Continuer ?"; then
     echo "$(i18n extracting_staging)"
     if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Extraction impossible. Rien n'a ete installe.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n extraction_failed)"
         return
     fi
 
@@ -2065,7 +2065,7 @@ EOF
 
     if ! write_manifest "$candidate"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de creer l'empreinte d'integrite. Rien n'a ete installe.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n integrity_manifest_install_failed)"
         return
     fi
 
@@ -2081,14 +2081,14 @@ EOF
 
     if [ -e "$target" ]; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Conflit")" "$(tr_ui "$target est apparu pendant l'installation. Aucun fichier n'a ete ecrase.")"
+        msg "$(i18n runner_conflict)" "$(i18n install_target_conflict "$target")"
         return
     fi
 
     echo "$(i18n atomic_install "$tag-UMU")"
     if ! mv "$candidate" "$target"; then
         rm -rf "$tmp" "$stage"
-        msg "$(tr_ui "Erreur GE-Proton")" "$(tr_ui "Impossible de finaliser l'installation. Les runners existants sont intacts.")"
+        msg "$(i18n runner_error "GE-Proton")" "$(i18n install_finalize_safe_failed)"
         return
     fi
 
@@ -2171,7 +2171,7 @@ scan_prefix_refs() {
     local p out total
     p="$(input_box "Scanner un prefixe" "Chemin du prefixe .wine / wine-bottle / prefixe monte :" "/userdata/roms/windows/")" || return
     [ -n "$p" ] || return
-    if [ ! -d "$p" ]; then msg "$(tr_ui "Prefixe introuvable")" "$(tr_ui "$p n'est pas un dossier accessible.")"; return; fi
+    if [ ! -d "$p" ]; then msg "$(i18n prefix_missing)" "$(i18n prefix_not_dir "$p")"; return; fi
     out="$(mktemp "$RUNNER_STAGING_ROOT/prefix-scan.XXXXXX")"
     find "$p" -type l -print0 2>/dev/null | while IFS= read -r -d '' f; do
         t="$(readlink "$f" 2>/dev/null || true)"
@@ -2183,13 +2183,13 @@ scan_prefix_refs() {
     done | sort | uniq -c > "$out"
     total="$(awk '{s+=$1} END{print s+0}' "$out")"
     if [ "$total" -eq 0 ]; then
-        rm -f "$out"; msg "$(tr_ui "Analyse du prefixe")" "$(tr_ui "Aucun symlink absolu vers /userdata/system/wine/custom n'a ete trouve.")"
+        rm -f "$out"; msg "$(i18n prefix_analysis)" "$(i18n prefix_no_symlink)"
         return
     fi
     local report="Prefixe : $p\nLiens absolus vers des runners : $total\n\n"
     while read -r n target; do report="$report$n lien(s) -> $(basename "$target")\n"; done < "$out"
     rm -f "$out"
-    msg "$(tr_ui "References inter-runners")" "$(tr_ui "$report\nUn prefixe multi-runner reste autorise. La v$INTEGRATION_VERSION empeche ces liens d'ecrire dans les distributions UMU.")"
+    msg "$(i18n cross_runner_refs)" "$(i18n cross_runner_report "$report" "$INTEGRATION_VERSION")"
 }
 
 umu_process_active() {
@@ -2220,8 +2220,8 @@ orphan_runner_protections() {
         fi
     done <<< "$(installed_runners)"
     if [ "$found" -eq 0 ]; then msg "$(i18n runtime_protections)" "$(i18n runtime_no_orphan)"; return 0; fi
-    if ! yesno "$(tr_ui "Protections RO orphelines")" "$(tr_ui "Aucun lancement UMU actif n'est detecte, mais $found runner(s) reste(nt) monte(s) en lecture seule :\n\n$report\nCela peut arriver apres un crash ou un kill force.\n\nDemonter uniquement ces protections RO orphelines ?")"; then return 0; fi
-    if umu_process_active; then msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Une activite UMU a ete detectee. Aucun montage n'a ete retire.")"; return 2; fi
+    if ! yesno "$(i18n runtime_orphans)" "$(i18n orphan_prompt "$found" "$report")"; then return 0; fi
+    if umu_process_active; then msg "$(i18n cleanup_cancelled)" "$(i18n cleanup_cancelled_active)"; return 2; fi
     local cleaned=0 failed=""
     while IFS= read -r r; do
         [ -n "$r" ] || continue; target="$CUSTOM_DIR/$r"
@@ -2338,12 +2338,12 @@ export_runner() {
     fi
 
     if ! verify_runner_manifest "$base"; then
-        msg "$(tr_ui "Export refuse")" "$(tr_ui "Le controle d'integrite de $choice a echoue. Aucun fichier n'a ete exporte.")"
+        msg "$(i18n export_refused)" "$(i18n export_integrity_failed "$choice")"
         return
     fi
 
     if ! command -v xz >/dev/null 2>&1; then
-        msg "$(tr_ui "Export impossible")" "$(tr_ui "La commande xz n'est pas disponible sur ce systeme.")"
+        msg "$(i18n export_unavailable)" "$(i18n xz_missing)"
         return
     fi
 
@@ -2369,7 +2369,7 @@ Creer l'archive ?"; then
     if tar -C "$CUSTOM_DIR" -cJf "$archive" -- "$choice" >>"$LOG" 2>&1; then
         if ! xz -t "$archive" >>"$LOG" 2>&1; then
             rm -f "$archive"
-            msg "$(tr_ui "Export echoue")" "$(tr_ui "L'archive a ete creee mais son test XZ a echoue. Elle a ete supprimee.")"
+            msg "$(i18n export_failed)" "$(i18n export_xz_test_failed)"
             return
         fi
         tmp_size="$(du -h "$archive" 2>/dev/null | awk '{print $1}')"
@@ -2456,12 +2456,12 @@ export_shareable_package() {
     clear
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing runner...' || printf '%s' 'Compression du runner...')"
     if ! tar -C "$CUSTOM_DIR" -cJf "$runner_archive" -- "$choice"; then
-        rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner compression failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Echec de compression du runner.")"; fi; return
+        rm -rf "$work"; msg "$(i18n error)" "$(i18n runner_compress_failed)"; return
     fi
-    xz -t "$runner_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner XZ test failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Test XZ du runner echoue.")"; fi; return; }
+    xz -t "$runner_archive" || { rm -rf "$work"; msg "$(i18n error)" "$(i18n runner_xz_failed)"; return; }
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing required Steam Runtime...' || printf '%s' 'Compression du Steam Runtime requis...')"
-    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime compression failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Echec de compression du Steam Runtime.")"; fi; return; fi
-    xz -t "$runtime_archive" || { rm -rf "$work"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Steam Runtime XZ test failed.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Test XZ du Steam Runtime echoue.")"; fi; return; }
+    if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_compress_failed)"; return; fi
+    xz -t "$runtime_archive" || { rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_xz_failed)"; return; }
     if [ ! -s "$UMU_RUN" ]; then
         rm -rf "$work"
         msg "$(i18n export_refused)" "$(i18n package_umu_missing)"
@@ -2703,7 +2703,7 @@ clean_umu_runtime_data() {
     if [ "$total_game" -gt 0 ]; then
         if yesno "$(i18n cleanup_runtime_title)" "$(i18n cleanup_runtime_prompt "$compat" "$merged" "$materialized" "$gameviews" "${total_game_h}")"; then
             if umu_game_active; then
-                msg "$(tr_ui "Nettoyage annule")" "$(tr_ui "Un lancement UMU a demarre depuis l'analyse. Aucune donnee n'a ete supprimee.")"
+                msg "$(i18n cleanup_cancelled)" "$(i18n cleanup_race)"
                 return
             fi
             clear_dir_contents "$compat"
@@ -3012,13 +3012,13 @@ gameid_override_menu() {
 maintenance_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(tr_ui "Maintenance et diagnostic")" \
-            "1" "$(tr_ui "Diagnostic UMU complet")" \
+        choice="$(menu_choice "$(i18n maintenance_title)" \
+            "1" "$(i18n diagnostic_full)" \
             "2" "$(tr_ui "Reparer / mettre a niveau l'integration UMU")" \
-            "3" "$(tr_ui "Nettoyer les donnees runtime UMU")" \
-            "4" "$(tr_ui "Nettoyer les logs UMU")" \
-            "5" "$(tr_ui "Nettoyer les protections RO orphelines")" \
-            "6" "$(tr_ui "Desinstallation")" \
+            "3" "$(i18n clean_runtime)" \
+            "4" "$(i18n clean_logs)" \
+            "5" "$(i18n clean_ro)" \
+            "6" "$(i18n uninstall)" \
             "0" "Retour")" || return
         case "$choice" in
             1) verify_install ;;
@@ -3241,7 +3241,7 @@ if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
     if [ -n "$(installed_runners)" ]; then
         upgrade_integration 1
     else
-        msg "$(tr_ui "UMU Runner Toolbox installee")" "$(tr_ui "L'installation de la Toolbox est terminee.\n\nAucun runner Proton UMU n'est encore installe. C'est normal lors d'une premiere installation.\n\nOuvrez UMU Runner Toolbox depuis le menu Ports de Batocera pour installer votre premier runner.\n\nLors de l'installation d'un runner, la Toolbox prepare automatiquement :\n- le runner Proton selectionne ;\n- UMU ;\n- le Steam Runtime requis.\n\nUne fois ces composants installes, le runner peut etre utilise sans nouveau telechargement.")"
+        msg "$(i18n first_install_title)" "$(i18n first_install_body)"
     fi
     exit 0
 fi
