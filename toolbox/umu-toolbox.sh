@@ -2225,12 +2225,12 @@ echo "Le runner est disponible dans /userdata/system/wine/custom/$RUNNER"
 EOS
     chmod +x "$pkgroot/install.sh"
 
-    cat > "$pkgroot/README.txt" <<EOF
+    cat > "$pkgroot/README-FR.txt" <<EOF
 BATOCERA - PACKAGE PARTAGEABLE $choice
 ========================================
 
-Ce package installe le runner $choice et son Steam Runtime requis ($runtime_variant).
-Il est destine a une Batocera qui possede ou non deja UMU.
+Ce package installe le runner $choice, UMU (umu-run) et son Steam Runtime requis ($runtime_variant).
+Aucune connexion Internet n'est necessaire pour l'installation : tous les composants requis sont inclus dans le package.
 
 INSTALLATION
 ------------
@@ -2239,9 +2239,10 @@ INSTALLATION
 3. Entrer dans le dossier extrait puis lancer :
      chmod +x install.sh
      ./install.sh
-4. Une connexion Internet est necessaire uniquement si umu-run n'est pas deja installe.
-5. Le Steam Runtime exact requis par ce runner ($runtime_variant) est inclus dans le package et installe hors ligne.
-6. Le runner apparait ensuite dans les choix Wine/Windows de Batocera sous le nom : $choice
+4. Si UMU est deja installe, l'installation existante est conservee.
+5. Sinon, la copie umu-run incluse dans le package est installee automatiquement.
+6. Le Steam Runtime exact requis par ce runner ($runtime_variant) est inclus dans le package et installe hors ligne.
+7. Le runner apparait ensuite dans les choix Wine/Windows de Batocera sous le nom : $choice
 
 COMPATIBILITE
 -------------
@@ -2256,10 +2257,45 @@ Le runner contient l'integration Batocera/UMU v$INTEGRATION_VERSION et son manif
 Les runners UMU sont proteges en lecture seule pendant les lancements UMU afin qu'un prefixe reutilise avec plusieurs versions de Proton ne puisse pas modifier un autre runner.
 Les runners standards Batocera (Proton, Wine-TKG, Kron4ek...) ne sont pas remplaces par ce package.
 
-Pour gerer, mettre a jour, diagnostiquer et exporter des runners, utilisez UMU Runner Toolbox v0.9.0 ou ulterieure.
+Pour gerer, mettre a jour, diagnostiquer et exporter des runners, utilisez UMU Runner Toolbox v$TOOLBOX_VERSION ou ulterieure.
 EOF
 
-    (cd "$pkgroot" && sha256sum install.sh README.txt payload/* > SHA256SUMS)
+    cat > "$pkgroot/README-EN.txt" <<EOF
+BATOCERA - SHAREABLE PACKAGE $choice
+========================================
+
+This package installs the $choice runner, UMU (umu-run) and its required Steam Runtime ($runtime_variant).
+No Internet connection is required for installation: all required components are included in the package.
+
+INSTALLATION
+------------
+1. Copy this folder/package into /userdata/system/ (for example through \\\\BATOCERA\\share\\system).
+2. Open a terminal or SSH session as root.
+3. Enter the extracted folder and run:
+     chmod +x install.sh
+     ./install.sh
+4. If UMU is already installed, the existing installation is preserved.
+5. Otherwise, the umu-run copy bundled in this package is installed automatically.
+6. The exact Steam Runtime required by this runner ($runtime_variant) is included and installed offline.
+7. The runner will then appear in Batocera's Wine/Windows runner list as: $choice
+
+COMPATIBILITY
+-------------
+- .pc games
+- .wine prefixes
+- .wsquashfs games
+- wine-bottles / external saves
+
+IMPORTANT
+---------
+The runner contains Batocera/UMU integration v$INTEGRATION_VERSION and its integrity manifest.
+UMU runners are protected read-only during UMU launches so that a prefix reused across multiple Proton versions cannot modify another runner.
+Standard Batocera runners (Proton, Wine-TKG, Kron4ek...) are not replaced by this package.
+
+To manage, update, diagnose and export runners, use UMU Runner Toolbox v$TOOLBOX_VERSION or later.
+EOF
+
+    (cd "$pkgroot" && sha256sum install.sh README-FR.txt README-EN.txt payload/* > SHA256SUMS)
     archive="$export_dir/${pkgname}.tar.xz"
     echo "$(i18n creating_final_package)"
     if create_tar_xz "$work" "$pkgname" "$archive" "-0" && xz -t "$archive"; then
