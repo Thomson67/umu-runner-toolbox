@@ -926,14 +926,14 @@ Installer UMU $tag ?"; then
         echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying SHA512...' || printf '%s' 'Verification SHA512...')"
         if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
             rm -rf "$tmp"
-            msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Impossible de telecharger le checksum.")"
+            msg "$(i18n umu_error)" "$(i18n checksum_download_failed)"
             return
         fi
         # The upstream checksum is for a file named umu-run.
         cp "$newrun" "$tmp/umu-run"
         if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
             rm -rf "$tmp"
-            msg "$(tr_ui "Erreur UMU")" "$(tr_ui "Le checksum SHA512 de umu-run est invalide.")"
+            msg "$(i18n umu_error)" "$(i18n umu_checksum_invalid)"
             return
         fi
     fi
@@ -987,7 +987,7 @@ rollback_umu() {
     fi
     [ -n "$choice" ] || return
 
-    if yesno "$(tr_ui "Rollback UMU")" "$(tr_ui "Restaurer $choice ?")"; then
+    if yesno "$(i18n rollback_umu)" "$(i18n rollback_restore "$choice")"; then
         cp -a "$UMU_BACKUP/$choice" "$UMU_RUN"
         chmod +x "$UMU_RUN"
         rm -f "$UMU_DIR/umu_run.py"
@@ -1618,7 +1618,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA256...' || printf '%s' 'Verification SHA256 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
-        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur Proton-EM")" "$(tr_ui "Impossible de telecharger le checksum SHA-256 upstream.")"; return
+        rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n checksum_download_sha256_failed)"; return
     fi
     if ! (cd "$stage/download" && sha256sum -c "$sumname"); then
         # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
@@ -1780,7 +1780,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
 
     echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
-        rm -rf "$tmp" "$stage"; msg "$(tr_ui "Erreur DW-Proton")" "$(tr_ui "Impossible de telecharger le checksum SHA-512 upstream.")"; return
+        rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n checksum_download_sha512_failed)"; return
     fi
     if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
         # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
@@ -2591,7 +2591,7 @@ delete_installed_runner() {
     fi
     [ -n "$choice" ] || return
     if [ ! -d "$CUSTOM_DIR/$choice" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; fi
+        msg "$(i18n error)" "$(i18n runner_not_found "$choice")"
         return
     fi
     yesno "$(i18n confirm_delete)" "$(i18n delete_confirm_body "$CUSTOM_DIR/$choice")" || return
@@ -2787,7 +2787,7 @@ uninstall_umu_and_runners() {
 
 uninstall_everything() {
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU/Wine launch or associated mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
+        msg "$(i18n uninstall_refused)" "$(i18n delete_active)"
         return
     fi
     yesno "$(i18n uninstall_complete_title)" "$(i18n uninstall_complete_prompt)" || return
