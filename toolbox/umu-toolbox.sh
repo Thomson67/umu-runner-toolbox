@@ -916,7 +916,7 @@ install_gdk() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/gdk-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GDK-Proton releases...' || printf '%s' 'Chargement des releases GDK-Proton...')"
+    echo "$(i18n loading_gdk)"
     if ! fetch_gdk_releases "$json"; then
         rm -rf "$tmp"
         msg "$(i18n runner_error "GDK-Proton")" "$(i18n releases_fetch_failed "GDK-Proton")"
@@ -942,14 +942,14 @@ install_gdk() {
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install GDK-Proton + UMU' || printf 'Installer GDK-Proton + UMU')" \
-          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Immutable installation: an existing runner will never be replaced.' || printf 'Installation immutable : un runner existant ne sera jamais remplace.')"  \
+        name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_gdk_title)" \
+          --menu "$(i18n immutable_menu_desc)"  \
           22 96 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
         cut -f1 "$menu_file"
         echo
-        printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"
+        printf "%s" "$(i18n version_to_install_prompt)"
         read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
@@ -996,7 +996,7 @@ Continuer ?"; then
     fi
 
     if [ -n "$sha" ]; then
-        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying GitHub SHA256...' || printf '%s' 'Verification SHA256 GitHub...')"
+        echo "$(i18n verify_github_sha256)"
         actual="$(sha256sum "$stage/download/$tarname" | awk '{print $1}')"
         if [ "$actual" != "$sha" ]; then
             rm -rf "$tmp" "$stage"
@@ -1110,7 +1110,7 @@ install_cachy() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/cachy-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-CachyOS SLR releases...' || printf '%s' 'Chargement des releases Proton-CachyOS SLR...')"
+    echo "$(i18n loading_cachyos)"
     if ! fetch_cachy_releases "$json"; then
         rm -rf "$tmp"
         msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n releases_fetch_failed "Proton-CachyOS")"
@@ -1132,8 +1132,8 @@ install_cachy() {
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install Proton-CachyOS + UMU' || printf 'Installer Proton-CachyOS + UMU')" \
-          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Upstream-recommended SLR x86_64 build. Immutable installation.' || printf 'Build SLR x86_64 recommande upstream. Installation immutable.')"  \
+        name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_cachyos_title)" \
+          --menu "$(i18n cachyos_menu_desc)"  \
           22 100 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear; cut -f1 "$menu_file"; echo; printf "%s" "$(i18n version_to_install_prompt)"; read -r name
@@ -1168,7 +1168,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
 
     if [ -n "$sumurl" ]; then
         sumname="$(basename "$sumurl")"
-        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
+        echo "$(i18n verify_upstream_sha512)"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname"); then
             rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n checksum_invalid_sha512)"; return
         fi
@@ -1253,7 +1253,7 @@ install_em() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/em-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading Proton-EM releases...' || printf '%s' 'Chargement des releases Proton-EM...')"
+    echo "$(i18n loading_em)"
     if ! fetch_em_releases "$json"; then
         rm -rf "$tmp"
         msg "$(i18n runner_error "Proton-EM")" "$(i18n releases_fetch_failed "Proton-EM")"
@@ -1283,11 +1283,11 @@ install_em() {
     if [ -n "$requested" ]; then
         name="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install Proton-EM + UMU' || printf 'Installer Proton-EM + UMU')" \
-          --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Official BananaWorks07/Proton releases. Immutable installation.' || printf 'Releases officielles BananaWorks07/Proton. Installation immutable.')"  \
+        name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_em_title)" \
+          --menu "$(i18n em_menu_desc)"  \
           24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
-        clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
+        clear; cut -f1 "$menu_file"; echo; printf "%s" "$(i18n version_to_install_prompt)"; read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
@@ -1327,7 +1327,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     clear; echo "$(i18n downloading "$name")"
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n download_failed)"; return; fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA256...' || printf '%s' 'Verification SHA256 upstream...')"
+    echo "$(i18n verify_upstream_sha256)"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n checksum_download_sha256_failed)"; return
     fi
@@ -1420,7 +1420,7 @@ install_dw() {
     tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/dw-list.XXXXXX")"
     json="$tmp/releases.json"
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading DW-Proton releases...' || printf '%s' 'Chargement des releases DW-Proton...')"
+    echo "$(i18n loading_dw)"
     if ! fetch_dw_releases "$json"; then
         rm -rf "$tmp"
         msg "$(i18n runner_error "DW-Proton")" "$(i18n releases_fetch_failed "DW-Proton")"
@@ -1452,7 +1452,7 @@ install_dw() {
           --menu "$(i18n dw_menu_desc)" \
           24 105 16 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
-        clear; cut -f1 "$menu_file"; echo; printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"; read -r name
+        clear; cut -f1 "$menu_file"; echo; printf "%s" "$(i18n version_to_install_prompt)"; read -r name
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
@@ -1489,7 +1489,7 @@ Continuer ?"; then rm -rf "$tmp"; return; fi
     clear; echo "$(i18n downloading "$name")"
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n download_failed)"; return; fi
 
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
+    echo "$(i18n verify_upstream_sha512)"
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n checksum_download_sha512_failed)"; return
     fi
@@ -1569,7 +1569,7 @@ install_ge() {
     pages="$tmp/releases.pages"
 
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Loading GE-Proton releases...' || printf '%s' 'Chargement des releases GE-Proton...')"
+    echo "$(i18n loading_ge)"
     if ! fetch_ge_releases "$pages"; then
         rm -rf "$tmp"
         msg "$(i18n runner_error "GE-Proton")" "$(i18n releases_fetch_failed "GE-Proton")"
@@ -1602,15 +1602,15 @@ install_ge() {
     if [ -n "$requested" ]; then
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
-        tag="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Install GE-Proton + UMU' || printf 'Installer GE-Proton + UMU')" \
-            --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Immutable installation: an existing runner will never be replaced.' || printf 'Installation immutable : un runner existant ne sera jamais remplace.')"  \
+        tag="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_ge_title)" \
+            --menu "$(i18n immutable_menu_desc)"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
         cut -f1 "$menu_file"
         echo "MANUAL"
         echo
-        printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Version to install: ' || printf 'Version a installer : ')"
+        printf "%s" "$(i18n version_to_install_prompt)"
         read -r tag
     fi
     [ -n "$tag" ] || { rm -rf "$tmp"; return; }
@@ -1700,7 +1700,7 @@ Continuer ?"; then
     fi
 
     clear
-    [ "$TOOLBOX_LANGUAGE" = "en" ] && echo "Downloading $tag..." || echo "Telechargement de $tag..."
+    echo "$(i18n downloading "$tag")"
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
         rm -rf "$tmp" "$stage"
         msg "$(i18n runner_error "GE-Proton")" "$(i18n download_failed)"
@@ -1708,7 +1708,7 @@ Continuer ?"; then
     fi
 
     if [ -n "$sumurl" ]; then
-        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying upstream SHA512...' || printf '%s' 'Verification SHA512 upstream...')"
+        echo "$(i18n verify_upstream_sha512)"
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
             rm -rf "$tmp" "$stage"
             msg "$(i18n runner_error "GE-Proton")" "$(i18n checksum_download_failed)"
