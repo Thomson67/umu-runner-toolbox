@@ -1,0 +1,28 @@
+# UMU Runner Toolbox - English
+# shellcheck shell=bash
+declare -A I18N=(
+  [runner_error]="%s error"
+  [runner_unexpected_structure]="Unexpected %s structure. Nothing was installed."
+  [runner_integrity_failed]="Unable to verify the prepared runner integrity."
+  [runner_finalize_failed]="Unable to finalize the installation."
+  [runner_exists]="%s already exists. In-place reinstallation is not allowed."
+  [runner_conflict]="%s appeared during installation."
+  [download_failed]="Download failed."
+  [extraction_failed]="Extraction failed."
+  [xz_extraction_failed]="XZ extraction failed."
+  [checksum_github_sha256_invalid]="Invalid GitHub SHA256 checksum. Nothing was installed."
+  [checksum_upstream_sha256_invalid]="Invalid upstream SHA-256 checksum. Nothing was installed."
+  [checksum_upstream_sha512_invalid]="Invalid upstream SHA-512 checksum. Nothing was installed."
+  [runner_installed]="Runner installed"
+  [runner_installed_body]="%s is installed as a NEW runner.\n\nFamily: %s\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+  [runner_installed_build_body]="%s is installed as a NEW runner.\n\nFamily: %s\nBuild: %s\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+  [runner_installed_release_body]="%s is installed as a NEW runner.\n\nFamily: %s\nRelease: %s\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED"
+  [ge_runner_installed_body]="%s is installed as a NEW runner.\n\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED\n\nAfter validating it in-game, use:\nProtect / validate a runner\nto mark it as known working.\n\nAnother GE-Proton-UMU version will never modify this directory."
+  [downloading]="Downloading %s..."
+  [downloading_build]="Downloading %s (%s)..."
+  [extracting_staging]="Extracting to staging..."
+  [atomic_install]="Atomic installation of %s..."
+  [steamrt_prepare]="Preparing required Steam Runtime..."
+  [steamrt_title]="Steam Runtime"
+  [steamrt_failed]="Unable to prepare the Steam Runtime required by this runner.\n\nThe runner will not be installed so that every installation remains complete and usable offline."
+)
