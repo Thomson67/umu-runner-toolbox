@@ -314,4 +314,5 @@ I18N=(
   [verify_github_sha256]="Verifying GitHub SHA256..."
   [verify_upstream_sha256]="Verifying upstream SHA256..."
   [verify_upstream_sha512]="Verifying upstream SHA512..."
+  [umu_update_prompt]="Installed version: %s\\nLatest version: %s\\n\\nThe previous umu-run will be backed up.\\nsteamrt4, saves and prefixes will not be deleted.\\n\\nInstall UMU %s?"
 )
