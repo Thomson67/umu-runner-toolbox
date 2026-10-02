@@ -3261,11 +3261,13 @@ language_menu() {
         fr)
             TOOLBOX_LANGUAGE="fr"
             save_language
+            load_i18n
             msg "$(ui language_changed)" "$(ui language_changed_text)"
             ;;
         en)
             TOOLBOX_LANGUAGE="en"
             save_language
+            load_i18n
             msg "$(ui language_changed)" "$(ui language_changed_text)"
             ;;
         0|"") return ;;
