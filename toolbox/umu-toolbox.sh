@@ -2104,15 +2104,11 @@ upgrade_integration() {
     local auto="${1:-0}"
     local runners r base changed=0 skipped="" upgraded="" failed="" tmpstage
     runners="$(installed_runners)"
-    [ -n "$runners" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "No UMU runner installed.")"; else msg "$(i18n integration_title "$INTEGRATION_VERSION")" "$(i18n no_runner_installed)"; fi; return; }
+    [ -n "$runners" ] || { msg "$(i18n integration_title "$INTEGRATION_VERSION")" "$(i18n no_runner_installed)"; return; }
 
     if umu_process_active; then
         log "integration_upgrade=deferred reason=umu_process_activity"
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Upgrade deferred: an UMU/Wine process is still active.\n\nNo runner was modified.\n\nClose the game (or use the protection diagnostics if an old session is stuck), then run:\nMaintenance > Repair / upgrade UMU integration.")"
-        else
-            msg "$(tr_ui "Integration v$INTEGRATION_VERSION")" "$(tr_ui "Migration reportee : un processus UMU/Wine est encore actif.\n\nAucun runner n'a ete modifie.\n\nFermez le jeu (ou utilisez le diagnostic de protection si une ancienne session est bloquee), puis relancez :\nMaintenance > Reparer / mettre a niveau l'integration UMU.")"
-        fi
+        msg "$(i18n integration_title "$INTEGRATION_VERSION")" "$(i18n integration_upgrade_deferred)"
         return 2
     fi
 
@@ -2378,7 +2374,7 @@ export_shareable_package() {
     local runners choice base label export_dir pkgroot pkgname work runner_archive archive hash size manifest appid runtime_variant runtime_src runtime_archive runtime_size
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Shareable package")" "$(tr_ui "No managed Proton-UMU runner is installed.")"; else msg "$(tr_ui "Package partageable")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"; fi
+        msg "$(i18n package_title)" "$(i18n package_none)"
         return
     fi
 
@@ -2406,29 +2402,29 @@ export_shareable_package() {
     [ -n "$choice" ] || return
 
     base="$CUSTOM_DIR/$choice"
-    [ -d "$base" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; fi; return; }
+    [ -d "$base" ] || { msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; return; }
     label="$(runner_integrity_label "$base")"
     if [ "$label" != "PROTEGE / OK" ] || ! verify_runner_manifest "$base"; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "$choice is not in a healthy managed state. The shareable package was not created.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "$choice n est pas dans un etat sain et gere. Le package partageable n a pas ete cree.")"; fi
+        msg "$(i18n export_refused)" "$(i18n package_unhealthy "$choice")"
         return
     fi
     manifest="$base/toolmanifest.vdf"
-    [ -s "$manifest" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "toolmanifest.vdf is missing: the required Steam Runtime cannot be determined.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "toolmanifest.vdf absent : Steam Runtime requis indeterminable.")"; fi; return; }
+    [ -s "$manifest" ] || { msg "$(i18n export_refused)" "$(i18n package_manifest_missing)"; return; }
     appid="$(grep -Eo '"require_tool_appid"[[:space:]]*"?[0-9]+"?' "$manifest" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' || true)"
     case "$appid" in
         1391110) runtime_variant="steamrt2" ;;
         1628350) runtime_variant="steamrt3" ;;
         4183110) runtime_variant="steamrt4" ;;
         4185400) runtime_variant="steamrt4-arm64" ;;
-        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "Steam Runtime appid is unsupported or missing: ${appid:-none}")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "Steam Runtime appid non gere ou absent : ${appid:-aucun}")"; fi; return ;;
+        *) msg "$(i18n export_refused)" "$(i18n package_runtime_appid_bad "${appid:-$(i18n none)}")"; return ;;
     esac
     runtime_src="$UMU_DIR/home/.local/share/umu/$runtime_variant"
     if [ ! -d "$runtime_src" ] || [ ! -s "$runtime_src/_v2-entry-point" ] || [ ! -s "$runtime_src/VERSIONS.txt" ] || [ ! -s "$runtime_src/mtree.txt.gz" ] || [ ! -d "$runtime_src/pressure-vessel" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "Required Steam Runtime $runtime_variant is missing or incomplete. Prepare/run this runner, then try the export again.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "Le Steam Runtime requis $runtime_variant est absent ou incomplet. Preparez le runner puis recommencez.")"; fi
+        msg "$(i18n export_refused)" "$(i18n package_runtime_missing "$runtime_variant")"
         return
     fi
     runtime_size="$(du -sh "$runtime_src" 2>/dev/null | awk 'NR==1{print $1}')"
-    command -v xz >/dev/null 2>&1 || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export unavailable")" "$(tr_ui "The xz command is missing.")"; else msg "$(tr_ui "Export impossible")" "$(tr_ui "La commande xz est absente.")"; fi; return; }
+    command -v xz >/dev/null 2>&1 || { msg "$(i18n export_unavailable)" "$(i18n xz_missing)"; return; }
 
     export_dir="/userdata/system/umu/exports"
     mkdir -p "$export_dir"
@@ -2601,13 +2597,9 @@ delete_installed_runner() {
     yesno "$(i18n confirm_delete)" "$(i18n delete_confirm_body "$CUSTOM_DIR/$choice")" || return
     if rm -rf --one-file-system "$CUSTOM_DIR/$choice"; then
         log "Runner deleted by user: $choice"
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "$(tr_ui "Runner deleted")" "$(tr_ui "$choice has been deleted.\n\nYour games, prefixes and save data were not touched.")"
-        else
-            msg "$(tr_ui "Runner supprime")" "$(tr_ui "$choice a ete supprime.\n\nVos jeux, prefixes et sauvegardes n'ont pas ete touches.")"
-        fi
+        msg "$(i18n runner_deleted)" "$(i18n runner_deleted_body "$choice")"
     else
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Unable to delete $choice. See:\n$LOG")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de supprimer $choice. Consultez :\n$LOG")"; fi
+        msg "$(i18n error)" "$(i18n delete_failed "$choice" "$LOG")"
     fi
 }
 
@@ -2749,27 +2741,23 @@ umu_uninstall_active() {
 
 uninstall_toolbox_only() {
     if umu_game_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU launch or prefix mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un lancement UMU ou un montage de prefixe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
+        msg "$(i18n uninstall_refused)" "$(i18n uninstall_active)"
         return
     fi
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Uninstall Toolbox")" "$(tr_ui "The Toolbox will be removed.\n\nThe following will be kept:\n- UMU and its runtime;\n- *-UMU runners;\n- prefixes, compatdata and backups.\n\nThe Port entry and its Pad2Key file will also be removed.\n\nContinue?")" || return
-    else
-        yesno "$(tr_ui "Desinstaller la Toolbox")" "$(tr_ui "La Toolbox va etre supprimee.\n\nSeront conserves :\n- UMU et son runtime ;\n- les runners *-UMU ;\n- les prefixes, compatdata et sauvegardes.\n\nLe Port et son fichier Pad2Key seront egalement retires.\n\nContinuer ?")" || return
-    fi
+    yesno "$(i18n uninstall_toolbox_title)" "$(i18n uninstall_toolbox_prompt)" || return
     if false; then
         return
     fi
     toolbox_files_cleanup
     log "toolbox_uninstall=toolbox_only"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Toolbox uninstalled")" "$(tr_ui "The Toolbox, its Port entry and Pad2Key mapping were removed.\n\nUMU and the UMU runners were kept.")"; else msg "$(tr_ui "Toolbox desinstallee")" "$(tr_ui "La Toolbox, son Port et son mapping Pad2Key ont ete supprimes.\n\nUMU et les runners UMU sont conserves.")"; fi
+    msg "$(i18n uninstall_toolbox_done)" "$(i18n uninstall_toolbox_done_body)"
 }
 
 uninstall_umu_and_runners() {
     local runners
     runners="$(installed_runners)"
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU/Wine process using an UMU runner or associated mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un processus UMU/Wine utilisant un runner UMU ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
+        msg "$(i18n uninstall_refused)" "$(i18n uninstall_active_runner)"
         return
     fi
     if [ -n "$runners" ]; then
@@ -2777,16 +2765,12 @@ uninstall_umu_and_runners() {
     else
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then runners="- No *-UMU runner detected"; else runners="- Aucun runner *-UMU detecte"; fi
     fi
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Uninstall UMU + runners")" "$(tr_ui "This operation will remove:\n\nUMU and its data:\n- umu-run\n- UMU Steam Runtime\n- compatdata / merged-prefixes\n- home / cache / exports\n- UMU backups\n\nRunners to be removed:\n$runners\n\nThe Toolbox will be KEPT.\nClassic runners will NOT be touched.\n\nContinue?")" || return
-    else
-        yesno "$(tr_ui "Desinstaller UMU + runners")" "$(tr_ui "Cette operation va supprimer :\n\nUMU et ses donnees :\n- umu-run\n- runtime Steam Runtime UMU\n- compatdata / merged-prefixes\n- home / cache / exports\n- sauvegardes UMU\n\nRunners qui seront supprimes :\n$runners\n\nLa Toolbox sera CONSERVEE.\nLes runners classiques ne seront PAS touches.\n\nContinuer ?")" || return
-    fi
+    yesno "$(i18n uninstall_umu_title)" "$(i18n uninstall_umu_prompt "$runners")" || return
     if false; then
         return
     fi
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall cancelled")" "$(tr_ui "UMU activity was detected immediately before deletion. Nothing was removed.")"; else msg "$(tr_ui "Desinstallation annulee")" "$(tr_ui "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee.")"; fi
+        msg "$(i18n uninstall_cancelled)" "$(i18n uninstall_race)"
         return
     fi
     while IFS= read -r r; do
@@ -2798,7 +2782,7 @@ uninstall_umu_and_runners() {
     fi
     mkdir -p "$UMU_DIR"
     log "umu_uninstall=umu_and_runners"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "UMU uninstalled")" "$(tr_ui "UMU and the *-UMU runners were removed.\n\nThe Toolbox was kept.\n\nClassic Batocera runners were not touched.")"; else msg "$(tr_ui "UMU desinstalle")" "$(tr_ui "UMU et les runners *-UMU ont ete supprimes.\n\nLa Toolbox a ete conservee.\n\nLes runners classiques Batocera n ont pas ete touches.")"; fi
+    msg "$(i18n uninstall_umu_done)" "$(i18n uninstall_umu_done_body)"
 }
 
 uninstall_everything() {
@@ -2806,16 +2790,12 @@ uninstall_everything() {
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall refused")" "$(tr_ui "An UMU/Wine launch or associated mount is still active.\n\nClose the game first, then try again.")"; else msg "$(tr_ui "Desinstallation refusee")" "$(tr_ui "Un lancement UMU/Wine ou un montage associe est encore actif.\n\nFermez d abord le jeu puis recommencez.")"; fi
         return
     fi
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "$(tr_ui "Complete uninstall")" "$(tr_ui "This operation will remove:\n\n- the Toolbox;\n- the Port entry and Pad2Key mapping;\n- UMU;\n- the UMU Steam Runtime;\n- all *-UMU runners;\n- UMU prefixes and data;\n- UMU backups;\n- UMU exports.\n\nClassic Wine/Proton/TKG/Kron4ek runners will NOT be touched.\n\nThis operation is destructive. Continue?")" || return
-    else
-        yesno "$(tr_ui "Desinstallation complete")" "$(tr_ui "Cette operation va supprimer :\n\n- la Toolbox ;\n- le Port et son mapping Pad2Key ;\n- UMU ;\n- le runtime Steam Runtime UMU ;\n- tous les runners *-UMU ;\n- les prefixes et donnees UMU ;\n- les sauvegardes UMU ;\n- les exports UMU.\n\nLes runners classiques Wine/Proton/TKG/Kron4ek ne seront PAS touches.\n\nCette operation est destructive. Continuer ?")" || return
-    fi
+    yesno "$(i18n uninstall_complete_title)" "$(i18n uninstall_complete_prompt)" || return
     if false; then
         return
     fi
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Uninstall cancelled")" "$(tr_ui "UMU activity was detected immediately before deletion. Nothing was removed.")"; else msg "$(tr_ui "Desinstallation annulee")" "$(tr_ui "Une activite UMU a ete detectee juste avant la suppression. Aucune suppression n a ete effectuee.")"; fi
+        msg "$(i18n uninstall_cancelled)" "$(i18n uninstall_race)"
         return
     fi
     while IFS= read -r r; do
@@ -2827,7 +2807,7 @@ uninstall_everything() {
         rm -rf -- "$UMU_DIR"
     fi
     log "uninstall=complete"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Complete uninstall")" "$(tr_ui "The Toolbox, UMU and all *-UMU runners were removed.\n\nClassic runners and your external game files were not touched.")"; else msg "$(tr_ui "Desinstallation complete")" "$(tr_ui "La Toolbox, UMU et les runners *-UMU ont ete supprimes.\n\nLes runners classiques et vos fichiers de jeux externes n ont pas ete touches.")"; fi
+    msg "$(i18n uninstall_complete_title)" "$(i18n uninstall_complete_done)"
 }
 
 uninstall_menu() {
@@ -2923,20 +2903,20 @@ associate_game() {
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
         log "gameid_override=set title=$title matched_title=$ctitle score=$cscore gameid=$gameid store=$store"
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Association saved")" "$(tr_ui "Game: $title\nMatch: $ctitle\nScore: $cscore\nGAMEID: $gameid\nSTORE: $store\n\nThis manual association takes priority over automatic detection on the next launch.")"; else msg "$(tr_ui "Association enregistree")" "$(tr_ui "Jeu : $title\nCorrespondance : $ctitle\nScore : $cscore\nGAMEID : $gameid\nSTORE : $store\n\nPrioritaire sur la detection automatique au prochain lancement.")"; fi
-    else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Unable to save the association.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible d enregistrer l association.")"; fi; fi
+        msg "$(i18n association_saved)" "$(i18n gameid_saved_body "$title" "$ctitle" "$cscore" "$gameid" "$store")"
+    else msg "$(i18n error)" "$(i18n association_save_failed)"; fi
 }
 
 global_game_scan() {
     local helper="$ROOT/umu-gameid-manager.py" scan tab kind total clear ambiguous none overrides list choice selected idx status score title path best gid remaining
     tab="$(printf '\t')"; scan="$(mktemp "$RUNNER_STAGING_ROOT/gameid-scan.XXXXXX")" || return
     clear; echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Scanning all Windows games...' || printf '%s' 'Analyse de tous les jeux Windows...')"
-    python3 "$helper" scan > "$scan" || { rm -f "$scan"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Scan failed")" "$(tr_ui "Unable to analyze the gamelist and matching databases.")"; else msg "$(tr_ui "Analyse impossible")" "$(tr_ui "Impossible d analyser le gamelist et les bases de correspondance.")"; fi; return; }
+    python3 "$helper" scan > "$scan" || { rm -f "$scan"; msg "$(i18n scan_failed)" "$(i18n scan_failed_body)"; return; }
     IFS="$tab" read -r kind total clear ambiguous none overrides < "$scan"
     list="$(mktemp "$RUNNER_STAGING_ROOT/gameid-review.XXXXXX")" || { rm -f "$scan"; return; }
     tail -n +2 "$scan" > "$list"; rm -f "$scan"
     if [ "$ambiguous" -eq 0 ]; then
-        rm -f "$list"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Global scan")" "$(tr_ui "Games scanned: $total\nClear matches: $clear\nAmbiguous: 0\nNo match: $none\nManual associations: $overrides\n\nNo ambiguous match requires review.\nGames without a match remain available through Associate / edit a game.")"; else msg "$(tr_ui "Analyse globale")" "$(tr_ui "Jeux analyses : $total\nCorrespondances claires : $clear\nAmbigues : 0\nSans correspondance : $none\nAssociations manuelles : $overrides\n\nAucune correspondance ambigue ne necessite de verification.\nLes jeux sans correspondance restent disponibles via Associer / modifier un jeu.")"; fi; return
+        rm -f "$list"; msg "$(i18n global_scan)" "$(i18n gameid_scan_summary "$total" "$clear" "$none" "$overrides")"; return
     fi
 
     # Keep the scan results for this review session. After a manual association,
@@ -2945,7 +2925,7 @@ global_game_scan() {
         remaining="$(awk -F "$tab" '$1=="ITEM" && $3=="AMBIGUOUS" {n++} END{print n+0}' "$list")"
         if [ "$remaining" -eq 0 ]; then
             rm -f "$list"
-            if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Global scan")" "$(tr_ui "All ambiguous games from this scan have been processed.\n\nNo new scan was started.")"; else msg "$(tr_ui "Analyse globale")" "$(tr_ui "Tous les jeux ambigus de ce scan ont ete traites.\n\nAucun nouveau scan n a ete lance.")"; fi
+            msg "$(i18n global_scan)" "$(i18n gameid_scan_done)"
             return
         fi
 
