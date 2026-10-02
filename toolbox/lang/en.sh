@@ -392,4 +392,5 @@ I18N=(
   [install_confirm_source]="Source: %s\\nVerification: %s\\nDestination:\\n%s\\n\\nNo existing runner will be modified.\\n\\nContinue?"
   [verify_sha512_upstream_required]="mandatory upstream SHA-512"
   [verify_sha256_upstream_required]="mandatory upstream SHA-256"
+  [checksum_verified]="Checksum verified."
 )
