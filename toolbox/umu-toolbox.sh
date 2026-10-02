@@ -856,7 +856,11 @@ prepare_runtime_for_runner() {
     local rc=$?
     if [ "$rc" -ne 0 ]; then
         log "runtime_bootstrap=failed runner=$runner rc=$rc"
-        msg "$(tr_ui "Steam Runtime")" "$(tr_ui "Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne.")"
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Steam Runtime" "Unable to prepare the Steam Runtime required by this runner.\n\nThe runner will not be installed so that every installation remains complete and usable offline."
+        else
+            msg "Steam Runtime" "Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne."
+        fi
         return "$rc"
     fi
     log "runtime_bootstrap=ok runner=$runner"
