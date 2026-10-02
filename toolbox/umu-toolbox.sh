@@ -302,9 +302,11 @@ menu_choice() {
         echo
         local args=("$@")
         local i=0
+        local label_idx
         while [ "$i" -lt "${#args[@]}" ]; do
-            printf "%s) %s\n" "${args[$i]}" "$(tr_ui "${args[$((i+1))]}")"
-            i=$((i+2))
+            label_idx=$((i + 1))
+            printf '%s) %s\n' "${args[$i]}" "$(tr_ui "${args[$label_idx]}")"
+            i=$((i + 2))
         done
         echo
         printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Choice: ' || printf 'Choix : ')"
