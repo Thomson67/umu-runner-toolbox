@@ -288,10 +288,11 @@ yesno() {
 menu_choice() {
     local title="$1"
     shift
-    local raw=("$@") translated=() i=0
+    local raw=("$@") translated=() i=0 label_idx
     while [ "$i" -lt "${#raw[@]}" ]; do
-        translated+=("${raw[$i]}" "$(tr_ui "${raw[$((i+1))]}")")
-        i=$((i+2))
+        label_idx=$((i + 1))
+        translated+=("${raw[$i]}" "$(tr_ui "${raw[$label_idx]}")")
+        i=$((i + 2))
     done
     if command -v dialog >/dev/null 2>&1; then
         set -- "${translated[@]}"
