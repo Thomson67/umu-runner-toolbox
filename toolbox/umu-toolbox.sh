@@ -1999,18 +1999,18 @@ export_runner() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Export a runner' || printf 'Exporter un runner')" \
-            --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Choose the runner to package as .tar.xz. A MODIFIED runner cannot be exported.' || printf '%s' 'Choisissez le runner a empaqueter en .tar.xz. Un runner MODIFIE ne peut pas etre exporte.')" \
+        choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n export_runner_title)" \
+            --menu "$(i18n export_select_desc)" \
             22 100 14 "${opts[@]}")" || return
     else
         clear
-        echo "==== $([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Export a runner' || printf 'Exporter un runner') ===="
+        echo "==== $(i18n export_runner_title) ===="
         echo
         while IFS= read -r r; do
             [ -n "$r" ] && printf '%s  [%s]\n' "$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")"
         done <<< "$runners"
         echo
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf "Runner to export: "; else printf "Runner a exporter : "; fi
+        printf "%s" "$(i18n runner_to_export_prompt)"
         read -r choice
     fi
     [ -n "$choice" ] || return
@@ -2020,12 +2020,12 @@ export_runner() {
     label="$(runner_integrity_label "$base")"
 
     if [ "$label" = "MODIFIE" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "$choice is marked MODIFIED.\n\nExport is blocked to avoid sharing a modified runner.\nReinstall/repair a clean copy first."; else msg "Export refuse" "$choice est signale MODIFIE.\n\nL export est bloque afin d eviter de partager un runner contamine.\nReinstallez/reparez d abord une copie saine."; fi
+        msg "$(i18n export_refused)" "$(i18n export_modified_body "$choice")"
         return
     fi
 
     if [ "$label" = "NON MANAGE" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "$choice does not have an integrity reference manifest yet.\n\nCreate an integrity reference first, then retry the export."; else msg "Export refuse" "$choice ne possede pas encore de manifest de reference.\n\nUtilisez d abord l option de creation de reference, puis relancez l export."; fi
+        msg "$(i18n export_refused)" "$(i18n export_unmanaged_body "$choice")"
         return
     fi
 
@@ -2043,17 +2043,7 @@ export_runner() {
     mkdir -p "$export_dir"
     archive="$export_dir/${choice}-$(date '+%Y%m%d-%H%M%S').tar.xz"
 
-    if ! yesno "Confirmer l'export" \
-"Runner : $choice
-Integrite : $label
-
-Archive :
-$archive
-
-Le dossier du runner sera archive tel quel : permissions, executables et symlinks seront conserves.
-Le runner actif ne sera pas modifie.
-
-Creer l'archive ?"; then
+    if ! yesno "$(i18n confirm_export)" "$(i18n export_confirm_body "$choice" "$label" "$archive")"; then
         return
     fi
 
@@ -2068,7 +2058,7 @@ Creer l'archive ?"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"
         printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"
         log "Export OK: $archive sha256=$hash"
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export complete" "Runner exported successfully.\n\nArchive:\n$archive\n\nSize: ${tmp_size:-unknown}\nSHA-256:\n$hash\n\nA .sha256 file was also created next to the archive.\n\nTo restore manually on another Batocera:\ntar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"; else msg "Export termine" "Runner exporte avec succes.\n\nArchive :\n$archive\n\nTaille : ${tmp_size:-inconnue}\nSHA-256 :\n$hash\n\nUn fichier .sha256 a egalement ete cree a cote de l archive.\n\nPour restaurer manuellement sur une autre Batocera :\ntar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"; fi
+        msg "$(i18n export_complete)" "$(i18n export_complete_body "$archive" "${tmp_size:-?}" "$hash" "$(basename "$archive")")"
     else
         rm -f "$archive" "${archive}.sha256"
         msg "$(i18n export_failed)" "$(i18n export_tar_failed "$LOG")"
@@ -2089,18 +2079,18 @@ export_shareable_package() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Create a shareable package' || printf 'Creer un package partageable')" \
-            --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'The package contains the runner, a standalone installer and documentation. UMU will be installed/updated from its official release on the target machine.' || printf '%s' 'Le package contient le runner, un installateur autonome et la documentation. UMU sera installe/mis a jour depuis sa release officielle sur la machine cible.')" \
+        choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n package_create_title)" \
+            --menu "$(i18n package_select_desc)" \
             22 105 14 "${opts[@]}")" || return
     else
         clear
-        echo "==== $([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Create a shareable package' || printf 'Creer un package partageable') ===="
+        echo "==== $(i18n package_create_title) ===="
         echo
         while IFS= read -r r; do
             [ -n "$r" ] && printf '%s  [%s]\n' "$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")"
         done <<< "$runners"
         echo
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf "Runner to share: "; else printf "Runner a partager : "; fi
+        printf "%s" "$(i18n runner_to_share_prompt)"
         read -r choice
     fi
     [ -n "$choice" ] || return
@@ -2139,19 +2129,15 @@ export_shareable_package() {
     runner_archive="$pkgroot/payload/${choice}.tar.xz"
     runtime_archive="$pkgroot/payload/${runtime_variant}.tar.xz"
 
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Confirm package creation" "Runner: $choice\nIntegrity: $label\nRequired Steam Runtime: $runtime_variant (appid $appid)\nInstalled runtime size: $runtime_size\n\nThe standalone package will contain the complete runner AND its required Steam Runtime so it can be installed offline.\n\nCreate the package?" || { rm -rf "$work"; return; }
-    else
-        yesno "Confirmer le package" "Runner : $choice\nIntegrite : $label\nSteam Runtime requis : $runtime_variant (appid $appid)\nTaille runtime installee : $runtime_size\n\nLe package autonome contiendra le runner complet ET son Steam Runtime requis afin de pouvoir etre installe hors ligne.\n\nCreer le package ?" || { rm -rf "$work"; return; }
-    fi
+    yesno "$(i18n confirm_package)" "$(i18n package_confirm_body "$choice" "$label" "$runtime_variant" "$appid" "$runtime_size")" || { rm -rf "$work"; return; }
 
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing runner...' || printf '%s' 'Compression du runner...')"
+    echo "$(i18n compressing_runner)"
     if ! tar -C "$CUSTOM_DIR" -cJf "$runner_archive" -- "$choice"; then
         rm -rf "$work"; msg "$(i18n error)" "$(i18n runner_compress_failed)"; return
     fi
     xz -t "$runner_archive" || { rm -rf "$work"; msg "$(i18n error)" "$(i18n runner_xz_failed)"; return; }
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Compressing required Steam Runtime...' || printf '%s' 'Compression du Steam Runtime requis...')"
+    echo "$(i18n compressing_runtime)"
     if ! tar -C "$(dirname "$runtime_src")" -cJf "$runtime_archive" -- "$runtime_variant"; then rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_compress_failed)"; return; fi
     xz -t "$runtime_archive" || { rm -rf "$work"; msg "$(i18n error)" "$(i18n runtime_xz_failed)"; return; }
     if [ ! -s "$UMU_RUN" ]; then
@@ -2250,7 +2236,7 @@ EOF
 
     (cd "$pkgroot" && sha256sum install.sh README.txt payload/* > SHA256SUMS)
     archive="$export_dir/${pkgname}.tar.xz"
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Creating final package...' || printf '%s' 'Creation du package final...')"
+    echo "$(i18n creating_final_package)"
     if tar -C "$work" -cJf "$archive" -- "$pkgname" && xz -t "$archive"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"; printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"; size="$(du -h "$archive" | awk '{print $1}')"
         rm -rf "$work"
@@ -2277,20 +2263,14 @@ delete_installed_runner() {
         [ -n "$r" ] && opts+=("$r" "$(integrity_label_i18n "$CUSTOM_DIR/$r")")
     done <<< "$runners"
     if command -v dialog >/dev/null 2>&1; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            choice="$(dialog --stdout --ok-label "OK" --cancel-label "Cancel" --title "Delete an UMU runner" --menu \
-                "Choose the runner to delete. Games, prefixes and save data will not be deleted." \
-                26 100 15 "${opts[@]}")" || return
-        else
-            choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Delete an UMU runner' || printf 'Supprimer un runner UMU')" --menu \
-                "Choisissez le runner a supprimer. Les jeux, prefixes et sauvegardes ne seront pas supprimes." \
-                26 100 15 "${opts[@]}")" || return
-        fi
+        choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n delete_runner_title)" --menu \
+            "$(i18n delete_select_desc)" \
+            26 100 15 "${opts[@]}")" || return
     else
         clear
         printf '%s\n' "$runners"
         echo
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf "Runner to delete: "; else printf "Runner a supprimer : "; fi
+        printf "%s" "$(i18n runner_to_delete_prompt)"
         read -r choice
     fi
     [ -n "$choice" ] || return
@@ -2310,10 +2290,10 @@ delete_installed_runner() {
 export_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "Exporter / partager un runner" \
-            "1" "Creer un package partageable/autonome (recommande)" \
-            "2" "Exporter le runner seul (.tar.xz)" \
-            "0" "Retour")" || return
+        choice="$(menu_choice "$(i18n export_menu_title)" \
+            "1" "$(i18n export_menu_package)" \
+            "2" "$(i18n export_menu_runner)" \
+            "0" "$(i18n back)")" || return
         case "$choice" in
             1) export_shareable_package ;;
             2) export_runner ;;
