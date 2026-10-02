@@ -1,6 +1,6 @@
 # UMU Runner Toolbox - English
 # shellcheck shell=bash
-declare -A I18N=(
+I18N=(
   [runner_error]="%s error"
   [runner_unexpected_structure]="Unexpected %s structure. Nothing was installed."
   [runner_integrity_failed]="Unable to verify the prepared runner integrity."
