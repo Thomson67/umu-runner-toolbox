@@ -1,0 +1,23 @@
+name: Shell syntax check
+
+on:
+  push:
+    branches:
+      - main
+      - feature/noninteractive-runner-install
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax
+        shell: bash
+        run: |
+          bash -n toolbox/umu-toolbox.sh
+          bash -n toolbox/lang/en.sh
+          bash -n toolbox/lang/fr.sh
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n packaging/install.sh
