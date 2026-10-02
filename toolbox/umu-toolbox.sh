@@ -178,7 +178,7 @@ menu_choice() {
             i=$((i + 2))
         done
         echo
-        printf "%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Choice: ' || printf 'Choix : ')"
+        printf "%s" "$(i18n choice_prompt)"
         read -r choice
         printf '%s' "$choice"
     fi
@@ -345,22 +345,17 @@ protect_runner() {
     done <<< "$runners"
 
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Creer une reference d'integrite" \
-            --menu "Une reference existante n'est JAMAIS remplacee." \
+        choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n reference_dialog_title)" \
+            --menu "$(i18n reference_dialog_desc)" \
             22 90 14 "${opts[@]}")" || return
     else
-        clear; printf '%s\n' "$runners"; echo; printf "Runner : "; read -r choice
+        clear; printf '%s\n' "$runners"; echo; printf "%s" "$(i18n runner_prompt)"; read -r choice
     fi
     [ -n "$choice" ] || return
     r="$CUSTOM_DIR/$choice"
 
     if [ -s "$(runner_manifest_path "$r")" ]; then
-        msg "Reference verrouillee" \
-"$choice possede deja une empreinte d'integrite.
-
-La Toolbox refuse de la recalculer afin qu'un runner contamine ne puisse jamais devenir la nouvelle reference saine.
-
-Si ce runner est MODIFIE, archivez-le puis reinstallez une copie propre."
+        msg "$(i18n reference_locked)" "$(i18n reference_locked_body "$choice")"
         return
     fi
 
@@ -528,11 +523,7 @@ prepare_runtime_for_runner() {
     local rc=$?
     if [ "$rc" -ne 0 ]; then
         log "runtime_bootstrap=failed runner=$runner rc=$rc"
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "$(i18n steamrt_title)" "$(i18n steamrt_failed)"
-        else
-            msg "$(i18n steamrt_title)" "$(i18n steamrt_failed)"
-        fi
+        msg "$(i18n steamrt_title)" "$(i18n steamrt_failed)"
         return "$rc"
     fi
     log "runtime_bootstrap=ok runner=$runner"
@@ -547,7 +538,7 @@ update_umu() {
     require_net || return
 
     clear
-    echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Checking latest UMU version...' || printf '%s' 'Recherche de la derniere version UMU...')"
+    echo "$(i18n checking_latest_umu)"
     log "UMU update started"
 
     local json tag asset checksum tmp oldver
@@ -627,7 +618,7 @@ PY
     fi
 
     if [ -n "$checksum" ]; then
-        echo "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' 'Verifying SHA512...' || printf '%s' 'Verification SHA512...')"
+        echo "$(i18n verify_sha512)"
         if ! curl -fsSL "$checksum" -o "$tmp/umu-run.sha512sum"; then
             rm -rf "$tmp"
             msg "$(i18n umu_error)" "$(i18n checksum_download_failed)"
@@ -657,13 +648,7 @@ PY
 
     rm -rf "$tmp"
     log "UMU updated to $tag"
-    msg "UMU mis a jour" \
-"UMU $tag est installe.
-
-Les anciennes copies sont conservees dans :
-$UMU_BACKUP
-
-Le runtime steamrt4 existant est conserve."
+    msg "$(i18n umu_updated_title)" "$(i18n umu_updated_body "$tag" "$UMU_BACKUP")"
 }
 
 rollback_umu() {
@@ -681,12 +666,12 @@ rollback_umu() {
 
     local choice
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Rollback UMU" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the backup to restore:" || printf "Choisissez la sauvegarde a restaurer :")" 20 90 12 "${opts[@]}")" || return
+        choice="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n rollback_umu)" --menu "$(i18n rollback_choose)" 20 90 12 "${opts[@]}")" || return
     else
         clear
         echo "$files"
         echo
-        printf "Nom exact de la sauvegarde : "
+        printf "%s" "$(i18n rollback_name_prompt)"
         read -r choice
     fi
     [ -n "$choice" ] || return
@@ -1786,11 +1771,7 @@ EOF
 
     rm -rf "$tmp" "$stage"
     log "Installed immutable ${tag}-UMU"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Runner installed" "$tag-UMU is installed as a NEW runner.\n\nStatus: EXPERIMENTAL\nIntegrity: PROTECTED\n\nAfter validating it in-game, use:\nProtect / validate a runner\nto mark it as known working.\n\nAnother GE-Proton-UMU version will never modify this directory."
-    else
-        msg "Runner installe" "$tag-UMU est installe comme NOUVEAU runner.\n\nStatut : EXPERIMENTAL\nIntegrite : PROTEGEE\n\nApres validation en jeu, utilisez :\nProteger / valider un runner\npour le marquer comme connu fonctionnel.\n\nUne autre version GE-Proton-UMU ne modifiera jamais ce dossier."
-    fi
+    msg "$(i18n runner_installed_title)" "$(i18n ge_runner_installed_body "$tag-UMU")"
 }
 
 list_runners() {
@@ -2447,7 +2428,7 @@ uninstall_umu_and_runners() {
     if [ -n "$runners" ]; then
         runners="$(printf '%s\n' "$runners" | sed 's/^/- /')"
     else
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then runners="- No *-UMU runner detected"; else runners="- Aucun runner *-UMU detecte"; fi
+        runners="$(i18n no_umu_runner_detected)"
     fi
     yesno "$(i18n uninstall_umu_title)" "$(i18n uninstall_umu_prompt "$runners")" || return
     if false; then
@@ -2498,10 +2479,10 @@ uninstall_menu() {
     while true; do
         local choice
         choice="$(menu_choice "$(i18n uninstall_menu)" \
-            "1" "Desinstaller uniquement la Toolbox" \
-            "2" "Desinstaller UMU + tous les runners UMU" \
-            "3" "Desinstaller Toolbox + UMU + runners" \
-            "0" "Retour")" || return
+            "1" "$(i18n uninstall_toolbox_only)" \
+            "2" "$(i18n uninstall_umu_all)" \
+            "3" "$(i18n uninstall_all)" \
+            "0" "$(i18n back)")" || return
         case "$choice" in
             1) uninstall_toolbox_only ;;
             2) uninstall_umu_and_runners ;;
@@ -2515,11 +2496,7 @@ uninstall_menu() {
 clean_umu_logs() {
     local tb rb total f tb_h rb_h total_h
     if umu_game_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Log cleanup refused" "An UMU launch is currently active.\n\nClose the game before cleaning Runner logs so the complete session diagnostics are preserved."
-        else
-            msg "Nettoyage des logs refuse" "Un lancement UMU est actuellement actif.\n\nFermez le jeu avant de nettoyer les logs Runner afin de conserver le diagnostic complet de la session."
-        fi
+        msg "$(i18n log_cleanup_refused)" "$(i18n log_cleanup_active)"
         return
     fi
     mkdir -p "$LOG_DIR" "$RUNNER_LOG_DIR"
@@ -2527,21 +2504,13 @@ clean_umu_logs() {
     rb="$(dir_bytes "$RUNNER_LOG_DIR")"
     total=$((tb + rb))
     if [ "$total" -le 0 ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "Log cleanup" "UMU log directories are already empty."
-        else
-            msg "Nettoyage des logs" "Les repertoires de logs UMU sont deja vides."
-        fi
+        msg "$(i18n log_cleanup)" "$(i18n log_cleanup_empty)"
         return
     fi
     tb_h="$(human_bytes "$tb")"
     rb_h="$(human_bytes "$rb")"
     total_h="$(human_bytes "$total")"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        yesno "Clean UMU logs" "Toolbox logs: $tb_h\nRunner logs: $rb_h\nTotal: $total_h\n\nAll old logs will be deleted.\nThe Toolbox log for this session will be preserved.\n\nContinue?" || return
-    else
-        yesno "Nettoyer les logs UMU" "Logs Toolbox : $tb_h\nLogs Runner : $rb_h\nTotal : $total_h\n\nTous les anciens logs seront supprimes.\nLe log Toolbox de cette session sera conserve.\n\nContinuer ?" || return
-    fi
+    yesno "$(i18n clean_logs_title)" "$(i18n clean_logs_prompt "$tb_h" "$rb_h" "$total_h")" || return
     find "$RUNNER_LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -delete 2>/dev/null || true
     while IFS= read -r f; do
         [ -n "$f" ] || continue
@@ -2549,11 +2518,7 @@ clean_umu_logs() {
         rm -f -- "$f" 2>/dev/null || true
     done < <(find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name "*.log" -print 2>/dev/null)
     log "umu_logs_cleanup=done bytes_before=$total"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "Log cleanup" "UMU logs cleaned.\n\nPreviously used space: $total_h\nThe current Toolbox log was preserved."
-    else
-        msg "Nettoyage des logs" "Logs UMU nettoyes.\n\nEspace precedemment occupe : $total_h\nLe log Toolbox courant a ete conserve."
-    fi
+    msg "$(i18n log_cleanup)" "$(i18n log_cleanup_done "$total_h")"
 }
 
 associate_game() {
