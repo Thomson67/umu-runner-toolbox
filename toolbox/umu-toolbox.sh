@@ -2875,14 +2875,14 @@ update_toolbox() {
 
     base="https://github.com/$TOOLBOX_REPO"
     latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$base/releases/latest")" || {
-        msg "Mise a jour Toolbox" "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee."
+        msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to determine the latest GitHub release.\n\nNo changes were made." || printf '%s' "Impossible de determiner la derniere release GitHub.\n\nAucune modification n'a ete effectuee.")"
         return
     }
     tag="$(basename "$latest_url")"
-    case "$tag" in v*) latest="${tag#v}" ;; *) msg "Mise a jour Toolbox" "Tag GitHub inattendu : $tag"; return ;; esac
+    case "$tag" in v*) latest="${tag#v}" ;; *) msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "Tag GitHub inattendu : $tag"; return ;; esac
 
     if [ "$latest" = "$TOOLBOX_VERSION" ]; then
-        msg "Mise a jour Toolbox" "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION"
+        msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The Toolbox is already up to date.\n\nInstalled version: $TOOLBOX_VERSION" || printf '%s' "La Toolbox est deja a jour.\n\nVersion installee : $TOOLBOX_VERSION")"
         return
     fi
     if ! python3 - "$TOOLBOX_VERSION" "$latest" <<'PYVER'
@@ -2891,7 +2891,7 @@ def v(s): return tuple(int(x) for x in s.split('.'))
 sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
 PYVER
     then
-        msg "Mise a jour Toolbox" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
+        msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "La release $tag n'est pas plus recente que la version installee ($TOOLBOX_VERSION)."
         return
     fi
 
@@ -2907,27 +2907,27 @@ PYVER
         fi
     fi
 
-    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "Mise a jour Toolbox" "Impossible de creer le repertoire temporaire."; return; }
-    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee."; return; fi
-    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee."; return; fi
-    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee."; return; fi
-    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Extraction du package impossible."; return; fi
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/toolbox-update.XXXXXX")" || { msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to create the temporary directory." || printf '%s' "Impossible de creer le repertoire temporaire.")"; return; }
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$asset" "$download_base/$asset"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to download the package.\n\nNo changes were made." || printf '%s' "Telechargement du package impossible.\n\nAucune modification n'a ete effectuee.")"; return; fi
+    if ! curl -fL --retry 3 --connect-timeout 15 -o "$tmp/$checksum" "$download_base/$checksum"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Checksum missing for $tag.\n\nNo changes were made." || printf '%s' "Checksum absent pour $tag.\n\nAucune modification n'a ete effectuee.")"; return; fi
+    if ! (cd "$tmp" && sha256sum -c "$checksum"); then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "SHA-256 verification failed.\n\nNo changes were made." || printf '%s' "Verification SHA-256 echouee.\n\nAucune modification n'a ete effectuee.")"; return; fi
+    if ! unzip -q "$tmp/$asset" -d "$tmp/extracted"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to extract the package." || printf '%s' "Extraction du package impossible.")"; return; fi
 
     pkg="$(find "$tmp/extracted" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     root="$pkg/toolbox"
-    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Structure du package invalide."; return; fi
-    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "VERSION du package incoherente."; return; fi
-    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le script de la nouvelle version est invalide."; return; fi
-    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le resolver Python de la nouvelle version est invalide."; return; fi
-    if [ -s "$root/umu-gameid-manager.py" ] && ! python3 -m py_compile "$root/umu-gameid-manager.py" 2>/dev/null; then rm -rf "$tmp"; msg "Mise a jour Toolbox" "Le gestionnaire GAMEID de la nouvelle version est invalide."; return; fi
+    if [ -z "$pkg" ] || [ ! -s "$root/umu-toolbox.sh" ] || [ ! -s "$root/VERSION" ]; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Invalid package structure." || printf '%s' "Structure du package invalide.")"; return; fi
+    if [ "$(tr -d '\r\n[:space:]' < "$root/VERSION")" != "$latest" ]; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Package VERSION mismatch." || printf '%s' "VERSION du package incoherente.")"; return; fi
+    if ! bash -n "$root/umu-toolbox.sh"; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The new version script is invalid." || printf '%s' "Le script de la nouvelle version est invalide.")"; return; fi
+    if [ -s "$root/umu-gameid-resolver.py" ] && ! python3 -m py_compile "$root/umu-gameid-resolver.py" 2>/dev/null; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The new version Python resolver is invalid." || printf '%s' "Le resolver Python de la nouvelle version est invalide.")"; return; fi
+    if [ -s "$root/umu-gameid-manager.py" ] && ! python3 -m py_compile "$root/umu-gameid-manager.py" 2>/dev/null; then rm -rf "$tmp"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "The new version GAMEID manager is invalid." || printf '%s' "Le gestionnaire GAMEID de la nouvelle version est invalide.")"; return; fi
 
     newroot="$UMU_DIR/.toolbox-update.$$"; rm -rf "$newroot"
-    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Preparation de la nouvelle Toolbox impossible."; return; }
-    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Impossible de conserver config/."; return; }; fi
+    cp -a "$root" "$newroot" || { rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to prepare the new Toolbox." || printf '%s' "Preparation de la nouvelle Toolbox impossible.")"; return; }
+    if [ -d "$ROOT/config" ]; then rm -rf "$newroot/config"; cp -a "$ROOT/config" "$newroot/config" || { rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to preserve config/." || printf '%s' "Impossible de conserver config/.")"; return; }; fi
 
     ts="$(date '+%Y%m%d-%H%M%S')"; backup="$UMU_BACKUP/toolbox-v$TOOLBOX_VERSION-$ts"; mkdir -p "$UMU_BACKUP"
-    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Sauvegarde de la Toolbox actuelle impossible."; return; fi
-    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "Mise a jour Toolbox" "Echec du remplacement. Une restauration automatique a ete tentee."; return; fi
+    if ! mv "$ROOT" "$backup"; then rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Unable to back up the current Toolbox." || printf '%s' "Sauvegarde de la Toolbox actuelle impossible.")"; return; fi
+    if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Toolbox update' || printf 'Mise a jour Toolbox')" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf '%s' "Replacement failed. An automatic restore was attempted." || printf '%s' "Echec du remplacement. Une restauration automatique a ete tentee.")"; return; fi
 
     chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
     rm -rf "$tmp"
@@ -3014,8 +3014,11 @@ startup_update_check() {
 }
 
 documentation_about() {
-    msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d'un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d'integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;
-- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Documentation / About" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nSimplified Proton + UMU runner management for Batocera.\n\nMain features:\n- install GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU and DW-Proton-UMU;\n- delete a runner;\n- export and create shareable packages;\n- automatically protect UMU runners as read-only while games are running;\n- automatically verify integrity before launch;\n- safely clean UMU runtime data, graphics caches and logs;\n- manual GAMEID / STORE associations for games not recognized automatically.\n\nStandard Batocera runners, Wine-TKG and Kron4ek are not modified.\n\nDocumentation:\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs:\n$LOG_DIR"
+    else
+        msg "Documentation / A propos" "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;\n- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR"
+    fi
 }
 
 main_menu() {
