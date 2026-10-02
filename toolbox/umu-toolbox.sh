@@ -1923,6 +1923,15 @@ runtime_protection_status() {
     msg "$(i18n runtime_protection)" "${report:-$(i18n no_umu_runner)}"
 }
 
+runner_required_appid() {
+    local manifest="$1"
+    [ -s "$manifest" ] || return 0
+    grep -Eo '"require_tool_appid"[[:space:]]*"?[0-9]+"?' "$manifest" 2>/dev/null \
+        | head -n1 \
+        | grep -Eo '[0-9]+' \
+        || true
+}
+
 verify_install() {
     local report="" r base integ appid runtime codename rdir opts active=0
     umu_process_active && active=1 || true
@@ -1940,7 +1949,7 @@ verify_install() {
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         base="$CUSTOM_DIR/$r"
-        appid="$(sed -n 's/.*"require_tool_appid"[[:space:]]*"*\\([0-9][0-9]*\\)"*.*/\\1/p' "$base/toolmanifest.vdf" 2>/dev/null | head -n1)"
+        appid="$(runner_required_appid "$base/toolmanifest.vdf")"
         case "$appid" in
             1391110) codename="soldier"; runtime="steamrt2" ;;
             1628350) codename="sniper"; runtime="steamrt3" ;;
@@ -2109,7 +2118,7 @@ export_shareable_package() {
     fi
     manifest="$base/toolmanifest.vdf"
     [ -s "$manifest" ] || { msg "$(i18n export_refused)" "$(i18n package_manifest_missing)"; return; }
-    appid="$(grep -Eo '"require_tool_appid"[[:space:]]*"?[0-9]+"?' "$manifest" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' || true)"
+    appid="$(runner_required_appid "$manifest")"
     case "$appid" in
         1391110) runtime_variant="steamrt2" ;;
         1628350) runtime_variant="steamrt3" ;;
