@@ -377,6 +377,38 @@ tr_ui() {
     s="${s//Aucun GAMEID candidat trouve pour :/No GAMEID candidate found for:}"
     s="${s//gamelist Windows introuvable :/Windows gamelist not found:}"
     s="${s//Impossible de lire le gamelist./Unable to read the gamelist.}"
+    s="${s//Etat de l installation/Installation status}"
+    s="${s//absent (sera telecharge par UMU au besoin)/missing (will be downloaded by UMU if needed)}"
+    s="${s//(aucun)/(none)}"
+    s="${s//Installer /Install }"
+    s="${s//Version installee :/Installed version:}"
+    s="${s//Derniere version :/Latest version:}"
+    s="${s//L'ancien umu-run sera sauvegarde./The existing umu-run will be backed up.}"
+    s="${s//steamrt4, les saves et les prefixes ne seront pas supprimes./steamrt4, saves and prefixes will not be deleted.}"
+    s="${s//Continuer ?/Continue?}"
+    s="${s//Le runner sera construit dans une zone temporaire puis controle avant installation./The runner will be built in a temporary area and verified before installation.}"
+    s="${s//Destination finale :/Final destination:}"
+    s="${s//Destination :/Destination:}"
+    s="${s//Aucun runner existant ne sera modifie./No existing runner will be modified.}"
+    s="${s//Verification :/Verification:}"
+    s="${s//obligatoire/required}"
+    s="${s//lorsque disponible/when available}"
+    s="${s//Nom exact de la sauvegarde :/Exact backup name:}"
+    s="${s//PROTEGE \/ OK/PROTECTED \/ OK}"
+    s="${s//MODIFIE/MODIFIED}"
+    s="${s//NON MANAGE/UNMANAGED}"
+    s="${s//Export refuse/Export refused}"
+    s="${s//est signale MODIFIE./is marked MODIFIED.}"
+    s="${s//L'export est bloque afin d'eviter de partager un runner contamine./Export is blocked to avoid sharing a modified runner.}"
+    s="${s//Reinstallez\/reparez d'abord une copie saine./Reinstall\/repair a clean copy first.}"
+    s="${s//ne possede pas encore de manifest de reference./does not have an integrity reference manifest yet.}"
+    s="${s//Utilisez d'abord l'option de creation de reference, puis relancez l'export./Create an integrity reference first, then retry the export.}"
+    s="${s//Runner exporte avec succes./Runner exported successfully.}"
+    s="${s//Archive :/Archive:}"
+    s="${s//Taille :/Size:}"
+    s="${s//inconnue/unknown}"
+    s="${s//Un fichier .sha256 a egalement ete cree a cote de l'archive./A .sha256 file was also created next to the archive.}"
+    s="${s//Pour restaurer manuellement sur une autre Batocera :/To restore manually on another Batocera:}"
     printf '%s' "$s"
 }
 
@@ -711,22 +743,11 @@ show_status() {
     done <<< "$(installed_runners)"
     [ -n "$runners" ] || runners="(aucun)"
 
-    msg "Etat de l'installation" \
-"Toolbox : v$TOOLBOX_VERSION
-Couche Batocera UMU : v$INTEGRATION_VERSION
-
-UMU : $uv
-Steam Runtime UMU : $runtime
-
-Runners UMU installes :
-$runners
-
-PROTEGE / OK : empreinte valide
-MODIFIE : fichiers critiques differents
-NON MANAGE : aucune reference encore creee
-
-Logs Toolbox :
-$LOG_DIR"
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        msg "Installation status" "Toolbox: v$TOOLBOX_VERSION\nBatocera UMU integration: v$INTEGRATION_VERSION\n\nUMU: $uv\nUMU Steam Runtime: $(tr_ui "$runtime")\n\nInstalled UMU runners:\n$(tr_ui "$runners")\n\nPROTECTED / OK: valid integrity reference\nMODIFIED: critical files differ\nUNMANAGED: no integrity reference created yet\n\nToolbox logs:\n$LOG_DIR"
+    else
+        msg "Etat de l installation" "Toolbox : v$TOOLBOX_VERSION\nCouche Batocera UMU : v$INTEGRATION_VERSION\n\nUMU : $uv\nSteam Runtime UMU : $runtime\n\nRunners UMU installes :\n$runners\n\nPROTEGE / OK : empreinte valide\nMODIFIE : fichiers critiques differents\nNON MANAGE : aucune reference encore creee\n\nLogs Toolbox :\n$LOG_DIR"
+    fi
 }
 
 install_umu_if_missing() {
@@ -913,7 +934,7 @@ PY
         return
     fi
 
-    if ! yesno "Mise a jour UMU" \
+    if ! yesno "$(tr_ui "Mise a jour UMU")" \
 "Version installee : $oldver
 Derniere version : $tag
 
@@ -1282,7 +1303,7 @@ install_gdk() {
         return
     fi
 
-    if ! yesno "Installer $name-UMU" \
+    if ! yesno "$(tr_ui "Installer $name-UMU")" \
 "Le runner sera construit dans une zone temporaire puis controle avant installation.
 
 Destination :
@@ -1468,7 +1489,7 @@ install_cachy() {
     target="$CUSTOM_DIR/${name}-UMU"
     if [ -e "$target" ]; then rm -rf "$tmp"; msg "$(tr_ui "Runner protege")" "$(tr_ui "$name-UMU existe deja. Aucune reinstallation sur place n'est autorisee.")"; return; fi
 
-    if ! yesno "Installer $name-UMU" \
+    if ! yesno "$(tr_ui "Installer $name-UMU")" \
 "Source : Proton-CachyOS SLR x86_64
 Verification : SHA-512 upstream lorsque disponible
 Destination :
@@ -1628,7 +1649,7 @@ install_em() {
         msg "$(tr_ui "Proton-EM non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-256 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
         return
     fi
-    if [ "$noninteractive" != "1" ] && ! yesno "Installer $name-UMU" \
+    if [ "$noninteractive" != "1" ] && ! yesno "$(tr_ui "Installer $name-UMU")" \
 "Source : BananaWorks07/Proton ($tag)
 Verification : SHA-256 upstream obligatoire
 Destination :
@@ -1790,7 +1811,7 @@ install_dw() {
         msg "$(tr_ui "DW-Proton non installable")" "$(tr_ui "Cette release ($tag) ne fournit pas de checksum SHA-512 upstream.\n\nPour preserver la verification d'integrite des runners UMU, son installation est desactivee.")"
         return
     fi
-    if ! yesno "Installer $name-UMU" \
+    if ! yesno "$(tr_ui "Installer $name-UMU")" \
 "Source : dawn-winery/dwproton-mirror ($tag)
 Verification : SHA-512 upstream obligatoire
 Destination :
@@ -1991,7 +2012,7 @@ Pour remplacer exceptionnellement ce runner, archivez-le d'abord depuis le menu 
         return
     fi
 
-    if [ "$noninteractive" != "1" ] && ! yesno "Installer $tag-UMU" \
+    if [ "$noninteractive" != "1" ] && ! yesno "$(tr_ui "Installer $tag-UMU")" \
 "Le runner sera construit dans une zone temporaire puis controle avant installation.
 
 Destination finale :
@@ -2365,19 +2386,12 @@ export_runner() {
     label="$(runner_integrity_label "$base")"
 
     if [ "$label" = "MODIFIE" ]; then
-        msg "Export refuse" \
-"$choice est signale MODIFIE.
-
-L'export est bloque afin d'eviter de partager un runner contamine.
-Reinstallez/reparez d'abord une copie saine."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "$choice is marked MODIFIED.\n\nExport is blocked to avoid sharing a modified runner.\nReinstall/repair a clean copy first."; else msg "Export refuse" "$choice est signale MODIFIE.\n\nL export est bloque afin d eviter de partager un runner contamine.\nReinstallez/reparez d abord une copie saine."; fi
         return
     fi
 
     if [ "$label" = "NON MANAGE" ]; then
-        msg "Export refuse" \
-"$choice ne possede pas encore de manifest de reference.
-
-Utilisez d'abord l'option de creation de reference, puis relancez l'export."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "$choice does not have an integrity reference manifest yet.\n\nCreate an integrity reference first, then retry the export."; else msg "Export refuse" "$choice ne possede pas encore de manifest de reference.\n\nUtilisez d abord l option de creation de reference, puis relancez l export."; fi
         return
     fi
 
@@ -2420,20 +2434,7 @@ Creer l'archive ?"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"
         printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"
         log "Export OK: $archive sha256=$hash"
-        msg "Export termine" \
-"Runner exporte avec succes.
-
-Archive :
-$archive
-
-Taille : ${tmp_size:-inconnue}
-SHA-256 :
-$hash
-
-Un fichier .sha256 a egalement ete cree a cote de l'archive.
-
-Pour restaurer manuellement sur une autre Batocera :
-tar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export complete" "Runner exported successfully.\n\nArchive:\n$archive\n\nSize: ${tmp_size:-unknown}\nSHA-256:\n$hash\n\nA .sha256 file was also created next to the archive.\n\nTo restore manually on another Batocera:\ntar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"; else msg "Export termine" "Runner exporte avec succes.\n\nArchive :\n$archive\n\nTaille : ${tmp_size:-inconnue}\nSHA-256 :\n$hash\n\nUn fichier .sha256 a egalement ete cree a cote de l archive.\n\nPour restaurer manuellement sur une autre Batocera :\ntar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"; fi
     else
         rm -f "$archive" "${archive}.sha256"
         msg "$(tr_ui "Export echoue")" "$(tr_ui "tar/xz a retourne une erreur. Consultez :\n$LOG")"
