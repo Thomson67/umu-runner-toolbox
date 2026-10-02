@@ -2755,9 +2755,15 @@ main_menu() {
     done
 }
 install_runner_cli() {
-    local requested="${1:-}" base
+    local requested="${1:-}" base target
     [ -n "$requested" ] || { echo "Usage: $0 --install-runner <runner>" >&2; return 64; }
     base="${requested%-UMU}"
+    target="$CUSTOM_DIR/${base}-UMU"
+    if [ -e "$target" ]; then
+        if verify_runner_manifest "$target"; then echo "already-installed: ${base}-UMU"; return 0; fi
+        echo "existing-runner-invalid: ${base}-UMU" >&2
+        return 66
+    fi
     case "$base" in
         GE-Proton[0-9]*-[0-9]*) install_ge "$base" 1 ;;
         proton-EM-*) install_em "$base" 1 ;;
