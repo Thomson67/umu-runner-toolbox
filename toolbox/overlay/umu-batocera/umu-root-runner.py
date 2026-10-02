@@ -80,7 +80,7 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def prepare_runtime_without_lzma():
+def prepare_runtime():
     req = required_runtime()
     if req is None:
         log("Python _lzma absent, mais Proton ne declare aucun Steam Runtime requis; UMU reste en mode normal")
@@ -93,17 +93,26 @@ def prepare_runtime_without_lzma():
     local = umu_local / variant
     marker_version = local / ".batocera-runtime-version"
     base_images = f"https://repo.steampowered.com/{repo_variant}/images"
+
+    # A complete local runtime is sufficient. Do not contact Valve merely to
+    # compare its version: this path must work behind a proxy and offline.
+    if runtime_valid(local, codename):
+        (local / "umu").unlink(missing_ok=True)
+        (local / "umu").symlink_to("_v2-entry-point")
+        (local / ".installed.ok").write_text("ok\n", encoding="utf-8")
+        local_version = ""
+        if marker_version.is_file():
+            local_version = marker_version.read_text(encoding="utf-8", errors="replace").strip()
+        if local_version:
+            log(f"{variant} {local_version} deja present et valide; reutilisation locale sans acces reseau")
+        else:
+            log(f"{variant} deja present et valide; reutilisation locale sans acces reseau")
+        os.environ["UMU_RUNTIME_UPDATE"] = "0"
+        return
+
+    # Network access is required only when the required runtime is absent or
+    # incomplete locally.
     version = get_text(f"{base_images}/latest-public-beta.txt")
-
-    if runtime_valid(local, codename) and marker_version.is_file():
-        if marker_version.read_text(encoding="utf-8", errors="replace").strip() == version:
-            (local / "umu").unlink(missing_ok=True)
-            (local / "umu").symlink_to("_v2-entry-point")
-            (local / ".installed.ok").write_text("ok\n", encoding="utf-8")
-            os.environ["UMU_RUNTIME_UPDATE"] = "0"
-            log(f"{variant} {version} deja prepare (workaround Batocera sans _lzma)")
-            return
-
     base = f"{base_images}/{version}"
     sums = get_text(f"{base}/SHA256SUMS")
     digest = None
@@ -203,6 +212,15 @@ def main():
     # graphical/root context.
     os.geteuid = lambda: 1000
 
+    # Toolbox bootstrap mode: prepare only the Steam Runtime declared by PROTONPATH.
+    if args == ["--prepare-runtime"]:
+        try:
+            prepare_runtime()
+            return 0
+        except Exception as exc:
+            log(f"ERREUR preparation Steam Runtime: {exc}")
+            return 1
+
     # --version must stay a cheap UMU health check and must never bootstrap a runtime.
     if args != ["--version"]:
         try:
@@ -210,7 +228,7 @@ def main():
             # /var is tmpfs and Batocera does not create it itself.
             ensure_ldconfig_cache()
             if not have_lzma():
-                prepare_runtime_without_lzma()
+                prepare_runtime()
         except Exception as exc:
             log(f"ERREUR preparation compatibilite Batocera: {exc}")
             return 1
