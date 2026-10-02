@@ -598,14 +598,7 @@ PY
         return
     fi
 
-    if ! yesno "$(i18n umu_update)"" \
-"Version installee : $oldver
-Derniere version : $tag
-
-L'ancien umu-run sera sauvegarde.
-steamrt4, les saves et les prefixes ne seront pas supprimes.
-
-Installer UMU $tag ?"; then
+    if ! yesno "$(i18n umu_update)" "$(i18n umu_update_prompt "$oldver" "$tag" "$tag")"; then
         rm -rf "$tmp"
         return
     fi
