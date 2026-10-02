@@ -2296,7 +2296,7 @@ export_runner() {
     local runners choice base label export_dir archive tmp_size hash
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "$(tr_ui "Exporter un runner")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"
+        msg "$(i18n export_runner_title)" "$(i18n export_none)"
         return
     fi
 
@@ -2324,7 +2324,7 @@ export_runner() {
     [ -n "$choice" ] || return
 
     base="$CUSTOM_DIR/$choice"
-    [ -d "$base" ] || { msg "$(tr_ui "Erreur")" "$(tr_ui "Runner introuvable : $choice")"; return; }
+    [ -d "$base" ] || { msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; return; }
     label="$(runner_integrity_label "$base")"
 
     if [ "$label" = "MODIFIE" ]; then
@@ -2379,7 +2379,7 @@ Creer l'archive ?"; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export complete" "Runner exported successfully.\n\nArchive:\n$archive\n\nSize: ${tmp_size:-unknown}\nSHA-256:\n$hash\n\nA .sha256 file was also created next to the archive.\n\nTo restore manually on another Batocera:\ntar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"; else msg "Export termine" "Runner exporte avec succes.\n\nArchive :\n$archive\n\nTaille : ${tmp_size:-inconnue}\nSHA-256 :\n$hash\n\nUn fichier .sha256 a egalement ete cree a cote de l archive.\n\nPour restaurer manuellement sur une autre Batocera :\ntar -xJf \"$(basename "$archive")\" -C /userdata/system/wine/custom/"; fi
     else
         rm -f "$archive" "${archive}.sha256"
-        msg "$(tr_ui "Export echoue")" "$(tr_ui "tar/xz a retourne une erreur. Consultez :\n$LOG")"
+        msg "$(i18n export_failed)" "$(i18n export_tar_failed "$LOG")"
     fi
 }
 export_shareable_package() {
@@ -2414,7 +2414,7 @@ export_shareable_package() {
     [ -n "$choice" ] || return
 
     base="$CUSTOM_DIR/$choice"
-    [ -d "$base" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Runner introuvable : $choice")"; fi; return; }
+    [ -d "$base" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; fi; return; }
     label="$(runner_integrity_label "$base")"
     if [ "$label" != "PROTEGE / OK" ] || ! verify_runner_manifest "$base"; then
         if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Export refused")" "$(tr_ui "$choice is not in a healthy managed state. The shareable package was not created.")"; else msg "$(tr_ui "Export refuse")" "$(tr_ui "$choice n est pas dans un etat sain et gere. Le package partageable n a pas ete cree.")"; fi
@@ -2574,9 +2574,9 @@ EOF
     if tar -C "$work" -cJf "$archive" -- "$pkgname" && xz -t "$archive"; then
         hash="$(sha256sum "$archive" | awk '{print $1}')"; printf '%s  %s\n' "$hash" "$(basename "$archive")" > "${archive}.sha256"; size="$(du -h "$archive" | awk '{print $1}')"
         rm -rf "$work"
-        msg "$(tr_ui "Package termine")" "$(tr_ui "Package partageable cree :\n$archive\n\nTaille : $size\nSHA-256 :\n$hash\n\nCe package peut etre installe sur une Batocera sans installation UMU prealable.")"
+        msg "$(i18n package_complete)" "$(i18n package_created "$archive" "$size" "$hash")"
     else
-        rm -rf "$work" "$archive" "${archive}.sha256"; msg "$(tr_ui "Export echoue")" "$(tr_ui "Impossible de creer/tester le package final.")"
+        rm -rf "$work" "$archive" "${archive}.sha256"; msg "$(i18n export_failed)" "$(i18n package_final_failed)"
     fi
 }
 
@@ -2623,7 +2623,7 @@ delete_installed_runner() {
     fi
     [ -n "$choice" ] || return
     if [ ! -d "$CUSTOM_DIR/$choice" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Runner introuvable : $choice")"; fi
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Runner not found: $choice")"; else msg "$(i18n error)" "$(i18n runner_not_found "$choice")"; fi
         return
     fi
     if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
@@ -3085,7 +3085,7 @@ update_toolbox() {
     tag="$(basename "$latest_url")"
     case "$tag" in
         v*) latest="${tag#v}" ;;
-        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Toolbox update")" "$(tr_ui "Unexpected GitHub tag: $tag")"; else msg "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "Tag GitHub inattendu : $tag")"; fi; return ;;
+        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(i18n toolbox_update_title)" "$(i18n update_bad_tag "$tag")"; else msg "$(i18n toolbox_update_title)" "$(i18n update_bad_tag "$tag")"; fi; return ;;
     esac
 
     if [ "$latest" = "$TOOLBOX_VERSION" ]; then
@@ -3098,7 +3098,7 @@ def v(s): return tuple(int(x) for x in s.split('.'))
 sys.exit(0 if v(sys.argv[2]) > v(sys.argv[1]) else 1)
 PYVER
     then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Toolbox update")" "$(tr_ui "Release $tag is not newer than the installed version ($TOOLBOX_VERSION).")"; else msg "$(tr_ui "Mise a jour Toolbox")" "$(tr_ui "La release $tag n est pas plus recente que la version installee ($TOOLBOX_VERSION).")"; fi
+        msg "$(i18n toolbox_update_title)" "$(i18n update_not_newer "$tag" "$TOOLBOX_VERSION")"
         return
     fi
 
@@ -3233,11 +3233,7 @@ startup_update_check() {
 }
 
 documentation_about() {
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        msg "$(tr_ui "Documentation / About")" "$(tr_ui "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nSimplified Proton + UMU runner management for Batocera.\n\nMain features:\n- install GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU and DW-Proton-UMU;\n- delete a runner;\n- export and create shareable packages;\n- automatically protect UMU runners as read-only while games are running;\n- automatically verify integrity before launch;\n- safely clean UMU runtime data, graphics caches and logs;\n- manual GAMEID / STORE associations for games not recognized automatically.\n\nStandard Batocera runners, Wine-TKG and Kron4ek are not modified.\n\nDocumentation:\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs:\n$LOG_DIR")"
-    else
-        msg "$(tr_ui "Documentation / A propos")" "$(tr_ui "UMU Runner Toolbox v$TOOLBOX_VERSION\n\nGestion simplifiee de runners Proton + UMU pour Batocera.\n\nFonctions principales :\n- installation de GE-Proton-UMU, GDK-Proton-UMU, Proton-CachyOS-UMU, Proton-EM-UMU et DW-Proton-UMU ;\n- suppression d un runner ;\n- export et creation de packages partageables ;\n- protection automatique des runners UMU en lecture seule pendant les jeux ;\n- controle automatique d integrite avant lancement ;\n- nettoyage securise des donnees runtime UMU, caches graphiques et logs ;\n- associations manuelles GAMEID / STORE pour les jeux non reconnus automatiquement.\n\nLes runners Batocera standards, Wine-TKG et Kron4ek ne sont pas modifies.\n\nDocumentation :\n$ROOT/GUIDE_PARTAGE_ET_INSTALLATION.txt\n\nLogs :\n$LOG_DIR")"
-    fi
+    msg "$(i18n documentation_title)" "$(i18n documentation_body "$TOOLBOX_VERSION" "$ROOT" "$LOG_DIR")"
 }
 
 main_menu() {
