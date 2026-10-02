@@ -2572,20 +2572,12 @@ EOF
 delete_installed_runner() {
     local runners choice r
     if umu_uninstall_active; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "$(tr_ui "Deletion refused")" "$(tr_ui "An UMU/Wine launch or associated mount is active.\n\nClose the game before deleting a runner.")"
-        else
-            msg "$(tr_ui "Suppression refusee")" "$(tr_ui "Un lancement UMU/Wine ou un montage associe est actif.\n\nFermez le jeu avant de supprimer un runner.")"
-        fi
+        msg "$(i18n deletion_refused)" "$(i18n delete_active)"
         return
     fi
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-            msg "$(tr_ui "Delete an UMU runner")" "$(tr_ui "No managed Proton-UMU runner is installed.")"
-        else
-            msg "$(tr_ui "Supprimer un runner")" "$(tr_ui "Aucun runner Proton-UMU gere installe.")"
-        fi
+        msg "$(i18n delete_runner_title)" "$(i18n delete_none)"
         return
     fi
     local opts=()
@@ -2695,7 +2687,7 @@ clean_umu_runtime_data() {
     local cb mb mat_b gv_b legacy_p_b legacy_g_b mesa_b radv_b total_game total_gpu total_game_h total_gpu_h report
 
     if umu_game_active; then
-        msg "$(tr_ui "Nettoyage UMU refuse")" "$(tr_ui "Un processus/lancement UMU ou un merged-prefix actif a ete detecte.\n\nFermez le jeu UMU en cours puis relancez le nettoyage.")"
+        msg "$(i18n cleanup_refused)" "$(i18n cleanup_active)"
         return
     fi
 
@@ -2714,7 +2706,7 @@ clean_umu_runtime_data() {
     total_gpu_h="${total_gpu_h}"
 
     report="Donnees runtime UMU :\n- compatdata : $(human_bytes "$cb")\n- merged-prefixes : $(human_bytes "$mb")\n- materialized-prefixes : $(human_bytes "$mat_b")\n- gameviews : $(human_bytes "$gv_b")\n- anciens TEST7 : $(human_bytes "$((legacy_p_b + legacy_g_b))")\n- total : ${total_game_h}\n\nCaches graphiques facultatifs :\n- Mesa shader cache : $(human_bytes "$mesa_b")\n- RADV builtin shaders : $(human_bytes "$radv_b")\n- total : ${total_gpu_h}\n\nSont toujours conserves : umu-run, steamrt4, home/.local/share/umu, protonfixes/umu-protonfixes, sauvegardes UMU et runners."
-    msg "$(tr_ui "Analyse du nettoyage UMU")" "$(tr_ui "$report")"
+    msg "$(i18n cleanup_analysis)" "$report"
 
     if [ "$total_game" -gt 0 ]; then
         if yesno "$(tr_ui "Nettoyer les donnees runtime")" "$(tr_ui "Supprimer le contenu runtime UMU :\n\n$compat\n$merged\n$materialized\n$gameviews\nainsi que les anciens repertoires TEST7 eventuels.\n\nEspace actuellement occupe : ${total_game_h}\n\nLes repertoires eux-memes seront conserves. Continuer ?")"; then
@@ -2729,10 +2721,10 @@ clean_umu_runtime_data() {
             clear_dir_contents "$legacy_prefixes"
             clear_dir_contents "$legacy_gameviews"
             log "umu_cleanup_game_data=done bytes_before=$total_game"
-            msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Donnees runtime nettoyees.\n\nEspace precedemment occupe : ${total_game_h}")"
+            msg "$(i18n cleanup_done)" "$(i18n cleanup_done_body "${total_game_h}")"
         fi
     else
-        msg "$(tr_ui "Nettoyage UMU")" "$(tr_ui "Les donnees runtime UMU sont deja vides.\n\nAucune donnee runtime a supprimer.")"
+        msg "$(i18n cleanup_done)" "$(i18n cleanup_empty)"
     fi
 
     # Shader caches are reconstructible but deliberately opt-in: deleting them
@@ -2745,7 +2737,7 @@ clean_umu_runtime_data() {
         clear_dir_contents "$mesa"
         clear_dir_contents "$radv"
         log "umu_cleanup_gpu_cache=done bytes_before=$total_gpu"
-        msg "$(tr_ui "Caches graphiques")" "$(tr_ui "Caches Mesa/RADV nettoyes.\n\nEspace precedemment occupe : ${total_gpu_h}")"
+        msg "$(i18n gpu_cache_done)" "$(i18n gpu_cache_done_body "${total_gpu_h}")"
     fi
 }
 
@@ -2916,8 +2908,8 @@ associate_game() {
     local helper="$ROOT/umu-gameid-manager.py" title="$1" path="$2" tab candidates choice selected idx cscore ctitle gameid cstores store storeopts
     tab="$(printf '\t')"
     candidates="$(mktemp "$RUNNER_STAGING_ROOT/gameid-candidates.XXXXXX")" || return
-    python3 "$helper" candidates --title "$title" --limit 12 > "$candidates" || { rm -f "$candidates"; msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de rechercher les correspondances GAMEID.")"; return; }
-    [ -s "$candidates" ] || { rm -f "$candidates"; msg "$(tr_ui "Aucune correspondance")" "$(tr_ui "Aucun GAMEID candidat trouve pour :\n$title")"; return; }
+    python3 "$helper" candidates --title "$title" --limit 12 > "$candidates" || { rm -f "$candidates"; msg "$(i18n error)" "$(i18n gameid_search_failed)"; return; }
+    [ -s "$candidates" ] || { rm -f "$candidates"; msg "$(i18n gameid_no_match)" "$(i18n gameid_no_candidate "$title")"; return; }
     if command -v dialog >/dev/null 2>&1; then
         local copts=() ci
         while IFS="$tab" read -r ci cscore ctitle gameid cstores; do
@@ -3004,15 +2996,15 @@ global_game_scan() {
 gameid_override_menu() {
     local helper="$ROOT/umu-gameid-manager.py" action selected idx title path list choice tab
     tab="$(printf '\t')"
-    [ -s "$helper" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Game compatibility")" "$(tr_ui "GAMEID manager missing: $helper")"; else msg "$(tr_ui "Compatibilite des jeux")" "$(tr_ui "Gestionnaire GAMEID absent : $helper")"; fi; return; }
+    [ -s "$helper" ] || { msg "$(i18n game_compat_title)" "$(i18n gameid_manager_missing "$helper")"; return; }
     while true; do
         action="$(menu_choice "Compatibilite des jeux" "1" "Analyser tous les jeux" "2" "Associer / modifier un jeu" "3" "Afficher les associations manuelles" "4" "Supprimer une association" "0" "Retour")" || return
         case "$action" in
           1) global_game_scan ;;
           2)
-            [ -s "$WINDOWS_GAMELIST" ] || { msg "$(tr_ui "Erreur")" "$(tr_ui "gamelist Windows introuvable :\n$WINDOWS_GAMELIST")"; continue; }
+            [ -s "$WINDOWS_GAMELIST" ] || { msg "$(i18n error)" "$(i18n gamelist_missing "$WINDOWS_GAMELIST")"; continue; }
             list="$(mktemp "$RUNNER_STAGING_ROOT/gameids.XXXXXX")" || continue
-            python3 "$helper" games > "$list" || { rm -f "$list"; msg "$(tr_ui "Erreur")" "$(tr_ui "Impossible de lire le gamelist.")"; continue; }
+            python3 "$helper" games > "$list" || { rm -f "$list"; msg "$(i18n error)" "$(i18n gamelist_read_failed)"; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local opts=() i n gp
                 while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
@@ -3025,13 +3017,13 @@ gameid_override_menu() {
           3)
             list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || list="$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'No manual association.' || printf 'Aucune association manuelle.')"; msg "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Manual associations' || printf 'Associations manuelles')" "$list" ;;
           4)
-            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Manual associations")" "$(tr_ui "No manual association.")"; else msg "$(tr_ui "Associations manuelles")" "$(tr_ui "Aucune association manuelle.")"; fi; continue; }
+            list="$(python3 "$helper" list 2>/dev/null)"; [ -n "$list" ] || { msg "$(i18n manual_associations)" "$(i18n manual_none)"; continue; }
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
                 choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Delete an association" || printf "Supprimer une association")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the association to delete." || printf "Choisissez l association a supprimer.")" 28 105 18 "${dopts[@]}")" || continue
             else printf "%s\n" "$list"; printf "\n%s" "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Number: ' || printf 'Numero : ')"; read -r choice; fi
-            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Association deleted")" "$(tr_ui "The game will use automatic detection again.")"; else msg "$(tr_ui "Association supprimee")" "$(tr_ui "Le jeu utilisera de nouveau la detection automatique.")"; fi; else if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "$(tr_ui "Error")" "$(tr_ui "Unable to delete.")"; else msg "$(tr_ui "Erreur")" "$(tr_ui "Suppression impossible.")"; fi; fi ;;
+            if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "$(i18n association_deleted)" "$(i18n association_deleted_body)"; else msg "$(i18n error)" "$(i18n delete_impossible)"; fi ;;
           0|"") return ;;
         esac
     done
