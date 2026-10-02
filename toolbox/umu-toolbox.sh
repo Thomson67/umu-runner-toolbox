@@ -36,66 +36,7 @@ save_language() {
 }
 
 ui() {
-    local key="$1"
-    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
-        case "$key" in
-            choose_action) printf '%s' "Choose an action:" ;;
-            continue_prompt) printf '%s' "Continue? [y/N] " ;;
-            press_enter) printf '%s' "Press Enter to continue..." ;;
-            connection_required) printf '%s' "Connection required" ;;
-            github_unreachable) printf '%s' "Unable to reach GitHub.\n\nCheck that Batocera is connected to the Internet." ;;
-            install_runner) printf '%s' "Install a Proton UMU runner" ;;
-            delete_runner) printf '%s' "Delete an UMU runner" ;;
-            export_runner) printf '%s' "Export / share a runner" ;;
-            game_compat) printf '%s' "Game compatibility" ;;
-            maintenance) printf '%s' "Maintenance and diagnostics" ;;
-            update_toolbox) printf '%s' "Update Toolbox" ;;
-            documentation) printf '%s' "Documentation / About" ;;
-            language) printf '%s' "Language" ;;
-            quit) printf '%s' "Quit" ;;
-            back) printf '%s' "Back" ;;
-            language_title) printf '%s' "Language / Langue" ;;
-            language_prompt) printf '%s' "Choose the Toolbox language:" ;;
-            language_changed) printf '%s' "Language changed" ;;
-            language_changed_text) printf '%s' "The Toolbox interface is now in English.\n\nThis choice is saved and will be kept after updates." ;;
-            update_available) printf '%s' "Update available" ;;
-            installed_version) printf '%s' "Installed version" ;;
-            new_version) printf '%s' "New version" ;;
-            update_question) printf '%s' "A new version of UMU Runner Toolbox is available.\n\nDownload, verify and install it now?" ;;
-            already_current) printf '%s' "The Toolbox is already up to date." ;;
-            no_update) printf '%s' "No newer stable release is available." ;;
-            *) printf '%s' "$key" ;;
-        esac
-    else
-        case "$key" in
-            choose_action) printf '%s' "Choisissez une action :" ;;
-            continue_prompt) printf '%s' "Continuer ? [y/N] " ;;
-            press_enter) printf '%s' "Appuyez sur Entree pour continuer..." ;;
-            connection_required) printf '%s' "Connexion requise" ;;
-            github_unreachable) printf '%s' "Impossible de joindre GitHub.\n\nVerifiez que Batocera est connecte a Internet." ;;
-            install_runner) printf '%s' "Installer un runner Proton UMU" ;;
-            delete_runner) printf '%s' "Supprimer un runner UMU" ;;
-            export_runner) printf '%s' "Exporter / partager un runner" ;;
-            game_compat) printf '%s' "Compatibilite des jeux" ;;
-            maintenance) printf '%s' "Maintenance et diagnostic" ;;
-            update_toolbox) printf '%s' "Mettre a jour la Toolbox" ;;
-            documentation) printf '%s' "Documentation / A propos" ;;
-            language) printf '%s' "Langue / Language" ;;
-            quit) printf '%s' "Quitter" ;;
-            back) printf '%s' "Retour" ;;
-            language_title) printf '%s' "Langue / Language" ;;
-            language_prompt) printf '%s' "Choisissez la langue de la Toolbox :" ;;
-            language_changed) printf '%s' "Langue modifiee" ;;
-            language_changed_text) printf '%s' "L'interface de la Toolbox est maintenant en francais.\n\nCe choix est enregistre et sera conserve apres les mises a jour." ;;
-            update_available) printf '%s' "Mise a jour disponible" ;;
-            installed_version) printf '%s' "Version installee" ;;
-            new_version) printf '%s' "Nouvelle version" ;;
-            update_question) printf '%s' "Une nouvelle version de UMU Runner Toolbox est disponible.\n\nLa telecharger, la verifier et l'installer maintenant ?" ;;
-            already_current) printf '%s' "La Toolbox est deja a jour." ;;
-            no_update) printf '%s' "Aucune release stable plus recente n'est disponible." ;;
-            *) printf '%s' "$key" ;;
-        esac
-    fi
+    i18n "$@"
 }
 
 load_language
@@ -3359,7 +3300,7 @@ install_runner_cli() {
     case "$base" in
         GE-Proton[0-9]*-[0-9]*) install_ge "$base" 1 ;;
         proton-EM-*) install_em "$base" 1 ;;
-        *) echo "Runner non pris en charge par --install-runner : $requested" >&2; return 65 ;;
+        *) i18n cli_runner_unsupported "$requested" >&2; echo >&2; return 65 ;;
     esac
 }
 if [ "${1:-}" = "--install-runner" ]; then
