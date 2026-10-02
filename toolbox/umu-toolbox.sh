@@ -486,6 +486,7 @@ PY2
             msg "$(i18n umu_install_failed)" "$(i18n umu_checksum_invalid)"
             return 1
         fi
+        echo "$(i18n checksum_verified)"
     fi
     if ! python3 "$(root_bridge)" "$newrun" --version >/dev/null 2>&1; then
         rm -rf "$tmp"
@@ -626,11 +627,12 @@ PY
         fi
         # The upstream checksum is for a file named umu-run.
         cp "$newrun" "$tmp/umu-run"
-        if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum); then
+        if ! (cd "$tmp" && sha512sum -c umu-run.sha512sum >>"$LOG" 2>&1); then
             rm -rf "$tmp"
             msg "$(i18n umu_error)" "$(i18n umu_checksum_invalid)"
             return
         fi
+        echo "$(i18n checksum_verified)"
     fi
 
     mkdir -p "$UMU_BACKUP"
@@ -1136,6 +1138,7 @@ install_cachy() {
         if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname" || ! (cd "$stage/download" && sha512sum -c "$sumname" >>"$LOG" 2>&1); then
             rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-CachyOS")" "$(i18n checksum_invalid_sha512)"; return
         fi
+        echo "$(i18n checksum_verified)"
     else
         log "WARNING upstream SHA512 asset absent for $name"
     fi
@@ -1296,6 +1299,7 @@ install_em() {
             rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n checksum_invalid_sha256)"; return
         fi
     fi
+    echo "$(i18n checksum_verified)"
 
     echo "$(i18n extracting_staging)"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "Proton-EM")" "$(i18n extract_xz_failed)"; return; fi
@@ -1441,7 +1445,7 @@ install_dw() {
     if ! curl -fsSL "$sumurl" -o "$stage/download/$sumname"; then
         rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n checksum_download_sha512_failed)"; return
     fi
-    if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
+    if ! (cd "$stage/download" && sha512sum -c "$sumname" >>"$LOG" 2>&1); then
         # Some upstream checksum files may contain a path/name that differs from the downloaded basename.
         local expected actual
         expected="$(awk 'NF {print $1; exit}' "$stage/download/$sumname")"
@@ -1450,6 +1454,7 @@ install_dw() {
             rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n checksum_invalid_sha512)"; return
         fi
     fi
+    echo "$(i18n checksum_verified)"
 
     echo "$(i18n extracting_staging)"
     if ! tar -xJf "$stage/download/$tarname" -C "$stage/extracted"; then rm -rf "$tmp" "$stage"; msg "$(i18n runner_error "DW-Proton")" "$(i18n extract_xz_failed)"; return; fi
@@ -1654,11 +1659,12 @@ Pour remplacer exceptionnellement ce runner, archivez-le d'abord depuis le menu 
             msg "$(i18n runner_error "GE-Proton")" "$(i18n checksum_download_failed)"
             return
         fi
-        if ! (cd "$stage/download" && sha512sum -c "$sumname"); then
+        if ! (cd "$stage/download" && sha512sum -c "$sumname" >>"$LOG" 2>&1); then
             rm -rf "$tmp" "$stage"
             msg "$(i18n runner_error "GE-Proton")" "$(i18n checksum_invalid_sha512)"
             return
         fi
+        echo "$(i18n checksum_verified)"
     else
         log "WARNING checksum absent for $tag"
     fi
