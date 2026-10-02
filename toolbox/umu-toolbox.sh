@@ -2419,33 +2419,62 @@ EOF
 delete_installed_runner() {
     local runners choice r
     if umu_uninstall_active; then
-        msg "Suppression refusee" "Un lancement UMU/Wine ou un montage associe est actif.\n\nFermez le jeu avant de supprimer un runner."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Deletion refused" "An UMU/Wine launch or associated mount is active.\n\nClose the game before deleting a runner."
+        else
+            msg "Suppression refusee" "Un lancement UMU/Wine ou un montage associe est actif.\n\nFermez le jeu avant de supprimer un runner."
+        fi
         return
     fi
     runners="$(installed_runners)"
     if [ -z "$runners" ]; then
-        msg "Supprimer un runner" "Aucun runner Proton-UMU gere installe."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Delete an UMU runner" "No managed Proton-UMU runner is installed."
+        else
+            msg "Supprimer un runner" "Aucun runner Proton-UMU gere installe."
+        fi
         return
     fi
     local opts=()
     while IFS= read -r r; do
-        [ -n "$r" ] && opts+=("$r" "$(runner_integrity_label "$CUSTOM_DIR/$r")")
+        [ -n "$r" ] && opts+=("$r" "$(tr_ui "$(runner_integrity_label "$CUSTOM_DIR/$r")")")
     done <<< "$runners"
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Supprimer un runner UMU" --menu \
-            "Choisissez le runner a supprimer. Les jeux, prefixes et sauvegardes ne seront pas supprimes." \
-            26 100 15 "${opts[@]}")" || return
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            choice="$(dialog --stdout --ok-label "OK" --cancel-label "Cancel" --title "Delete an UMU runner" --menu \
+                "Choose the runner to delete. Games, prefixes and save data will not be deleted." \
+                26 100 15 "${opts[@]}")" || return
+        else
+            choice="$(dialog --stdout --ok-label "Accepter" --cancel-label "Annuler" --title "Supprimer un runner UMU" --menu \
+                "Choisissez le runner a supprimer. Les jeux, prefixes et sauvegardes ne seront pas supprimes." \
+                26 100 15 "${opts[@]}")" || return
+        fi
     else
-        clear; printf '%s\n' "$runners"; echo; printf "Runner a supprimer : "; read -r choice
+        clear
+        printf '%s\n' "$runners"
+        echo
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then printf "Runner to delete: "; else printf "Runner a supprimer : "; fi
+        read -r choice
     fi
     [ -n "$choice" ] || return
-    [ -d "$CUSTOM_DIR/$choice" ] || { msg "Erreur" "Runner introuvable : $choice"; return; }
-    if ! yesno "Confirmer la suppression" "Supprimer definitivement :\n\n$CUSTOM_DIR/$choice\n\nLes jeux, prefixes .wine/.pc/.wsquashfs, wine-bottles et sauvegardes ne seront pas supprimes.\n\nContinuer ?"; then return; fi
+    if [ ! -d "$CUSTOM_DIR/$choice" ]; then
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Runner not found: $choice"; else msg "Erreur" "Runner introuvable : $choice"; fi
+        return
+    fi
+    if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+        yesno "Confirm deletion" "Permanently delete:\n\n$CUSTOM_DIR/$choice\n\nGames, .wine/.pc/.wsquashfs prefixes, wine-bottles and save data will not be deleted.\n\nContinue?" || return
+    else
+        yesno "Confirmer la suppression" "Supprimer definitivement :\n\n$CUSTOM_DIR/$choice\n\nLes jeux, prefixes .wine/.pc/.wsquashfs, wine-bottles et sauvegardes ne seront pas supprimes.\n\nContinuer ?" || return
+    fi
     if rm -rf --one-file-system "$CUSTOM_DIR/$choice"; then
         log "Runner deleted by user: $choice"
-        msg "Runner supprime" "$choice a ete supprime.\n\nVos jeux, prefixes et sauvegardes n'ont pas ete touches."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then
+            msg "Runner deleted" "$choice has been deleted.\n\nYour games, prefixes and save data were not touched."
+        else
+            msg "Runner supprime" "$choice a ete supprime.\n\nVos jeux, prefixes et sauvegardes n'ont pas ete touches."
+        fi
     else
-        msg "Erreur" "Impossible de supprimer $choice. Consultez :\n$LOG"
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Error" "Unable to delete $choice. See:\n$LOG"; else msg "Erreur" "Impossible de supprimer $choice. Consultez :\n$LOG"; fi
     fi
 }
 
