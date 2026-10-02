@@ -354,4 +354,5 @@ I18N=(
   [choose_windows_game_prompt]="Select the game to associate."
   [delete_association]="Delete an association"
   [delete_association_prompt]="Choose the association to delete."
+  [update_restart_complete]="Update complete.\\n\\n%s -> %s\\n\\nBackup:\\n%s\\n\\nThe new Toolbox will now restart."
 )
