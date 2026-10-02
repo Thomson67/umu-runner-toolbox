@@ -291,4 +291,9 @@ I18N=(
   [umu_update]="Mise a jour UMU"
   [download_failed_simple]="Echec du telechargement."
   [archive_extract_failed]="Impossible d'extraire l'archive."
+  [status_title]="Etat de l'installation"
+  [runtime_present]="present"
+  [runtime_missing_lazy]="absent (sera telecharge par UMU au besoin)"
+  [none_parenthesized]="(aucun)"
+  [status_body]="Toolbox : v%s\\nCouche Batocera UMU : v%s\\n\\nUMU : %s\\nSteam Runtime UMU : %s\\n\\nRunners UMU installes :\\n%s\\n\\nPROTEGE / OK : empreinte valide\\nMODIFIE : fichiers critiques differents\\nNON MANAGE : aucune reference encore creee\\n\\nLogs Toolbox :\\n%s"
 )
