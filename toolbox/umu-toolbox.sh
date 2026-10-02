@@ -2412,17 +2412,17 @@ export_shareable_package() {
     fi
     manifest="$base/toolmanifest.vdf"
     [ -s "$manifest" ] || { msg "Export refuse" "toolmanifest.vdf absent : Steam Runtime requis indeterminable."; return; }
-    appid="$(sed -n 's/.*"require_tool_appid"[[:space:]]*"{0,1}([0-9][0-9]*)"{0,1}.*/\1/p' "$manifest" | head -n1)"
+    appid="$(grep -Eo '"require_tool_appid"[[:space:]]*"?[0-9]+"?' "$manifest" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' || true)"
     case "$appid" in
         1391110) runtime_variant="steamrt2" ;;
         1628350) runtime_variant="steamrt3" ;;
         4183110) runtime_variant="steamrt4" ;;
         4185400) runtime_variant="steamrt4-arm64" ;;
-        *) msg "Export refuse" "Steam Runtime appid non gere ou absent : ${appid:-aucun}"; return ;;
+        *) if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "Steam Runtime appid is unsupported or missing: ${appid:-none}"; else msg "Export refuse" "Steam Runtime appid non gere ou absent : ${appid:-aucun}"; fi; return ;;
     esac
     runtime_src="$UMU_DIR/home/.local/share/umu/$runtime_variant"
     if [ ! -d "$runtime_src" ] || [ ! -s "$runtime_src/_v2-entry-point" ] || [ ! -s "$runtime_src/VERSIONS.txt" ] || [ ! -s "$runtime_src/mtree.txt.gz" ] || [ ! -d "$runtime_src/pressure-vessel" ]; then
-        msg "Export refuse" "Le Steam Runtime requis $runtime_variant est absent ou incomplet. Preparez le runner puis recommencez."
+        if [ "$TOOLBOX_LANGUAGE" = "en" ]; then msg "Export refused" "Required Steam Runtime $runtime_variant is missing or incomplete. Prepare/run this runner, then try the export again."; else msg "Export refuse" "Le Steam Runtime requis $runtime_variant est absent ou incomplet. Preparez le runner puis recommencez."; fi
         return
     fi
     runtime_size="$(du -sh "$runtime_src" 2>/dev/null | awk 'NR==1{print $1}')"
