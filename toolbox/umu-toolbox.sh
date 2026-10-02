@@ -276,11 +276,11 @@ yesno() {
         return $?
     fi
     clear
-    echo "==== $title ===="
+    echo "==== $(tr_ui "$title") ===="
     echo
-    printf '%b\n' "$text"
+    printf '%b\n' "$(tr_ui "$text")"
     echo
-    printf "Continuer ? [y/N] "
+    printf "%s" "$(ui continue_prompt)"
     read -r ans
     case "$ans" in y|Y|o|O|oui|OUI|yes|YES) return 0 ;; *) return 1 ;; esac
 }
@@ -288,16 +288,22 @@ yesno() {
 menu_choice() {
     local title="$1"
     shift
+    local raw=("$@") translated=() i=0
+    while [ "$i" -lt "${#raw[@]}" ]; do
+        translated+=("${raw[$i]}" "$(tr_ui "${raw[$((i+1))]}")")
+        i=$((i+2))
+    done
     if command -v dialog >/dev/null 2>&1; then
+        set -- "${translated[@]}"
         dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$(tr_ui "$title")" --menu "$(ui choose_action)" 26 96 15 "$@"
     else
         clear
-        echo "==== $title ===="
+        echo "==== $(tr_ui "$title") ===="
         echo
         local args=("$@")
         local i=0
         while [ "$i" -lt "${#args[@]}" ]; do
-            printf "%s) %s\n" "${args[$i]}" "${args[$((i+1))]}"
+            printf "%s) %s\n" "${args[$i]}" "$(tr_ui "${args[$((i+1))]}")"
             i=$((i+2))
         done
         echo
@@ -315,7 +321,7 @@ input_box() {
         dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$(tr_ui "$title")" --inputbox "$(tr_ui "$prompt")" 12 90 "$initial"
     else
         clear
-        echo "==== $title ===="
+        echo "==== $(tr_ui "$title") ===="
         echo
         echo "$prompt"
         printf "> "
@@ -811,7 +817,7 @@ rollback_umu() {
 
     local choice
     if command -v dialog >/dev/null 2>&1; then
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Rollback UMU" --menu "Choisissez la sauvegarde a restaurer :" 20 90 12 "${opts[@]}")" || return
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Rollback UMU" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the backup to restore:" || printf "Choisissez la sauvegarde a restaurer :")" 20 90 12 "${opts[@]}")" || return
     else
         clear
         echo "$files"
@@ -1403,7 +1409,7 @@ install_em() {
         elif [ -z "$sumurl" ]; then
             state="$(tr_ui "NON INSTALLABLE - checksum upstream absent")"
         else
-            state="disponible ($tag)"
+            state="$(tr_ui "disponible") ($tag)"
         fi
         opts+=("$name" "$state")
     done < "$menu_file"
@@ -1570,7 +1576,7 @@ install_dw() {
         elif [ -z "$sumurl" ]; then
             state="$(tr_ui "NON INSTALLABLE - checksum upstream absent")"
         else
-            state="disponible ($tag)"
+            state="$(tr_ui "disponible") ($tag)"
         fi
         opts+=("$name" "$state")
     done < "$menu_file"
@@ -2688,7 +2694,7 @@ associate_game() {
             [ -n "$ci" ] && [ -n "$ctitle" ] || continue
             copts+=("$ci" "$ctitle  [$gameid]  score=$cscore")
         done < "$candidates"
-        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Correspondances" --menu "Jeu Batocera : $title\n\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
+        choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Matches" || printf "Correspondances")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Batocera game: %s\\n\\nSelect the best match (1.000 = exact normalized title)." "$title" || printf "Jeu Batocera : %s\\n\\nSelectionnez la meilleure correspondance (1.000 = titre normalise exact)." "$title")" 32 110 18 "${copts[@]}")" || { rm -f "$candidates"; return; }
     else
         cat "$candidates"; printf "\nNumero : "; read -r choice
     fi
@@ -2702,7 +2708,7 @@ associate_game() {
         elif command -v dialog >/dev/null 2>&1; then
             local sopts=() st
             for st in "${storeopts[@]}"; do [ -n "$st" ] && sopts+=("$st" "$st"); done
-            store="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Choisir le store" --menu "Correspondance : $ctitle\nGAMEID : $gameid\n\nSelectionnez le store associe." 24 100 14 "${sopts[@]}")" || return
+            store="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose store" || printf "Choisir le store")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Match: %s\\nGAMEID: %s\\n\\nSelect the associated store." "$ctitle" "$gameid" || printf "Correspondance : %s\\nGAMEID : %s\\n\\nSelectionnez le store associe." "$ctitle" "$gameid")" 24 100 14 "${sopts[@]}")" || return
         else printf 'Stores disponibles : %s\nStore : ' "$cstores"; read -r store; fi
     fi
     if python3 "$helper" set --path "$path" --title "$title" --gameid "$gameid" --store "$store"; then
@@ -2780,7 +2786,7 @@ gameid_override_menu() {
             if command -v dialog >/dev/null 2>&1; then
                 local opts=() i n gp
                 while IFS="$tab" read -r i n gp; do [ -n "$i" ] && [ -n "$n" ] && opts+=("$i" "$n"); done < "$list"
-                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Choisir un jeu Windows" --menu "Selectionnez le jeu a associer." 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
+                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose a Windows game" || printf "Choisir un jeu Windows")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Select the game to associate." || printf "Selectionnez le jeu a associer.")" 30 100 20 "${opts[@]}")" || { rm -f "$list"; continue; }
             else cat "$list"; printf "\nNumero : "; read -r choice; fi
             selected="$(awk -F "$tab" -v n="$choice" '$1==n {print; exit}' "$list")"; rm -f "$list"
             [ -n "$selected" ] || continue
@@ -2793,7 +2799,7 @@ gameid_override_menu() {
             if command -v dialog >/dev/null 2>&1; then
                 local dopts=() di dt dg ds dp label
                 while IFS="$tab" read -r di dt dg ds dp; do [ -n "$di" ] || continue; label="$dt [$dg / $ds]"; dopts+=("$di" "$label"); done <<< "$list"
-                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "Supprimer une association" --menu "Choisissez l association a supprimer." 28 105 18 "${dopts[@]}")" || continue
+                choice="$(dialog --stdout --ok-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'OK' || printf 'Accepter')" --cancel-label "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf 'Cancel' || printf 'Annuler')" --title "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Delete an association" || printf "Supprimer une association")" --menu "$([ "$TOOLBOX_LANGUAGE" = "en" ] && printf "Choose the association to delete." || printf "Choisissez l association a supprimer.")" 28 105 18 "${dopts[@]}")" || continue
             else printf "%s\n" "$list"; printf "\nNumero : "; read -r choice; fi
             if python3 "$helper" delete --index "$choice"; then log "gameid_override=deleted index=$choice"; msg "Association supprimee" "Le jeu utilisera de nouveau la detection automatique."; else msg "Erreur" "Suppression impossible."; fi ;;
           0|"") return ;;
