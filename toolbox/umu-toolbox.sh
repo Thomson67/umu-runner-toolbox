@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.12.0"
-INTEGRATION_VERSION="3.9.3"
+TOOLBOX_VERSION="0.13.0"
+INTEGRATION_VERSION="3.10.0"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -43,6 +43,33 @@ touch "$LOG"
 log() {
     printf '%s\n' "$*" >> "$LOG"
 }
+
+rotate_log_dir() {
+    local dir="$1" keep="${2:-20}" max_days="${3:-30}" current="${4:-}"
+    local deleted=0 f
+    mkdir -p "$dir"
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        [ -n "$current" ] && [ "$f" = "$current" ] && continue
+        rm -f -- "$f" 2>/dev/null && deleted=$((deleted+1))
+    done < <(find "$dir" -mindepth 1 -maxdepth 1 -type f -name '*.log' -mtime "+$max_days" -print 2>/dev/null)
+    local files=()
+    while IFS= read -r f; do [ -n "$f" ] && files+=("$f"); done < <(find "$dir" -mindepth 1 -maxdepth 1 -type f -name '*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | sed 's/^[^ ]* //')
+    local i
+    for ((i=keep; i<${#files[@]}; i++)); do
+        f="${files[$i]}"
+        [ -n "$current" ] && [ "$f" = "$current" ] && continue
+        rm -f -- "$f" 2>/dev/null && deleted=$((deleted+1))
+    done
+    printf '%s' "$deleted"
+}
+rotate_umu_logs() {
+    local tb rb
+    tb="$(rotate_log_dir "$LOG_DIR" 20 30 "$LOG")"
+    rb="$(rotate_log_dir "$RUNNER_LOG_DIR" 20 30)"
+    log "log_rotation toolbox_deleted=$tb runner_deleted=$rb max_count=20 max_age=30d"
+}
+rotate_umu_logs
 
 pause() {
     printf '\nAppuyez sur Entree pour continuer...'
@@ -440,6 +467,21 @@ ensure_umu_for_runner() {
     fi
     msg "Installation du runner annulee" "UMU est indispensable pour installer et lancer un runner Proton-UMU.\n\nAucun runner n'a ete installe."
     return 1
+}
+
+prepare_runtime_for_runner() {
+    local runner="$1"
+    [ -s "$runner/toolmanifest.vdf" ] || { log "runtime_bootstrap=skipped runner=$runner reason=no-toolmanifest"; return 0; }
+    echo "Preparation du Steam Runtime requis..."
+    HOME="$UMU_DIR/home" XDG_CACHE_HOME="$UMU_DIR/cache" PROTONPATH="$runner" python3 "$(root_bridge)" "$UMU_RUN" --prepare-runtime
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        log "runtime_bootstrap=failed runner=$runner rc=$rc"
+        msg "Steam Runtime" "Impossible de preparer le Steam Runtime requis par ce runner.\n\nLe runner ne sera pas installe afin de garantir une installation complete et utilisable hors ligne."
+        return "$rc"
+    fi
+    log "runtime_bootstrap=ok runner=$runner"
+    return 0
 }
 
 fetch_latest_umu_json() {
@@ -952,6 +994,8 @@ EOF
         return
     fi
 
+    if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
+
     if [ -e "$target" ]; then
         rm -rf "$tmp" "$stage"
         msg "Conflit" "$target est apparu pendant l'installation."
@@ -1107,6 +1151,8 @@ STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Controle d'integrite du runner prepare impossible."; return; fi
+    if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
+
     if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
     echo "Installation atomique de $name-UMU..."
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-CachyOS" "Impossible de finaliser l'installation."; return; fi
@@ -1265,6 +1311,8 @@ STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Controle d'integrite du runner prepare impossible."; return; fi
+    if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
+
     if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
     echo "Installation atomique de $name-UMU..."
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur Proton-EM" "Impossible de finaliser l'installation."; return; fi
@@ -1425,6 +1473,8 @@ STATUS=experimental
 INSTALLED_AT=$(date -Is 2>/dev/null || date)
 EOF
     if ! write_manifest "$candidate" || ! verify_runner_manifest "$candidate"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Controle d'integrite du runner prepare impossible."; return; fi
+    if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
+
     if [ -e "$target" ]; then rm -rf "$tmp" "$stage"; msg "Conflit" "$target est apparu pendant l'installation."; return; fi
     echo "Installation atomique de $name-UMU..."
     if ! mv "$candidate" "$target"; then rm -rf "$tmp" "$stage"; msg "Erreur DW-Proton" "Impossible de finaliser l'installation."; return; fi
@@ -1661,6 +1711,8 @@ EOF
     fi
 
     # Atomic same-filesystem install. Refuse if target appeared in the meantime.
+    if ! prepare_runtime_for_runner "$candidate"; then rm -rf "$tmp" "$stage"; return; fi
+
     if [ -e "$target" ]; then
         rm -rf "$tmp" "$stage"
         msg "Conflit" "$target est apparu pendant l'installation. Aucun fichier n'a ete ecrase."
@@ -1851,40 +1903,45 @@ runtime_protection_status() {
 }
 
 verify_install() {
-    local report=""
-    if [ -s "$UMU_RUN" ]; then
-        report="$report[OK] umu-run : $(umu_version)\n"
-    else
-        report="$report[KO] umu-run absent\n"
-    fi
-
-    if [ -d "$UMU_DIR/home/.local/share/umu/steamrt4" ]; then
-        report="$report[OK] steamrt4 present\n"
-    else
-        report="$report[INFO] steamrt4 absent (UMU peut le telecharger)\n"
-    fi
-
-    local r base integ
+    local report="" r base integ appid runtime codename rdir opts active=0
+    umu_process_active && active=1 || true
+    if [ -s "$UMU_RUN" ] && umu_run_works; then report="$report[OK] umu-run : $(umu_version)\n"; elif [ -s "$UMU_RUN" ]; then report="$report[KO] umu-run present mais non fonctionnel\n"; else report="$report[KO] umu-run absent\n"; fi
+    report="$report\nSteam Runtime :\n"
+    local runtime_seen=""
     while IFS= read -r r; do
         [ -n "$r" ] || continue
         base="$CUSTOM_DIR/$r"
-        if [ ! -s "$base/proton" ] ||
-           [ ! -x "$base/bin/wine" ] ||
-           [ ! -s "$base/files/bin/wine" ]; then
-            report="$report[KO] $r : incomplet\n"
-            continue
-        fi
-
+        appid="$(sed -n 's/.*"require_tool_appid"[[:space:]]*"*\([0-9][0-9]*\)"*.*/\1/p' "$base/toolmanifest.vdf" 2>/dev/null | head -n1)"
+        case "$appid" in
+            1391110) codename="soldier"; runtime="steamrt2" ;;
+            1628350) codename="sniper"; runtime="steamrt3" ;;
+            4183110) codename="steamrt4"; runtime="steamrt4" ;;
+            4185400) codename="steamrt4-arm64"; runtime="steamrt4-arm64" ;;
+            "") report="$report[INFO] $r : aucun Steam Runtime declare\n"; continue ;;
+            *) report="$report[ALERTE] $r : runtime appid $appid non reconnu\n"; continue ;;
+        esac
+        case " $runtime_seen " in *" $runtime "*) continue ;; esac
+        runtime_seen="$runtime_seen $runtime"; rdir="$UMU_DIR/home/.local/share/umu/$runtime"
+        if [ -d "$rdir" ] && [ -s "$rdir/mtree.txt.gz" ] && [ -s "$rdir/VERSIONS.txt" ] && [ -d "$rdir/pressure-vessel" ] && [ -e "$rdir/_v2-entry-point" ]; then report="$report[OK] $runtime / $codename present\n"; else report="$report[KO] $runtime / $codename absent ou incomplet\n"; fi
+    done <<< "$(installed_runners)"
+    [ -n "$runtime_seen" ] || report="$report[INFO] Aucun Steam Runtime requis par les runners installes\n"
+    report="$report\nRunners / integrite / protection :\n"
+    while IFS= read -r r; do
+        [ -n "$r" ] || continue; base="$CUSTOM_DIR/$r"
+        if [ ! -s "$base/proton" ] || [ ! -x "$base/bin/wine" ] || [ ! -s "$base/files/bin/wine" ]; then report="$report[KO] $r : incomplet\n"; continue; fi
         integ="$(runner_integrity_label "$base")"
+        if runner_has_runtime_mount "$base"; then
+            opts="$(findmnt -rn -o OPTIONS -M "$base" 2>/dev/null || true)"
+            case ",$opts," in *,ro,*) [ "$active" -eq 1 ] && opts="RO actif" || opts="RO ORPHELIN" ;; *) opts="MONTAGE RW" ;; esac
+        else opts="normal"; fi
         case "$integ" in
-            "PROTEGE / OK") report="$report[OK] $r : integrite valide\n" ;;
-            "MODIFIE") report="$report[ALERTE] $r : FICHIERS CRITIQUES MODIFIES\n" ;;
-            *) report="$report[INFO] $r : non manage, creez une reference si valide\n" ;;
+            "PROTEGE / OK") report="$report[OK] $r : integrite valide | protection $opts\n" ;;
+            "MODIFIE") report="$report[ALERTE] $r : FICHIERS CRITIQUES MODIFIES | protection $opts\n" ;;
+            *) report="$report[INFO] $r : non manage | protection $opts\n" ;;
         esac
     done <<< "$(installed_runners)"
-
-    report="$report\nPolitique immutable : runners isoles en lecture seule pendant les jeux UMU.\nLogs : $LOG_DIR"
-    msg "Diagnostic / integrite" "$report"
+    report="$report\nPolitique immutable : protection RO automatique pendant les jeux UMU.\nLogs : 20 fichiers max / 30 jours max par categorie.\n$LOG_DIR\n$RUNNER_LOG_DIR"
+    msg "Diagnostic UMU complet" "$report"
 }
 
 export_runner() {
@@ -2555,24 +2612,20 @@ maintenance_menu() {
     while true; do
         local choice
         choice="$(menu_choice "Maintenance et diagnostic" \
-            "1" "Verifier l'integrite des runners" \
-            "2" "Verifier la protection des runners" \
-            "3" "Reparer / mettre a niveau l'integration UMU" \
-            "4" "Nettoyer les donnees runtime UMU" \
-            "5" "Nettoyer les logs UMU" \
-            "6" "Diagnostic UMU complet" \
-            "7" "Nettoyer les protections RO orphelines" \
-            "8" "Desinstallation" \
+            "1" "Diagnostic UMU complet" \
+            "2" "Reparer / mettre a niveau l'integration UMU" \
+            "3" "Nettoyer les donnees runtime UMU" \
+            "4" "Nettoyer les logs UMU" \
+            "5" "Nettoyer les protections RO orphelines" \
+            "6" "Desinstallation" \
             "0" "Retour")" || return
         case "$choice" in
-            1) list_runners ;;
-            2) runtime_protection_status ;;
-            3) upgrade_integration ;;
-            4) clean_umu_runtime_data ;;
-            5) clean_umu_logs ;;
-            6) verify_install ;;
-            7) orphan_runner_protections ;;
-            8) uninstall_menu ;;
+            1) verify_install ;;
+            2) upgrade_integration ;;
+            3) clean_umu_runtime_data ;;
+            4) clean_umu_logs ;;
+            5) orphan_runner_protections ;;
+            6) uninstall_menu ;;
             0|"") return ;;
         esac
     done
@@ -2689,7 +2742,11 @@ main_menu() {
 sync_pad2key_mapping || log "pad2key_mapping=sync_failed"
 if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
     unset UMU_TOOLBOX_INSTALL_SYNC
-    upgrade_integration 1
+    if [ -n "$(installed_runners)" ]; then
+        upgrade_integration 1
+    else
+        msg "UMU Runner Toolbox installee" "L'installation de la Toolbox est terminee.\n\nAucun runner Proton UMU n'est encore installe. C'est normal lors d'une premiere installation.\n\nOuvrez UMU Runner Toolbox depuis le menu Ports de Batocera pour installer votre premier runner.\n\nLors de l'installation d'un runner, la Toolbox prepare automatiquement :\n- le runner Proton selectionne ;\n- UMU ;\n- le Steam Runtime requis.\n\nUne fois ces composants installes, le runner peut etre utilise sans nouveau telechargement."
+    fi
     exit 0
 fi
 post_update_integration
