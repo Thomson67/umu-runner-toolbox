@@ -12,6 +12,14 @@ LOG_DIR="/userdata/system/logs/umu-runner"
 COMPAT_ROOT="/userdata/system/umu/compatdata"
 mkdir -p "$LOG_DIR" "$UMU_HOME" "$UMU_CACHE" "$COMPAT_ROOT"
 
+# Keep runner diagnostics bounded even if the Toolbox maintenance menu is never opened.
+find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name '*.log' -mtime +30 -delete 2>/dev/null || true
+mapfile -t _umu_old_logs < <(find "$LOG_DIR" -mindepth 1 -maxdepth 1 -type f -name '*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | sed 's/^[^ ]* //')
+for ((_umu_i=19; _umu_i<${#_umu_old_logs[@]}; _umu_i++)); do
+    rm -f -- "${_umu_old_logs[$_umu_i]}" 2>/dev/null || true
+done
+unset _umu_old_logs _umu_i
+
 stamp="$(date '+%Y%m%d-%H%M%S')"
 LOG="$LOG_DIR/runner-$stamp-$$.log"
 log() { printf '%s\n' "$*" >> "$LOG"; }
