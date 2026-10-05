@@ -663,6 +663,25 @@ fi
 export PRESSURE_VESSEL_FILESYSTEMS_RW="$PV_RW"
 log "PRESSURE_VESSEL_FILESYSTEMS_RW=$PRESSURE_VESSEL_FILESYSTEMS_RW"
 
+# Ultimate Wine Toolbox MangoHud compatibility runtime lives under /userdata,
+# which pressure-vessel does not expose automatically. Share it read-only when
+# present so UMU/SteamRT can resolve LD_PRELOAD and the 32-bit MangoHud libs.
+PV_RO="${PRESSURE_VESSEL_FILESYSTEMS_RO-}"
+append_pv_ro() {
+    local add="$1"
+    [ -n "$add" ] || return 0
+    case ":$PV_RO:" in
+        *":$add:"*) ;;
+        *) [ -n "$PV_RO" ] && PV_RO="$PV_RO:$add" || PV_RO="$add" ;;
+    esac
+}
+UWT_MANGOHUD_RUNTIME="/userdata/system/ultimate-wine-toolbox/runtime/mangohud"
+if [ -d "$UWT_MANGOHUD_RUNTIME" ]; then
+    append_pv_ro "$UWT_MANGOHUD_RUNTIME"
+fi
+export PRESSURE_VESSEL_FILESYSTEMS_RO="$PV_RO"
+log "PRESSURE_VESSEL_FILESYSTEMS_RO=$PRESSURE_VESSEL_FILESYSTEMS_RO"
+
 # v3.3: Batocera's WINEPREFIX is the source of truth whenever it already points
 # to a real Wine bottle. This deliberately preserves Batocera's own persistence
 # layout without hard-coding a version:
