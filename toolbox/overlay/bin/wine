@@ -746,7 +746,7 @@ fi
 # another toolbox) can request generic pressure-vessel visibility through
 # UMU_BATOCERA_EXTRA_RO. This keeps pressure-vessel details inside the UMU
 # integration while callers only declare what path they need exposed.
-PV_RO="${PRESSURE_VESSEL_FILESYSTEMS_RO-}"
+PV_RO=""
 append_pv_ro() {
     local add="$1"
     [ -n "$add" ] || return 0
@@ -755,6 +755,14 @@ append_pv_ro() {
         *) [ -n "$PV_RO" ] && PV_RO="$PV_RO:$add" || PV_RO="$add" ;;
     esac
 }
+
+# Normalize any pre-existing pressure-vessel RO list as well: callers often
+# build VAR="path:${VAR:-}", which leaves a harmless but untidy trailing ':'.
+if [ -n "${PRESSURE_VESSEL_FILESYSTEMS_RO-}" ]; then
+    oldIFS="$IFS"; IFS=':'
+    for extra_ro in $PRESSURE_VESSEL_FILESYSTEMS_RO; do append_pv_ro "$extra_ro"; done
+    IFS="$oldIFS"
+fi
 if [ -n "${UMU_BATOCERA_EXTRA_RO-}" ]; then
     oldIFS="$IFS"; IFS=':'
     for extra_ro in $UMU_BATOCERA_EXTRA_RO; do append_pv_ro "$extra_ro"; done
