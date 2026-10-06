@@ -123,7 +123,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.9.3 ====="
+log "===== Batocera UMU runner v3.9.4 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -615,6 +615,103 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     log "runtime_cwd=$UMU_CWD"
 fi
 
+# v3.9.4-TEST: ordinary .wine bottles run from a materialized split prefix
+# for Proton/pressure-vessel compatibility. After a normal UMU session, persist
+# every prefix-side change back into the original .wine while preserving the
+# original top-level game directory exactly as-is. This is deliberately limited
+# to WINE_SPLIT_PREFIX=1: .pc, .wsquashfs and .wtgz semantics are unchanged.
+persist_split_wine_prefix() {
+    local source="${MATERIALIZED_PREFIX:-}"
+    local target="${ORIGINAL_PREFIX_CANON:-}"
+    local item name
+
+    [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || return 0
+    [ -n "$source" ] && [ -n "$target" ] && [ -n "${GAME_DIR:-}" ] || return 1
+
+    case "$source" in
+        /userdata/system/umu/materialized-prefixes/*) ;;
+        *) log "wine_persistence_result=refused-source source=$source"; return 2 ;;
+    esac
+    case "$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')" in
+        *.wine) ;;
+        *) log "wine_persistence_result=refused-target target=$target"; return 3 ;;
+    esac
+
+    is_prefix_root "$source" || {
+        log "wine_persistence_result=invalid-source source=$source"
+        return 4
+    }
+    is_prefix_root "$target" || {
+        log "wine_persistence_result=invalid-target target=$target"
+        return 5
+    }
+
+    [ -d "$target/drive_c/$GAME_DIR" ] || {
+        log "wine_persistence_result=game-dir-missing target=$target/drive_c/$GAME_DIR"
+        return 6
+    }
+
+    log "wine_persistence=1"
+    log "wine_persistence_source=$source"
+    log "wine_persistence_target=$target"
+    log "wine_persistence_excluded=drive_c/$GAME_DIR"
+    log "wine_persistence_begin=$(date -Is 2>/dev/null || date)"
+
+    # Root of the prefix: make the original mirror the post-Proton materialized
+    # state, except for drive_c which needs the game-directory preservation rule.
+    for item in "$target"/* "$target"/.[!.]* "$target"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        name="$(basename "$item")"
+        [ "$name" = "drive_c" ] && continue
+        rm -rf -- "$item" 2>>"$LOG" || {
+            log "wine_persistence_result=failed phase=remove-root item=$item"
+            return 7
+        }
+    done
+    for item in "$source"/* "$source"/.[!.]* "$source"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        name="$(basename "$item")"
+        [ "$name" = "drive_c" ] && continue
+        cp -a -- "$item" "$target/" 2>>"$LOG" || {
+            log "wine_persistence_result=failed phase=copy-root item=$item"
+            return 8
+        }
+    done
+
+    mkdir -p -- "$target/drive_c" || return 9
+
+    # drive_c: preserve only the real game directory. Everything else must
+    # reflect the materialized PFX so ProtonFixes/Winetricks registry/files and
+    # save changes outside the game directory survive the session.
+    for item in "$target/drive_c"/* "$target/drive_c"/.[!.]* "$target/drive_c"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        name="$(basename "$item")"
+        [ "$name" = "$GAME_DIR" ] && continue
+        rm -rf -- "$item" 2>>"$LOG" || {
+            log "wine_persistence_result=failed phase=remove-drive-c item=$item"
+            return 10
+        }
+    done
+    for item in "$source/drive_c"/* "$source/drive_c"/.[!.]* "$source/drive_c"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        name="$(basename "$item")"
+        [ "$name" = "$GAME_DIR" ] && continue
+        cp -a -- "$item" "$target/drive_c/" 2>>"$LOG" || {
+            log "wine_persistence_result=failed phase=copy-drive-c item=$item"
+            return 11
+        }
+    done
+
+    [ -d "$target/drive_c/$GAME_DIR" ] || {
+        log "wine_persistence_result=failed phase=postcheck-game-dir"
+        return 12
+    }
+
+    log "wine_persistence_end=$(date -Is 2>/dev/null || date)"
+    log "wine_persistence_result=success"
+    return 0
+}
+
 # v3.9.2: every materialized-prefix session (.wine AND compressed)
 # publishes one explicit runtime mapping. Batocera's stop path still supplies
 # the original prefix, while the active wineserver belongs to the materialized
@@ -642,9 +739,38 @@ fi
 
 # pressure-vessel does not automatically expose arbitrary /userdata paths.
 # Batocera users commonly redirect saves with absolute symlinks into
-# /userdata/saves/windows.  Share that tree read/write so those symlinks remain
-# valid inside steamrt4.  Extra paths can be added with UMU_BATOCERA_EXTRA_RW
-# (colon-separated) without editing the runner.
+# /userdata/saves/windows. Share that tree read/write so those symlinks remain
+# valid inside steamrt4. Extra paths can be added with UMU_BATOCERA_EXTRA_RW.
+#
+# Read-only consumers (for example an external MangoHud runtime owned by
+# another toolbox) can request generic pressure-vessel visibility through
+# UMU_BATOCERA_EXTRA_RO. This keeps pressure-vessel details inside the UMU
+# integration while callers only declare what path they need exposed.
+PV_RO=""
+append_pv_ro() {
+    local add="$1"
+    [ -n "$add" ] || return 0
+    case ":$PV_RO:" in
+        *":$add:"*) ;;
+        *) [ -n "$PV_RO" ] && PV_RO="$PV_RO:$add" || PV_RO="$add" ;;
+    esac
+}
+
+# Normalize any pre-existing pressure-vessel RO list as well: callers often
+# build VAR="path:${VAR:-}", which leaves a harmless but untidy trailing ':'.
+if [ -n "${PRESSURE_VESSEL_FILESYSTEMS_RO-}" ]; then
+    oldIFS="$IFS"; IFS=':'
+    for extra_ro in $PRESSURE_VESSEL_FILESYSTEMS_RO; do append_pv_ro "$extra_ro"; done
+    IFS="$oldIFS"
+fi
+if [ -n "${UMU_BATOCERA_EXTRA_RO-}" ]; then
+    oldIFS="$IFS"; IFS=':'
+    for extra_ro in $UMU_BATOCERA_EXTRA_RO; do append_pv_ro "$extra_ro"; done
+    IFS="$oldIFS"
+fi
+export PRESSURE_VESSEL_FILESYSTEMS_RO="$PV_RO"
+log "PRESSURE_VESSEL_FILESYSTEMS_RO=$PRESSURE_VESSEL_FILESYSTEMS_RO"
+
 PV_RW="${PRESSURE_VESSEL_FILESYSTEMS_RW-}"
 append_pv_rw() {
     local add="$1"
@@ -917,5 +1043,15 @@ rc=$?
 if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
 fi
+
+if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
+    persist_split_wine_prefix
+    persist_rc=$?
+    log "wine_persistence_rc=$persist_rc"
+    if [ "$persist_rc" -ne 0 ]; then
+        log "WARNING: .wine persistence failed; original game exit code preserved"
+    fi
+fi
+
 log "exit=$rc"
 exit "$rc"

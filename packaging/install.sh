@@ -1,7 +1,19 @@
 #!/bin/bash
 set -eu
 
-SRC="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Release packages place toolbox/ next to install.sh. GitHub source archives
+# keep packaging/install.sh and toolbox/ as siblings. Support both layouts so
+# the explicit test channel can install directly from the test branch.
+if [ -d "$SCRIPT_DIR/toolbox" ]; then
+    SRC="$SCRIPT_DIR"
+elif [ -d "$SCRIPT_DIR/../toolbox" ]; then
+    SRC="$(cd "$SCRIPT_DIR/.." && pwd)"
+else
+    SRC="$SCRIPT_DIR"
+fi
+
 DEST="/userdata/system/umu/toolbox"
 PORTS="/userdata/roms/ports"
 PORT="$PORTS/UMU Runner Toolbox.sh"

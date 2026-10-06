@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.0"
-INTEGRATION_VERSION="3.10.0"
+TOOLBOX_VERSION="0.13.1"
+INTEGRATION_VERSION="3.10.1"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
