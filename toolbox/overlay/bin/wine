@@ -739,9 +739,30 @@ fi
 
 # pressure-vessel does not automatically expose arbitrary /userdata paths.
 # Batocera users commonly redirect saves with absolute symlinks into
-# /userdata/saves/windows.  Share that tree read/write so those symlinks remain
-# valid inside steamrt4.  Extra paths can be added with UMU_BATOCERA_EXTRA_RW
-# (colon-separated) without editing the runner.
+# /userdata/saves/windows. Share that tree read/write so those symlinks remain
+# valid inside steamrt4. Extra paths can be added with UMU_BATOCERA_EXTRA_RW.
+#
+# Read-only consumers (for example an external MangoHud runtime owned by
+# another toolbox) can request generic pressure-vessel visibility through
+# UMU_BATOCERA_EXTRA_RO. This keeps pressure-vessel details inside the UMU
+# integration while callers only declare what path they need exposed.
+PV_RO="${PRESSURE_VESSEL_FILESYSTEMS_RO-}"
+append_pv_ro() {
+    local add="$1"
+    [ -n "$add" ] || return 0
+    case ":$PV_RO:" in
+        *":$add:"*) ;;
+        *) [ -n "$PV_RO" ] && PV_RO="$PV_RO:$add" || PV_RO="$add" ;;
+    esac
+}
+if [ -n "${UMU_BATOCERA_EXTRA_RO-}" ]; then
+    oldIFS="$IFS"; IFS=':'
+    for extra_ro in $UMU_BATOCERA_EXTRA_RO; do append_pv_ro "$extra_ro"; done
+    IFS="$oldIFS"
+fi
+export PRESSURE_VESSEL_FILESYSTEMS_RO="$PV_RO"
+log "PRESSURE_VESSEL_FILESYSTEMS_RO=$PRESSURE_VESSEL_FILESYSTEMS_RO"
+
 PV_RW="${PRESSURE_VESSEL_FILESYSTEMS_RW-}"
 append_pv_rw() {
     local add="$1"
