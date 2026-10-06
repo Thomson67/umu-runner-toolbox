@@ -21,6 +21,25 @@ done
 
 [ "$(id -u)" -eq 0 ] || fail "l'installation doit etre lancee en root (Batocera)."
 
+CHANNEL="${UMU_INSTALL_CHANNEL:-stable}"
+
+if [ "$CHANNEL" = "test" ]; then
+    echo "== UMU Runner Toolbox - installation branche test =="
+    TMPDIR="$(mktemp -d /tmp/umu-runner-toolbox-test.XXXXXX)" || fail "creation du dossier temporaire impossible."
+    ARCHIVE="$TMPDIR/test.zip"
+
+    echo "Telechargement de la branche test..."
+    curl -fL --retry 3 --connect-timeout 15         -o "$ARCHIVE"         "https://github.com/${REPO}/archive/refs/heads/test.zip" ||         fail "telechargement de la branche test impossible."
+
+    unzip -q "$ARCHIVE" -d "$TMPDIR" || fail "extraction de la branche test impossible."
+    TEST_INSTALLER="$(find "$TMPDIR" -mindepth 2 -maxdepth 3 -type f -path '*/packaging/install.sh' | head -n 1)"
+    [ -n "$TEST_INSTALLER" ] || fail "packaging/install.sh introuvable dans la branche test."
+    chmod +x "$TEST_INSTALLER"
+    "$TEST_INSTALLER"
+    echo "Installation de la branche test terminee."
+    exit 0
+fi
+
 echo "== UMU Runner Toolbox - installation depuis GitHub =="
 echo "Recherche de la derniere version stable..."
 
