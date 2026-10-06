@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.1-test3"
-INTEGRATION_VERSION="3.10.1-test3"
+TOOLBOX_VERSION="0.13.1"
+INTEGRATION_VERSION="3.10.1"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -72,7 +72,7 @@ EM_REPO="BananaWorks07/Proton"
 DW_REPO="dawn-winery/dwproton-mirror"
 UMU_REPO="Open-Wine-Components/umu-launcher"
 TOOLBOX_REPO="Thomson67/umu-runner-toolbox"
-TOOLBOX_BRANCH="test"
+TOOLBOX_BRANCH="main"
 
 # GE-Proton10-30..10-34 were previously blocked while compressed Batocera
 # prefixes were passed directly to Proton as OverlayFS. Integration v3.8 keeps
