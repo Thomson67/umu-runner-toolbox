@@ -156,6 +156,11 @@ yesno() {
 menu_choice() {
     local title="$1"
     shift
+    local description="$(ui choose_action)"
+    if [ "${1:-}" = --description ]; then
+        description="$2"
+        shift 2
+    fi
     local raw=("$@") translated=() i=0 label_idx
     while [ "$i" -lt "${#raw[@]}" ]; do
         label_idx=$((i + 1))
@@ -164,11 +169,11 @@ menu_choice() {
     done
     if command -v dialog >/dev/null 2>&1; then
         set -- "${translated[@]}"
-        dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$title" --menu "$(ui choose_action)" 26 96 15 "$@"
+        dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$title" --cr-wrap --menu "$description" 26 96 15 "$@"
     else
         clear
         echo "==== $title ===="
-        echo
+        printf '\n%b\n\n' "$description"
         local args=("$@")
         local i=0
         local label_idx
@@ -923,7 +928,7 @@ install_gdk() {
 
     if command -v dialog >/dev/null 2>&1; then
         name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_gdk_title)" \
-          --menu "$(i18n immutable_menu_desc)"  \
+          --menu "$(i18n help_gdk_versions)"  \
           22 96 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
@@ -1495,12 +1500,12 @@ EOF
 install_runner_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(i18n install_runner_menu)" \
-            "1" "GE-Proton" \
-            "2" "GDK-Proton" \
-            "3" "Proton-CachyOS (SLR x86_64)" \
-            "4" "Proton-EM" \
-            "5" "DW-Proton" \
+        choice="$(menu_choice "$(i18n install_runner_menu)" --description "$(i18n help_runner_types)" \
+            "1" "$(i18n help_ge_label)" \
+            "2" "$(i18n help_gdk_label)" \
+            "3" "$(i18n help_cachy_label)" \
+            "4" "$(i18n help_em_label)" \
+            "5" "$(i18n help_dw_label)" \
             "0" "$(i18n back)")" || return
         case "$choice" in
             1) install_ge ;;
@@ -1556,7 +1561,7 @@ install_ge() {
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
         tag="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_ge_title)" \
-            --menu "$(i18n immutable_menu_desc)"  \
+            --menu "$(i18n help_ge_versions)"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
@@ -2319,7 +2324,7 @@ delete_installed_runner() {
 export_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(i18n export_menu_title)" \
+        choice="$(menu_choice "$(i18n export_menu_title)" --description "$(i18n help_export)" \
             "1" "$(i18n export_menu_package)" \
             "2" "$(i18n export_menu_runner)" \
             "0" "$(i18n back)")" || return
@@ -2535,7 +2540,7 @@ uninstall_everything() {
 uninstall_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(i18n uninstall_menu)" \
+        choice="$(menu_choice "$(i18n uninstall_menu)" --description "$(i18n help_uninstall)" \
             "1" "$(i18n uninstall_toolbox_only)" \
             "2" "$(i18n uninstall_umu_all)" \
             "3" "$(i18n uninstall_all)" \
@@ -2672,7 +2677,7 @@ gameid_override_menu() {
     tab="$(printf '\t')"
     [ -s "$helper" ] || { msg "$(i18n game_compat_title)" "$(i18n gameid_manager_missing "$helper")"; return; }
     while true; do
-        action="$(menu_choice "$(i18n game_compat_title)" "1" "$(i18n gameid_menu_scan)" "2" "$(i18n gameid_menu_associate)" "3" "$(i18n gameid_menu_show)" "4" "$(i18n gameid_menu_delete)" "0" "$(i18n back)")" || return
+        action="$(menu_choice "$(i18n game_compat_title)" --description "$(i18n help_gameid)" "1" "$(i18n gameid_menu_scan)" "2" "$(i18n gameid_menu_associate)" "3" "$(i18n gameid_menu_show)" "4" "$(i18n gameid_menu_delete)" "0" "$(i18n back)")" || return
         case "$action" in
           1) global_game_scan ;;
           2)
@@ -2706,14 +2711,14 @@ gameid_override_menu() {
 maintenance_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "$(i18n maintenance_title)" \
+        choice="$(menu_choice "$(i18n maintenance_title)" --description "$(i18n help_maintenance)" \
             "1" "$(i18n diagnostic_full)" \
             "2" "$(i18n repair_integration)" \
             "3" "$(i18n clean_runtime)" \
             "4" "$(i18n clean_logs)" \
             "5" "$(i18n clean_ro)" \
             "6" "$(i18n uninstall)" \
-            "0" "Retour")" || return
+            "0" "$(i18n back)")" || return
         case "$choice" in
             1) verify_install ;;
             2) upgrade_integration ;;
@@ -2815,7 +2820,7 @@ post_update_integration() {
 
 language_menu() {
     local choice
-    choice="$(menu_choice "$(ui language_title)" \
+    choice="$(menu_choice "$(ui language_title)" --description "$(i18n help_language)" \
         "fr" "Francais" \
         "en" "English" \
         "0" "$(ui back)")" || return
@@ -2881,7 +2886,7 @@ documentation_about() {
 main_menu() {
     while true; do
         local choice
-        choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" \
+        choice="$(menu_choice "UMU Runner Toolbox v$TOOLBOX_VERSION" --description "$(i18n help_main)" \
             "1" "$(ui install_runner)" \
             "2" "$(ui delete_runner)" \
             "3" "$(ui export_runner)" \
