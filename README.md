@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.12.0**  
-Runner integration version: **v3.9.3**
+Current stable version: **v0.13.2**  
+Runner integration version: **v3.10.1**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
@@ -29,7 +29,7 @@ It is designed to make UMU-based Proton runners easy to use from Batocera while 
 - Support `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled and supported by the runner winebus.
 - Batocera 41 compatibility workarounds for the missing Python `_lzma` module and the `ldconfig` cache required by Steam Runtime / pressure-vessel.
 
-> **v0.12.0:** adds managed DW-Proton support with upstream SHA-512 verification while retaining the validated Batocera/UMU integration v3.9.3. DW-Proton was validated with `.pc`, `.wine` and `.wsquashfs` launches across Proton 10 and 11 releases.
+> **v0.13.2:** adds short explanations throughout the menus and introduces runner families for beginners. GAMEID scans load their sources once, and assisted matching prioritizes the main title over edition labels and distinguishes sequel numbers. A user-reported test on 1,265 games took about 50 seconds, down from over two minutes; timings depend on hardware and the available candidate sources.
 
 ## How GAMEID and STORE work
 
@@ -58,6 +58,12 @@ When a title is absent from the UMU database, the resolver can inspect the local
 The main menu now includes **Game Compatibility**. It can scan the Windows gamelist for ambiguous matches, propose ranked candidates from the bundled UMU database and installed Steam ProtonFixes, then offer the stores linked to the selected candidate. Manual associations take priority over automatic detection and can be removed at any time to return to automatic resolution. They are stored in `config/gameid-overrides.csv` and preserved across Toolbox updates.
 
 The compatibility UI considers `.wsquashfs`, `.wine`, `.pc` and `.wtgz` game entries. Raw `.exe` entries are ignored to avoid indexing technical Wine executables. Global scans count unmatched games in the summary but only present ambiguous matches for review; after saving an association, the same scan result remains open so several ambiguous games can be processed in sequence.
+
+The scan reads game entries from `gamelist.xml`; it does not recursively explore the contents of `.wine` prefixes or media directories. The candidate database and installed Steam ProtonFix titles are loaded once per scan.
+
+Assisted matching gives priority to the main title. Labels such as “Definitive Edition”, “Deluxe” or “Remastered” help distinguish related variants but cannot make an unrelated game a probable match on their own. Different sequel numbers are penalized, and trailing Roman and Arabic sequel numbers are treated consistently. Subtitles remain part of the title. When the exact edition is unavailable, a suggestion for the base game still requires manual review.
+
+These ranking changes concern the compatibility menu's suggestions; they do not make new automatic GAMEID assignments during a scan.
 
 The maintenance menu can also clean UMU Runner and Toolbox logs while preserving the current Toolbox session log.
 

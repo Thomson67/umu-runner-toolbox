@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.12.0**  
-Version de l'intégration runner : **v3.9.3**
+Version stable actuelle : **v0.13.2**  
+Version de l'intégration runner : **v3.10.1**
 
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
@@ -28,7 +28,7 @@ L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tou
 - Prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé et supporté.
 - Compatibilité Batocera 41 avec les adaptations nécessaires à Steam Runtime / pressure-vessel.
 
-> **v0.12.0 :** ajout du support géré de DW-Proton avec vérification SHA-512 upstream, tout en conservant l'intégration Batocera/UMU v3.9.3 validée. DW-Proton a été validé avec les formats `.pc`, `.wine` et `.wsquashfs`, sur des releases Proton 10 et 11.
+> **v0.13.2 :** ajoute de courtes descriptions dans les menus et des explications sur les familles de runners. L'analyse GAMEID charge ses sources une seule fois, et les propositions donnent la priorité au titre principal plutôt qu'aux mentions d'édition, en distinguant les numéros de suites. Lors d'un test utilisateur sur 1 265 jeux, l'analyse a pris environ 50 secondes contre plus de deux minutes auparavant ; le temps dépend du matériel et des sources de correspondances disponibles.
 
 ## Installation rapide
 
@@ -105,9 +105,15 @@ Lorsqu'un titre est absent de la base UMU, le resolver peut désormais examiner 
 
 ## Associations manuelles GAMEID / STORE
 
-Si la détection automatique ne trouve pas un jeu de manière fiable, la Toolbox permet désormais de créer une association manuelle depuis **Maintenance et diagnostic -> Gérer les associations GAMEID / STORE**. Le jeu est sélectionné directement depuis `gamelist.xml`, puis le `GAMEID` et le `STORE` peuvent être renseignés. Le GAMEID peut être un identifiant `umu-*` ou un **AppID Steam numérique** ; un identifiant numérique permet à ProtonFixes de rechercher directement un fix dans `gamefixes-steam`.
+Le menu principal **Compatibilité des jeux** permet d'analyser les correspondances ambiguës, de choisir un jeu depuis `gamelist.xml`, puis de sélectionner une proposition classée issue de la base UMU ou des ProtonFixes Steam installés. Le `GAMEID` et le `STORE` peuvent également être renseignés manuellement. Le GAMEID peut être un identifiant `umu-*` ou un **AppID Steam numérique** ; un identifiant numérique permet à ProtonFixes de rechercher directement un fix dans `gamefixes-steam`.
 
 L'association manuelle est prioritaire sur la détection automatique. Elle peut être supprimée à tout moment pour revenir au fonctionnement automatique. Les associations sont conservées dans `config/gameid-overrides.csv`, dossier déjà préservé lors des mises à jour de la Toolbox.
+
+L'interface prend en compte les entrées `.wsquashfs`, `.wine`, `.pc` et `.wtgz`. Les entrées `.exe` sont ignorées pour éviter les exécutables techniques de Wine. L'analyse lit `gamelist.xml` sans parcourir récursivement le contenu des préfixes `.wine` ni les dossiers de médias. Les sources de correspondances sont chargées une seule fois par analyse.
+
+Le classement privilégie le titre principal. Les mentions « Definitive Edition », « Deluxe » ou « Remastered » permettent de départager des variantes d'un même jeu, sans rendre probable un jeu sans rapport. Les numéros de suites différents sont pénalisés ; les chiffres romains et arabes en fin de titre sont rapprochés. Les sous-titres restent pris en compte. Si l'édition exacte est absente, une proposition pour le jeu de base reste à vérifier manuellement.
+
+Le bilan compte aussi les jeux sans correspondance, mais la liste de contrôle global présente uniquement les cas ambigus. Après une association, elle reste ouverte pour traiter plusieurs jeux à la suite. Cette analyse ne crée aucune association automatiquement et ne modifie pas les associations déjà enregistrées.
 
 Le menu de maintenance permet également de nettoyer séparément les logs UMU Runner et Toolbox, avec affichage de l'espace occupé et conservation du log Toolbox de la session en cours.
 
