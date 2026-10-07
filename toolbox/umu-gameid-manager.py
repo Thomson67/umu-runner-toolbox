@@ -69,6 +69,31 @@ def steam_candidates(runners):
             if title: out[(p.stem,title)]={'steam'}
     return out
 
+# Edition words only count after the main title, as complete trailing phrases.
+EDITION_SUFFIX=re.compile(
+    r'(?: (?:the )?(?:definitive|deluxe|special|complete|ultimate|'
+    r'collectors?|enhanced|anniversary|game of the year|goty) edition'
+    r'| (?:remastered|remaster|definitive|deluxe|goty))$')
+ROMAN={'i':'1','ii':'2','iii':'3','iv':'4','v':'5','vi':'6',
+       'vii':'7','viii':'8','ix':'9','x':'10'}
+TITLE_STOPWORDS={'the','a','an','of','and','in','on','for','to'}
+
+def title_parts(title):
+    full=norm(title)
+    core=full
+    while True:
+        shortened=EDITION_SUFFIX.sub('',core)
+        if not shortened or shortened==core: break
+        core=shortened
+    edition=full[len(core):].strip()
+    tokens=core.split()
+    if len(tokens)>1 and tokens[-1] in ROMAN:
+        tokens[-1]=ROMAN[tokens[-1]]
+    core=' '.join(tokens)
+    words=set(tokens)-TITLE_STOPWORDS
+    numbers={word for word in tokens if word.isdigit()}
+    return core,edition,words,numbers
+
 class CandidateIndex:
     """Load sources once and reuse SequenceMatcher's candidate-side index."""
     def __init__(self, db, runners):
@@ -76,8 +101,8 @@ class CandidateIndex:
         for key,stores in steam_candidates(runners).items():
             allc.setdefault(key,set()).update(stores)
         self.entries=[
-            (gid,name,','.join(sorted(stores)),norm(name),
-             difflib.SequenceMatcher(None,'',norm(name)))
+            (gid,name,','.join(sorted(stores)),norm(name),title_parts(name),
+             difflib.SequenceMatcher(None,'',title_parts(name)[0]))
             for (gid,name),stores in allc.items()
         ]
         self.cache={}
@@ -85,12 +110,24 @@ class CandidateIndex:
     def candidates(self, title, limit=12):
         nt=norm(title)
         if nt not in self.cache:
+            core,edition,words,numbers=title_parts(title)
             scored=[]
-            for gid,name,stores,nn,matcher in self.entries:
-                matcher.set_seq1(nt)
-                score=matcher.ratio()
-                if nt==nn: score=1.0
-                elif nt and (nt in nn or nn in nt): score=max(score,0.90)
+            for gid,name,stores,nn,parts,matcher in self.entries:
+                other,other_edition,other_words,other_numbers=parts
+                matcher.set_seq1(core)
+                overlap=len(words & other_words)/max(1,len(words | other_words))
+                score=0.75*matcher.ratio()+0.25*overlap
+                if nt and nt==nn:
+                    score=1.0
+                elif core and core==other:
+                    score=0.98 if edition==other_edition else 0.90
+                else:
+                    if not words & other_words:
+                        score=min(score,0.55)
+                    if edition and edition==other_edition and score>=0.70:
+                        score=min(0.97,score+0.02)
+                if numbers!=other_numbers:
+                    score=min(score,0.55)
                 scored.append((score,name,gid,stores))
             scored.sort(key=lambda x:(-x[0],x[1].casefold(),x[2]))
             self.cache[nt]=scored
