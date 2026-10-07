@@ -69,18 +69,72 @@ def steam_candidates(runners):
             if title: out[(p.stem,title)]={'steam'}
     return out
 
+# Edition words only count after the main title, as complete trailing phrases.
+EDITION_SUFFIX=re.compile(
+    r'(?: (?:the )?(?:definitive|deluxe|special|complete|ultimate|'
+    r'collectors?|enhanced|anniversary|game of the year|goty) edition'
+    r'| (?:remastered|remaster|definitive|deluxe|goty))$')
+ROMAN={'i':'1','ii':'2','iii':'3','iv':'4','v':'5','vi':'6',
+       'vii':'7','viii':'8','ix':'9','x':'10'}
+TITLE_STOPWORDS={'the','a','an','of','and','in','on','for','to'}
+
+def title_parts(title):
+    full=norm(title)
+    core=full
+    while True:
+        shortened=EDITION_SUFFIX.sub('',core)
+        if not shortened or shortened==core: break
+        core=shortened
+    edition=full[len(core):].strip()
+    tokens=core.split()
+    if len(tokens)>1 and tokens[-1] in ROMAN:
+        tokens[-1]=ROMAN[tokens[-1]]
+    core=' '.join(tokens)
+    words=set(tokens)-TITLE_STOPWORDS
+    numbers={word for word in tokens if word.isdigit()}
+    return core,edition,words,numbers
+
+class CandidateIndex:
+    """Load sources once and reuse SequenceMatcher's candidate-side index."""
+    def __init__(self, db, runners):
+        allc=db_candidates(db)
+        for key,stores in steam_candidates(runners).items():
+            allc.setdefault(key,set()).update(stores)
+        self.entries=[
+            (gid,name,','.join(sorted(stores)),norm(name),title_parts(name),
+             difflib.SequenceMatcher(None,'',title_parts(name)[0]))
+            for (gid,name),stores in allc.items()
+        ]
+        self.cache={}
+
+    def candidates(self, title, limit=12):
+        nt=norm(title)
+        if nt not in self.cache:
+            core,edition,words,numbers=title_parts(title)
+            scored=[]
+            for gid,name,stores,nn,parts,matcher in self.entries:
+                other,other_edition,other_words,other_numbers=parts
+                matcher.set_seq1(core)
+                overlap=len(words & other_words)/max(1,len(words | other_words))
+                score=0.75*matcher.ratio()+0.25*overlap
+                if nt and nt==nn:
+                    score=1.0
+                elif core and core==other:
+                    score=0.98 if edition==other_edition else 0.90
+                else:
+                    if not words & other_words:
+                        score=min(score,0.55)
+                    if edition and edition==other_edition and score>=0.70:
+                        score=min(0.97,score+0.02)
+                if numbers!=other_numbers:
+                    score=min(score,0.55)
+                scored.append((score,name,gid,stores))
+            scored.sort(key=lambda x:(-x[0],x[1].casefold(),x[2]))
+            self.cache[nt]=scored
+        return self.cache[nt][:limit]
+
 def candidate_list(title,db,runners,limit=12):
-    allc=db_candidates(db)
-    for k,stores in steam_candidates(runners).items(): allc.setdefault(k,set()).update(stores)
-    nt=norm(title); scored=[]
-    for (gid,name),stores in allc.items():
-        nn=norm(name)
-        score=difflib.SequenceMatcher(None,nt,nn).ratio()
-        if nt==nn: score=1.0
-        elif nt and (nt in nn or nn in nt): score=max(score,0.90)
-        scored.append((score,name,gid,','.join(sorted(stores))))
-    scored.sort(key=lambda x:(-x[0],x[1].casefold(),x[2]))
-    return scored[:limit]
+    return CandidateIndex(db,runners).candidates(title,limit)
 
 def main():
     p=argparse.ArgumentParser(); p.add_argument('--gamelist',type=Path,default=DEFAULT_GAMELIST); p.add_argument('--overrides',type=Path,default=DEFAULT_OVERRIDES); p.add_argument('--database',type=Path,default=DEFAULT_DB); p.add_argument('--runners',type=Path,default=DEFAULT_RUNNERS)
@@ -100,10 +154,12 @@ def main():
         overridden={r.get('path','') for r in rows(a.overrides)}
         counts={'CLEAR':0,'AMBIGUOUS':0,'NONE':0,'OVERRIDE':0}
         results=[]
+        index=None
         for title,gp in games(a.gamelist):
             if gp in overridden:
                 counts['OVERRIDE']+=1; continue
-            cand=candidate_list(title,a.database,a.runners,3)
+            if index is None: index=CandidateIndex(a.database,a.runners)
+            cand=index.candidates(title,3)
             top=cand[0][0] if cand else 0.0
             second=cand[1][0] if len(cand)>1 else 0.0
             # Exact normalized title is clear. Otherwise demand both a strong
