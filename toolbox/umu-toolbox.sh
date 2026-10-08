@@ -2792,6 +2792,14 @@ PYVER
     if ! mv "$newroot" "$ROOT"; then mv "$backup" "$ROOT" 2>/dev/null || true; rm -rf "$tmp" "$newroot"; msg "$(i18n toolbox_update_title)" "$(i18n update_replace_failed)"; return; fi
 
     chmod +x "$ROOT/umu-toolbox.sh" 2>/dev/null || true
+    if ! "$ROOT/helpers/install-scraper-assets.sh" "$ROOT/scraper-assets" \
+        "umu-runner-toolbox" "UMU Runner Toolbox.sh" "UMU Runner Toolbox" \
+        "Gestion des runners Proton via UMU sous Batocera, runtimes Steam Linux Runtime, compatibilité des jeux et maintenance." \
+        "Manage Proton runners through UMU on Batocera, with Steam Linux Runtime support, game compatibility and maintenance tools." \
+        "/userdata/system/umu/config/scraper" \
+        "/userdata/system/umu/backups/scraper"; then
+        log "scraper_assets_sync=failed after Toolbox update"
+    fi
     rm -rf "$tmp"
     if command -v dialog >/dev/null 2>&1; then
         dialog --ok-label "$(i18n accept)" --title "$(i18n toolbox_update_title)" --msgbox "$(i18n update_restart_complete "$TOOLBOX_VERSION" "$latest" "$backup")" 18 90
