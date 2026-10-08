@@ -21,6 +21,9 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Install image tooling
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
+
       - name: Validate version and sources
         shell: bash
         run: |
@@ -39,6 +42,7 @@ jobs:
           bash -n toolbox/overlay/bin/wine64
           bash -n toolbox/overlay/bin/wineserver
           python3 -m py_compile toolbox/umu-gameid-manager.py toolbox/umu-gameid-resolver.py toolbox/overlay/umu-batocera/umu-gameid-resolver.py toolbox/overlay/umu-batocera/umu-root-runner.py
+          python3 -m unittest discover -s tests -v
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -52,12 +56,14 @@ jobs:
           mkdir -p "$PKG"
           rsync -a ./ "$PKG/" \
             --exclude '.git/' \
+            --exclude 'assets/' \
             --exclude '.github/' \
             --exclude 'packaging/' \
             --exclude "$PKG/" \
             --exclude '__pycache__/' \
             --exclude '*.pyc'
           cp packaging/install.sh "$PKG/install.sh"
+          python3 .github/scripts/prepare-scraper-assets.py "$PKG/toolbox/scraper-assets"
           chmod +x "$PKG/install.sh" "$PKG/uninstall.sh" "$PKG/toolbox/umu-toolbox.sh" "$PKG/toolbox/overlay/bin/"*
           test "$(tr -d '\r\n[:space:]' < "$PKG/VERSION")" = "$VERSION"
           test "$(tr -d '\r\n[:space:]' < "$PKG/toolbox/VERSION")" = "$VERSION"

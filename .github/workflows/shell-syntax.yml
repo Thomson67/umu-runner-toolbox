@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install test dependency
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
       - name: Check shell syntax
         shell: bash
         run: |
@@ -77,3 +79,6 @@ jobs:
           print(f"i18n OK: {len(en_keys)} keys, {len(referenced)} referenced")
           raise SystemExit(1 if failed else 0)
           PY
+
+      - name: Run regression tests
+        run: python3 -m unittest discover -s tests -v
