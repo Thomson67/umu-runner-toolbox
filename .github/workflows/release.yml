@@ -39,14 +39,6 @@ jobs:
           bash -n toolbox/overlay/bin/wine64
           bash -n toolbox/overlay/bin/wineserver
           python3 -m py_compile toolbox/umu-gameid-manager.py toolbox/umu-gameid-resolver.py toolbox/overlay/umu-batocera/umu-gameid-resolver.py toolbox/overlay/umu-batocera/umu-root-runner.py
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists." >&2
-            exit 1
-          fi
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Release v$VERSION already exists." >&2
-            exit 1
-          fi
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -80,17 +72,24 @@ jobs:
           unzip -t "$PKG.zip"
           cat "$PKG.zip.sha256"
 
-      - name: Create GitHub release
+      - name: Publish GitHub release
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ inputs.version }}"
           PKG="UMU-Runner-Toolbox-v$VERSION"
-          gh release create "v$VERSION" \
-            "$PKG.zip" \
-            "$PKG.zip.sha256" \
-            --target "${{ github.sha }}" \
-            --title "UMU Runner Toolbox v$VERSION" \
-            --generate-notes
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "$PKG.zip" "$PKG.zip.sha256" --clobber
+            gh release edit "v$VERSION" --title "UMU Runner Toolbox v$VERSION" --notes "## Batocera media fix
+
+          Package refreshed with standard Batocera media paths and gamelist assignments. Empty managed fields are filled; custom media and metadata are preserved." 
+          else
+            gh release create "v$VERSION" \
+              "$PKG.zip" \
+              "$PKG.zip.sha256" \
+              --target "${{ github.sha }}" \
+              --title "UMU Runner Toolbox v$VERSION" \
+              --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
