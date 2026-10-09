@@ -34,17 +34,11 @@ mountpoint() { [ "${1:-}" = -q ] && shift; findmnt -rn -M "$1" >/dev/null 2>&1; 
 # enabled for the game. Mirror Batocera's recent Sony-controller integration
 # only for runners whose winebus advertises the new native-report handling.
 SONY_HIDRAW_XINPUT=0
-SONY_HIDRAW_XINPUT_SOURCE=default
-if [[ -n "${PROTON_SONY_HIDRAW_XINPUT+x}" ]]; then
-    export PROTON_SONY_HIDRAW_XINPUT
-    SONY_HIDRAW_XINPUT="$PROTON_SONY_HIDRAW_XINPUT"
-    SONY_HIDRAW_XINPUT_SOURCE=explicit
-elif [[ "${WINE_ENABLE_HIDRAW:-0}" = "1" ]] && \
+if [[ "${WINE_ENABLE_HIDRAW:-0}" = "1" ]] && \
    grep -aq "hidraw handles native reports" \
    "$RUNNER_DIR/files/lib/wine/x86_64-unix/winebus.so" 2>/dev/null; then
     export PROTON_SONY_HIDRAW_XINPUT=1
     SONY_HIDRAW_XINPUT=1
-    SONY_HIDRAW_XINPUT_SOURCE=automatic
 fi
 
 # v3.7.1: runner isolation. Proton prefixes can contain absolute symlinks back
@@ -148,7 +142,6 @@ log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY-}"
 log "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR-}"
 log "wine_enable_hidraw=${WINE_ENABLE_HIDRAW:-0}"
 log "sony_hidraw_xinput=$SONY_HIDRAW_XINPUT"
-log "sony_hidraw_xinput_source=$SONY_HIDRAW_XINPUT_SOURCE"
 log "argv_count=$#"
 i=0; for a in "$@"; do log "argv[$i]=$a"; i=$((i+1)); done
 
