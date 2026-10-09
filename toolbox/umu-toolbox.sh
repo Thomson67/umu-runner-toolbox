@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.3"
-INTEGRATION_VERSION="3.10.1"
+TOOLBOX_VERSION="0.13.4-isolation-test1"
+INTEGRATION_VERSION="3.10.2"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -259,6 +259,7 @@ manifest_files() {
         bin/wine64 \
         bin/wineserver \
         umu-batocera/umu-root-runner.py \
+        umu-batocera/prefix-isolation.py \
         umu-batocera/umu-gameid-resolver.py \
         umu-batocera/data/umu-database.csv \
         files/bin/wine \
@@ -1786,6 +1787,7 @@ upgrade_integration() {
         if ! cp -a "$OVERLAY/bin/wine" "$tmpstage/bin/wine" ||
            ! cp -a "$OVERLAY/bin/wine64" "$tmpstage/bin/wine64" ||
            ! cp -a "$OVERLAY/bin/wineserver" "$tmpstage/bin/wineserver" ||
+           ! cp -a "$OVERLAY/umu-batocera/prefix-isolation.py" "$tmpstage/umu-batocera/prefix-isolation.py" ||
            ! cp -a "$OVERLAY/umu-batocera/umu-root-runner.py" "$tmpstage/umu-batocera/umu-root-runner.py" ||
            ! cp -a "$OVERLAY/umu-batocera/umu-gameid-resolver.py" "$tmpstage/umu-batocera/umu-gameid-resolver.py" ||
            ! cp -a "$OVERLAY/umu-batocera/data/umu-database.csv" "$tmpstage/umu-batocera/data/umu-database.csv"; then
@@ -1795,6 +1797,7 @@ upgrade_integration() {
         if ! cp -a "$tmpstage/bin/wine" "$base/bin/wine" ||
            ! cp -a "$tmpstage/bin/wine64" "$base/bin/wine64" ||
            ! cp -a "$tmpstage/bin/wineserver" "$base/bin/wineserver" ||
+           ! cp -a "$tmpstage/umu-batocera/prefix-isolation.py" "$base/umu-batocera/prefix-isolation.py" ||
            ! cp -a "$tmpstage/umu-batocera/umu-root-runner.py" "$base/umu-batocera/umu-root-runner.py" ||
            ! cp -a "$tmpstage/umu-batocera/umu-gameid-resolver.py" "$base/umu-batocera/umu-gameid-resolver.py" ||
            ! cp -a "$tmpstage/umu-batocera/data/umu-database.csv" "$base/umu-batocera/data/umu-database.csv"; then
@@ -2449,6 +2452,10 @@ clean_umu_runtime_data() {
 }
 
 toolbox_files_cleanup() {
+    if [ -x /userdata/system/scripts/umu-runner-guard.sh ]; then
+        /userdata/system/scripts/umu-runner-guard.sh gameStop windows || true
+    fi
+    rm -f /userdata/system/scripts/umu-runner-guard.sh
     rm -rf -- "$ROOT" "$OLD_ROOT"
     rm -f -- "$PORT" "$PORT_KEYS"
 }
@@ -2938,6 +2945,9 @@ if [ "${1:-}" = "--install-runner" ]; then
     exit $?
 fi
 
+mkdir -p /userdata/system/scripts
+cp "$ROOT/hooks/runner-guard.sh" /userdata/system/scripts/umu-runner-guard.sh &&
+    chmod +x /userdata/system/scripts/umu-runner-guard.sh || log "runner_guard_sync=failed"
 sync_pad2key_mapping || log "pad2key_mapping=sync_failed"
 if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
     unset UMU_TOOLBOX_INSTALL_SYNC

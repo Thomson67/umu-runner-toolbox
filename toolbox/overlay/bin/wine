@@ -26,6 +26,9 @@ log() { printf '%s\n' "$*" >> "$LOG"; }
 
 ORIGINAL_WINEPREFIX="${WINEPREFIX-}"
 
+# Batocera builds may omit the mountpoint executable.
+mountpoint() { [ "${1:-}" = -q ] && shift; findmnt -rn -M "$1" >/dev/null 2>&1; }
+
 # v3.7.1: recent GE-Proton/Wine winebus versions handle native Sony HIDRAW
 # reports differently. Batocera exports WINE_ENABLE_HIDRAW=1 when HIDRAW is
 # enabled for the game. Mirror Batocera's recent Sony-controller integration
@@ -46,7 +49,8 @@ fi
 UMU_PROTECTED_MOUNTS=()
 
 runner_manifest_ok() {
-    local r="$1" m="$r/umu-batocera/integrity.sha256"
+    local r="$1" m
+    m="$r/umu-batocera/integrity.sha256"
     [ -s "$m" ] || return 2
     (cd "$r" && sha256sum -c "$m" >/dev/null 2>&1)
 }
@@ -56,14 +60,18 @@ protect_all_umu_runners_ro() {
     for r in /userdata/system/wine/custom/*-UMU; do
         [ -d "$r" ] || continue
 
-        # A managed runner that is already corrupt must never participate in a
-        # new UMU session. Unmanaged runners are protected RO but do not block.
+        # Refuse the selected runner only. Historical runners remain read-only
+        # even when corrupt, since old prefix links can still refer to them.
         if [ -s "$r/umu-batocera/integrity.sha256" ]; then
             if ! runner_manifest_ok "$r"; then
-                log "FATAL: integrity mismatch: $r"
-                return 90
+                if [ "$(readlink -f "$r")" = "$RUNNER_DIR" ]; then
+                    log "FATAL: integrity mismatch: $r"
+                    return 90
+                fi
+                log "WARNING: unrelated_runner_integrity_mismatch=$r"
+            else
+                log "integrity_ok=$r"
             fi
-            log "integrity_ok=$r"
         else
             log "integrity_unmanaged=$r"
         fi
@@ -123,7 +131,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.9.4 ====="
+log "===== Batocera UMU runner v3.10.2-isolation-test ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -1019,6 +1027,11 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
         log "ERROR: cannot cd to translated UMU cwd: $UMU_CWD"
         exit 77
     fi
+fi
+
+if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$EFFECTIVE_WINEPREFIX" >>"$LOG" 2>&1; then
+    log "FATAL: prefix isolation failed; launch refused"
+    exit 94
 fi
 
 if [ ! -s "$UMU_RUN" ]; then

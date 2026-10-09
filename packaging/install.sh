@@ -61,6 +61,9 @@ if ! mv "$TMP" "$DEST"; then
 fi
 
 chmod +x "$DEST/umu-toolbox.sh" 2>/dev/null || true
+mkdir -p /userdata/system/scripts
+cp "$DEST/hooks/runner-guard.sh" /userdata/system/scripts/umu-runner-guard.sh
+chmod +x /userdata/system/scripts/umu-runner-guard.sh
 
 # Install/update Batocera Port launcher when provided by the package.
 if [ -s "$SRC/toolbox/ports/UMU Runner Toolbox.sh" ]; then
