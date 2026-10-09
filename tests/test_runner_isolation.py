@@ -22,6 +22,55 @@ repair = module('repair', 'toolbox/helpers/repair-runner-dlls.py')
 
 
 class IsolationTests(unittest.TestCase):
+    def test_maintenance_detaches_before_wine_and_waits_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            custom = root / 'custom'; custom.mkdir()
+            current = custom / 'current-UMU'
+            old = custom / 'old-UMU'
+            for runner in (current, old):
+                (runner / 'umu-batocera').mkdir(parents=True)
+                (runner / 'proton').write_bytes(b'good')
+                (runner / 'umu-batocera/integrity.sha256').write_text(
+                    f'{hashlib.sha256(b"good").hexdigest()}  proton\n')
+            original = old / 'kernel32.dll'; original.write_bytes(b'original')
+            prefix = root / 'prefix'
+            windows = prefix / 'drive_c/windows/system32'; windows.mkdir(parents=True)
+            (prefix / 'system.reg').touch(); (prefix / 'user.reg').touch()
+            linked = windows / 'kernel32.dll'; linked.symlink_to(original)
+            helper = current / 'umu-batocera/prefix-isolation.py'
+            helper.write_text((ROOT / 'toolbox/overlay/umu-batocera/prefix-isolation.py').read_text())
+            binaries = current / 'files/bin'; binaries.mkdir(parents=True)
+            wine = binaries / 'wine'
+            wine.write_text('#!/bin/bash\necho wine >>"$TRACE"\nprintf changed >"$WINEPREFIX/drive_c/windows/system32/kernel32.dll"\n')
+            wine.chmod(0o755)
+            server = binaries / 'wineserver'
+            server.write_text('#!/bin/bash\necho "wait:$*" >>"$TRACE"\n')
+            server.chmod(0o755)
+            script = (ROOT / 'toolbox/overlay/bin/wine').read_text()
+            protection = script[script.index('UMU_PROTECTED_MOUNTS=()'):script.index('unprotect_umu_runners()')]
+            protection = protection.replace('/userdata/system/wine/custom', str(custom))
+            prefix_check = script[script.index('is_prefix_root()'):script.index('find_embedded_prefix()')]
+            fallback = script[script.index('if [ -z "$exe" ]; then'):script.index('args=("$@")')]
+            trace = root / 'trace'
+            setup = f'''set -u
+export TRACE="{trace}" WINEPREFIX="{prefix}"
+RUNNER_DIR="{current}"; REAL_WINE="{wine}"; ORIGINAL_WINEPREFIX="$WINEPREFIX"; LOG=/dev/null; exe=""
+log() {{ :; }}
+mountpoint() {{ return 1; }}
+findmnt() {{ return 0; }}
+mount() {{ echo protect >>"$TRACE"; }}
+unprotect_umu_runners() {{ echo cleanup >>"$TRACE"; }}
+'''
+            result = subprocess.run(['bash', '-c', setup + protection + prefix_check + fallback,
+                                     '_', 'wineboot.exe'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(original.read_bytes(), b'original')
+            self.assertEqual(linked.read_bytes(), b'changed')
+            events = trace.read_text().splitlines()
+            self.assertEqual(events[-3:], ['wine', 'wait:-w', 'cleanup'])
+            self.assertIn('protect', events[:-3])
+
     def test_runner_links_and_hardlinks_become_private_save_links_preserved(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -273,8 +273,35 @@ if [ "$interactive_shell" -eq 1 ]; then
 fi
 
 if [ -z "$exe" ]; then
+    # Pure informational calls do not initialize or migrate a prefix.
+    if [ "$#" -eq 1 ]; then
+        case "$1" in --version|--help) exec "$REAL_WINE" "$@" ;; esac
+    fi
     log "mode=fallback-real-wine"
-    exec "$REAL_WINE" "$@"
+    # wineboot/regedit/winecfg also migrate DLLs. These calls must not bypass
+    # isolation when run by Batocera or manually outside EmulationStation.
+    trap unprotect_umu_runners EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
+    if ! protect_all_umu_runners_ro; then
+        log "ERROR: maintenance isolation failed; Wine call refused"
+        exit 90
+    fi
+    if is_prefix_root "$ORIGINAL_WINEPREFIX"; then
+        if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$ORIGINAL_WINEPREFIX" \
+            --runners "$(dirname "$RUNNER_DIR")" >>"$LOG" 2>&1; then
+            log "FATAL: maintenance prefix isolation failed"
+            exit 94
+        fi
+    fi
+    "$REAL_WINE" "$@"
+    maintenance_rc=$?
+    # Prefix initialization can leave background Wine helpers alive. Wait for
+    # this prefix's wineserver before removing mounts owned by this wrapper.
+    "$RUNNER_DIR/files/bin/wineserver" -w >>"$LOG" 2>&1
+    log "maintenance_exit=$maintenance_rc"
+    exit "$maintenance_rc"
 fi
 
 args=("$@")
@@ -1029,7 +1056,8 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     fi
 fi
 
-if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$EFFECTIVE_WINEPREFIX" >>"$LOG" 2>&1; then
+if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$EFFECTIVE_WINEPREFIX" \
+    --runners "$(dirname "$RUNNER_DIR")" >>"$LOG" 2>&1; then
     log "FATAL: prefix isolation failed; launch refused"
     exit 94
 fi

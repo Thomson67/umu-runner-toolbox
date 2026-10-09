@@ -26,6 +26,10 @@ son code ne copie pas les douze DLL système concernées.
   vers un runner nécessite une réparation manuelle et refuse le lancement UMU.
 - `findmnt -M` remplace la dépendance à la commande `mountpoint`, absente sur
   certaines installations Batocera.
+- Les appels de maintenance du wrapper (`wineboot`, `regedit`, `winecfg`)
+  protègent et détachent également les fichiers du préfixe. Le wrapper attend
+  la fin du wineserver de ce préfixe avant de retirer ses propres protections.
+  Les appels purement informatifs `--version` et `--help` restent directs.
 - La réparation compare les DLL actuelles aux autres distributions installées,
   conserve une sauvegarde, vérifie toutes les DLL de l'archive contre le
   manifeste existant avant toute écriture et conserve ce manifeste.
@@ -62,6 +66,9 @@ SteamRT et les jeux nécessitent un test sur Batocera. Le hook Batocera ne peut
 pas garantir qu'EmulationStation annule un lancement si le hook retourne une
 erreur; les erreurs de montage sont journalisées. Les lancements hors
 EmulationStation avec un Wine classique ne passent pas par ce hook.
+Les appels directs aux wrappers UMU bénéficient aussi de la protection lors
+des opérations de maintenance. Les binaires réels de Wine appelés directement
+hors des wrappers ne sont pas interceptés.
 
 Les journaux se trouvent dans `/userdata/system/logs/umu-runner/`. Le guard
 conserve le journal courant et une rotation d'environ 1 Mio. Les sauvegardes
