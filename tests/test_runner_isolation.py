@@ -22,6 +22,29 @@ repair = module('repair', 'toolbox/helpers/repair-runner-dlls.py')
 
 
 class IsolationTests(unittest.TestCase):
+    def test_sony_hidraw_explicit_override_and_automatic_default(self):
+        script = (ROOT / 'toolbox/overlay/bin/wine').read_text()
+        policy = script[script.index('SONY_HIDRAW_XINPUT=0'):script.index('# v3.7.1: runner isolation.')]
+        with tempfile.TemporaryDirectory() as folder:
+            runner = Path(folder)
+            binary = runner / 'files/lib/wine/x86_64-unix/winebus.so'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'hidraw handles native reports')
+            for explicit, hidraw, expected, source in [
+                (None, '1', '1', 'automatic'),
+                ('0', '1', '0', 'explicit'),
+                ('1', '0', '1', 'explicit'),
+                (None, '0', '<absent>', 'default'),
+            ]:
+                setup = f'unset PROTON_SONY_HIDRAW_XINPUT; RUNNER_DIR="{runner}"; WINE_ENABLE_HIDRAW={hidraw}\n'
+                if explicit is not None:
+                    setup += f'PROTON_SONY_HIDRAW_XINPUT={explicit}\n'
+                result = subprocess.run(['bash', '-uc', setup + policy +
+                    '\nprintf "%s:%s" "${PROTON_SONY_HIDRAW_XINPUT-<absent>}" "$SONY_HIDRAW_XINPUT_SOURCE"'],
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, f'{expected}:{source}')
+
     def test_maintenance_detaches_before_wine_and_waits_before_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
