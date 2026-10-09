@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.4-isolation-test1"
+TOOLBOX_VERSION="0.13.5"
 INTEGRATION_VERSION="3.10.2"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"

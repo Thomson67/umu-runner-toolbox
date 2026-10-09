@@ -1,4 +1,4 @@
-# Correctif d'isolation — version de test
+# Protection et isolation des runners — v0.13.5
 
 Le log du 9 octobre 2026 confirme qu'un manifeste défectueux de DW-Proton
 interrompt le lancement de GE-Proton, car l'ancien wrapper vérifie tous les
@@ -36,14 +36,14 @@ son code ne copie pas les douze DLL système concernées.
 
 ## Installation et réparation sur Batocera
 
-Fermer tout jeu Windows. Depuis le dossier extrait de cette branche :
+Fermer tout jeu Windows. Depuis le dossier extrait du dépôt :
 
 ```bash
-bash toolbox/helpers/repair-dwproton.sh --apply
 bash packaging/install.sh
 ```
 
-La première commande télécharge l'archive officielle indiquée dans les
+Pour un DW-Proton déjà altéré, la réparation reste une opération manuelle :
+`bash toolbox/helpers/repair-dwproton.sh --apply`. Elle télécharge l'archive officielle indiquée dans les
 métadonnées du runner. Prévoir environ 2 Go libres sur `/userdata` pour le
 téléchargement et la sauvegarde. La réparation refuse un runner monté ou un
 processus Wine actif. Une réparation peut être simulée sans `--apply`.

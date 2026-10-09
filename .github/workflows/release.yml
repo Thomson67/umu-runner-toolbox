@@ -1,6 +1,9 @@
 name: Build and publish release
 
 on:
+  push:
+    branches: [main]
+    paths: [VERSION]
   workflow_dispatch:
     inputs:
       version:
@@ -28,7 +31,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${{ inputs.version }}"
+          VERSION="$(tr -d '\r\n[:space:]' < VERSION)"
+          REQUESTED_VERSION="${{ inputs.version }}"
+          if [ -n "$REQUESTED_VERSION" ]; then test "$VERSION" = "$REQUESTED_VERSION"; fi
           test "$VERSION" = "$(tr -d '\r\n[:space:]' < VERSION)"
           test "$VERSION" = "$(tr -d '\r\n[:space:]' < toolbox/VERSION)"
           grep -Fq "TOOLBOX_VERSION=\"$VERSION\"" toolbox/umu-toolbox.sh
@@ -50,7 +55,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${{ inputs.version }}"
+          VERSION="$(tr -d '\r\n[:space:]' < VERSION)"
+          REQUESTED_VERSION="${{ inputs.version }}"
+          if [ -n "$REQUESTED_VERSION" ]; then test "$VERSION" = "$REQUESTED_VERSION"; fi
           PKG="UMU-Runner-Toolbox-v$VERSION"
           rm -rf "$PKG"
           mkdir -p "$PKG"
@@ -82,20 +89,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${{ inputs.version }}"
+          VERSION="$(tr -d '\r\n[:space:]' < VERSION)"
+          REQUESTED_VERSION="${{ inputs.version }}"
+          if [ -n "$REQUESTED_VERSION" ]; then test "$VERSION" = "$REQUESTED_VERSION"; fi
           PKG="UMU-Runner-Toolbox-v$VERSION"
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release upload "v$VERSION" "$PKG.zip" "$PKG.zip.sha256" --clobber
-            gh release edit "v$VERSION" --title "UMU Runner Toolbox v$VERSION" --notes "## Batocera media fix
-
-          Package refreshed with standard Batocera media paths and gamelist assignments. Empty managed fields are filled; custom media and metadata are preserved." 
+            gh release edit "v$VERSION" --title "UMU Runner Toolbox v$VERSION" --notes-file RELEASE_NOTES.md
           else
             gh release create "v$VERSION" \
-              "$PKG.zip" \
-              "$PKG.zip.sha256" \
+              "$PKG.zip" "$PKG.zip.sha256" \
               --target "${{ github.sha }}" \
               --title "UMU Runner Toolbox v$VERSION" \
-              --generate-notes
+              --notes-file RELEASE_NOTES.md
           fi
         env:
           GH_TOKEN: ${{ github.token }}
