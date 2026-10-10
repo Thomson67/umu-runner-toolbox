@@ -29,17 +29,10 @@ ORIGINAL_WINEPREFIX="${WINEPREFIX-}"
 # Batocera builds may omit the mountpoint executable.
 mountpoint() { [ "${1:-}" = -q ] && shift; findmnt -rn -M "$1" >/dev/null 2>&1; }
 
-# v3.7.1: recent GE-Proton/Wine winebus versions handle native Sony HIDRAW
-# reports differently. Batocera exports WINE_ENABLE_HIDRAW=1 when HIDRAW is
-# enabled for the game. Mirror Batocera's recent Sony-controller integration
-# only for runners whose winebus advertises the new native-report handling.
-SONY_HIDRAW_XINPUT=0
-if [[ "${WINE_ENABLE_HIDRAW:-0}" = "1" ]] && \
-   grep -aq "hidraw handles native reports" \
-   "$RUNNER_DIR/files/lib/wine/x86_64-unix/winebus.so" 2>/dev/null; then
-    export PROTON_SONY_HIDRAW_XINPUT=1
-    SONY_HIDRAW_XINPUT=1
-fi
+# v3.10.3: HIDRAW must preserve native Sony controller support. Do not
+# enable the Sony-to-XInput compatibility bridge merely because HIDRAW is on.
+# Explicit user settings and Proton's own per-game presets remain authoritative.
+SONY_HIDRAW_XINPUT="${PROTON_SONY_HIDRAW_XINPUT:-runner-default}"
 
 # v3.7.1: runner isolation. Proton prefixes can contain absolute symlinks back
 # into older GE-Proton distributions. When another Proton version migrates the
@@ -131,7 +124,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.2 ====="
+log "===== Batocera UMU runner v3.10.3 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -1096,3 +1089,4 @@ fi
 
 log "exit=$rc"
 exit "$rc"
+

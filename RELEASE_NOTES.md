@@ -1,31 +1,27 @@
 ## Français
 
-Cette mise à jour renforce la protection des runners lors des changements de version de Wine/Proton et évite qu’un ancien runner altéré bloque les autres jeux.
+Correction de la prise en charge native des manettes Sony avec HIDRAW, notamment sur GE-Proton11-5 à 11-7 via UMU.
 
-- Le runner sélectionné reste contrôlé : un manifeste invalide refuse son lancement. Un autre runner altéré produit une alerte sans bloquer le runner sain.
-- Protection en lecture seule des runners UMU au lancement des jeux Windows depuis EmulationStation, y compris avec Wine classique. Les montages occupés restent protégés.
-- Isolation des fichiers Windows de préfixe liés aux runners, par copies privées atomiques, sans modifier les liens de sauvegarde. Les liens de répertoire dangereux sont refusés.
-- Protection également pendant les appels de maintenance des wrappers ; attente du wineserver avant le retrait des protections.
-- Compatibilité avec les versions de Batocera sans commande `mountpoint`.
-- Helper de réparation manuelle de DW-Proton avec vérification de l’archive officielle, sauvegarde des DLL et conservation du manifeste d’intégrité.
-- Le comportement Sony HIDRAW habituel est conservé : activation de `PROTON_SONY_HIDRAW_XINPUT=1` sur les runners compatibles lorsque HIDRAW est activé. Les essais spécifiques à Resonance ne sont pas intégrés.
+- L'intégration ne force plus `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé. Cette conversion de compatibilité en XInput pouvait empêcher la bonne détection PlayStation et les fonctions natives de la DualSense.
+- Les valeurs explicitement définies dans la ligne `ENV=` de l'autorun sont conservées. Les correctifs spécifiques aux jeux appliqués par Proton restent actifs.
+- Pour les jeux compatibles Sony nativement, laisser cette variable absente ou conserver `PROTON_SONY_HIDRAW_XINPUT=0`. Le mode `1` reste disponible pour les jeux nécessitant une conversion XInput.
+- La mise à jour migre les runners gérés dont l'intégrité est valide vers l'intégration **3.10.3**, y compris le wrapper modifié par le script de test dont le manifeste a été mis à jour. Aucune modification des DLL amont ni des autorun des jeux.
+- Les protections et contrôles d'intégrité des runners introduits en 0.13.5 sont conservés.
 
-La mise à jour installe le hook et migre les runners sains. Elle ne répare pas automatiquement les runners déjà altérés. Fermez les jeux Windows avant installation.
+Validation utilisateur sur Batocera : DualSense avec fonctions haptiques opérationnelles dans **Gears of War: E-Day**, et fonctionnement HIDRAW rétabli dans **Resonance: A Plague Tale Legacy**, avec GE-Proton11-7-UMU et `PROTON_SONY_HIDRAW_XINPUT=0`. Ce résultat ne constitue pas une garantie pour tous les jeux.
 
-Validation : tests automatisés d’isolation/réparation et contrôles de syntaxe ; fonctionnement des jeux rétabli confirmé sur Batocera. Le défaut de navigation à la manette signalé après mise à jour de la Toolbox reste à reproduire et n’est pas annoncé comme corrigé. Les binaires Wine réels appelés directement hors wrappers et hors EmulationStation ne sont pas interceptés ; un échec du hook ne garantit pas l’annulation du lancement par EmulationStation.
+Fermer les jeux et outils Wine avant la mise à jour. Le patch temporaire est remplacé par le wrapper officiel lors de la migration ; il n'est pas nécessaire de restaurer le patch avant la mise à jour. Ne pas utiliser son ancienne commande de restauration après migration. Les runners déjà altérés restent refusés et ne sont pas réparés automatiquement.
 
 ## English
 
-This update strengthens runner protection across Wine/Proton changes and prevents an unrelated damaged runner from blocking healthy ones.
+Fix native Sony controller support with HIDRAW, particularly with GE-Proton11-5 through 11-7 under UMU.
 
-- Integrity checks still reject a damaged selected runner; unrelated damaged runners warn without blocking healthy runners.
-- Read-only protection covers Windows launches from EmulationStation, including classic Wine. Busy mounts retain their protection.
-- Atomic private copies isolate Windows prefix files linked to runners, preserving save symlinks; unsafe directory aliases are rejected.
-- Wrapper maintenance calls also apply isolation and wait for wineserver shutdown before releasing protection.
-- Compatibility with Batocera builds without `mountpoint`.
-- Manual DW-Proton repair helper verifies the official archive, backs up DLLs and preserves the integrity manifest.
-- Existing Sony HIDRAW behavior is retained: `PROTON_SONY_HIDRAW_XINPUT=1` for compatible runners with HIDRAW enabled. Resonance-specific experiments are excluded.
+- The integration no longer forces `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled. This XInput compatibility conversion could interfere with PlayStation detection and native DualSense features.
+- Explicit settings in the autorun `ENV=` line are preserved. Proton's own game-specific presets remain active.
+- For games with native Sony support, leave this variable unset or keep `PROTON_SONY_HIDRAW_XINPUT=0`. Mode `1` remains available for games needing XInput conversion.
+- The update migrates managed runners with valid integrity manifests to integration **3.10.3**, including the temporary test wrapper whose manifest was updated. Upstream DLLs and game autorun files are not modified.
+- Runner protection and integrity checks from 0.13.5 are retained.
 
-Updating installs the guard and migrates healthy runners; it does not automatically repair damaged runners. Close Windows games before installing.
+User validation on Batocera: DualSense haptic features working in **Gears of War: E-Day**, and HIDRAW input restored in **Resonance: A Plague Tale Legacy**, using GE-Proton11-7-UMU with `PROTON_SONY_HIDRAW_XINPUT=0`. This does not guarantee compatibility with every game.
 
-Validation includes automated isolation/repair tests, syntax checks and user-confirmed restored game operation on Batocera. The reported Toolbox controller navigation issue after updating remains unconfirmed and is not claimed fixed. Direct real-Wine binary calls outside wrappers/EmulationStation are not intercepted, and hook failure cannot guarantee that EmulationStation cancels launch.
+Close games and Wine tools before updating. Migration replaces the temporary patch with the official wrapper; restoring the test patch beforehand is unnecessary. Do not run its old restore command after migration. Already damaged runners remain rejected and are not automatically repaired.

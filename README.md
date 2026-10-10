@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.5**
-Runner integration version: **v3.10.2**
+Current stable version: **v0.13.6**
+Runner integration version: **v3.10.3**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
@@ -26,7 +26,7 @@ It is designed to make UMU-based Proton runners easy to use from Batocera while 
 - Game Compatibility menu with assisted matching, global ambiguity scan and persistent manual associations.
 - Update the Toolbox directly from GitHub Releases with SHA-256 verification and automatic backup.
 - Native Batocera Pad2Key support, so the Toolbox can be controlled directly from Ports.
-- Support `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled and supported by the runner winebus.
+- Preserve native Sony HIDRAW input, PlayStation detection and supported DualSense features; respect explicit compatibility options and Proton game presets.
 - Batocera 41 compatibility workarounds for the missing Python `_lzma` module and the `ldconfig` cache required by Steam Runtime / pressure-vessel.
 
 > **v0.13.2:** adds short explanations throughout the menus and introduces runner families for beginners. GAMEID scans load their sources once, and assisted matching prioritizes the main title over edition labels and distinguishes sequel numbers. A user-reported test on 1,265 games took about 50 seconds, down from over two minutes; timings depend on hardware and the available candidate sources.
@@ -152,6 +152,8 @@ Compatibility can still vary depending on the game, Proton version, GPU driver a
 
 Some games using Sony controllers may require HIDRAW. If a DualShock or DualSense controller is not detected correctly, enable HIDRAW in the game's advanced settings and try again. Do not enable it systematically when the game already works correctly.
 
+The integration no longer forces `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled. Leave this option unset for native Sony support. Use `ENV=PROTON_SONY_HIDRAW_XINPUT=1` in the game autorun only when XInput compatibility is needed, or `0` for an explicit native-mode test. Proton may still apply its own per-game presets.
+
 ## Diagnostics and logs
 
 The **Maintenance and diagnostics** menu provides runner integrity checks, protection status, integration repair/upgrade tools and a complete UMU diagnostic.
@@ -196,3 +198,4 @@ It relies on and is intended to work alongside the upstream projects that make t
 ## License
 
 This project is distributed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
+

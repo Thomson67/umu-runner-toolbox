@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.13.5**
-Version de l'intégration runner : **v3.10.2**
+Version stable actuelle : **v0.13.6**
+Version de l'intégration runner : **v3.10.3**
 
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
@@ -25,7 +25,7 @@ L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tou
 - Résolution automatique de `GAMEID` et `STORE` depuis le gamelist Windows de Batocera pour ProtonFixes.
 - Mise à jour de la Toolbox depuis GitHub Releases avec contrôle SHA-256 et sauvegarde préalable.
 - Support Pad2Key pour piloter la Toolbox directement depuis Ports.
-- Prise en charge de `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé et supporté.
+- Conservation du mode Sony HIDRAW natif, de la détection PlayStation et des fonctions DualSense prises en charge ; respect des options explicites et des correctifs par jeu de Proton.
 - Compatibilité Batocera 41 avec les adaptations nécessaires à Steam Runtime / pressure-vessel.
 
 > **v0.13.2 :** ajoute de courtes descriptions dans les menus et des explications sur les familles de runners. L'analyse GAMEID charge ses sources une seule fois, et les propositions donnent la priorité au titre principal plutôt qu'aux mentions d'édition, en distinguant les numéros de suites. Lors d'un test utilisateur sur 1 265 jeux, l'analyse a pris environ 50 secondes contre plus de deux minutes auparavant ; le temps dépend du matériel et des sources de correspondances disponibles.
@@ -162,7 +162,7 @@ La compatibilité peut naturellement varier selon le jeu, la version de Proton, 
 
 Certains jeux utilisant une manette Sony peuvent nécessiter HIDRAW. Si une DualShock ou DualSense n'est pas reconnue correctement, activer **HIDRAW** dans les paramètres avancés du jeu puis relancer celui-ci.
 
-Lorsque les conditions sont réunies, l'intégration peut utiliser `PROTON_SONY_HIDRAW_XINPUT=1`. Il n'est pas utile d'activer HIDRAW systématiquement si le jeu fonctionne déjà correctement.
+L'intégration ne force plus `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé. Laisser cette option absente pour la prise en charge Sony native. Utiliser `ENV=PROTON_SONY_HIDRAW_XINPUT=1` dans l'autorun du jeu uniquement si une compatibilité XInput est nécessaire, ou `0` pour un test explicite du mode natif. Proton peut toujours appliquer ses propres correctifs par jeu. Il n'est pas utile d'activer HIDRAW systématiquement si le jeu fonctionne déjà correctement.
 
 ## Maintenance et diagnostic
 
@@ -214,3 +214,4 @@ UMU Runner Toolbox est un projet communautaire destiné à intégrer l'écosyst�
 ## Licence
 
 Le projet est distribué sous licence **GNU General Public License v3.0 (GPL-3.0)**. Voir [LICENSE](../LICENSE).
+
