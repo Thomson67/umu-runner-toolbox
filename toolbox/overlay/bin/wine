@@ -25,6 +25,11 @@ LOG="$LOG_DIR/runner-$stamp-$$.log"
 log() { printf '%s\n' "$*" >> "$LOG"; }
 
 ORIGINAL_WINEPREFIX="${WINEPREFIX-}"
+# Opt-in path compatibility; only the literal value 1 enables it.
+UMU_DIRECT_GAME_ENABLED=0
+[ "${UMU_DIRECT_GAME:-0}" != 1 ] || UMU_DIRECT_GAME_ENABLED=1
+unset UMU_DIRECT_GAME
+log "umu_direct_game=$UMU_DIRECT_GAME_ENABLED"
 
 # Batocera builds may omit the mountpoint executable.
 mountpoint() { [ "${1:-}" = -q ] && shift; findmnt -rn -M "$1" >/dev/null 2>&1; }
@@ -499,15 +504,22 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     # source is ALIAS_MOUNT (the live OverlayFS view), never the SquashFS lowerdir.
     GAME_SOURCE="$ALIAS_MOUNT/$GAME_REL"
     [ -d "$GAME_SOURCE" ] || { log "ERROR: compressed-prefix merged game directory missing: $GAME_SOURCE"; exit 81; }
-    GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${alias_safe}-${RUNTIME_KEY}"
-    GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
-    mkdir -p "$GAMEVIEW"
-    GAMEVIEW_TARGET="$GAMEVIEW"
-    GAMEVIEW_MOUNTPOINT_CREATED=1
-    if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
-        log "ERROR: compressed-prefix merged gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 81;
+    if [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ]; then
+        # Compressed games use the existing merged-overlay alias; .wine games
+        # use their original directory. Keep prefix copying and persistence.
+        GAMEVIEW="$GAME_SOURCE"
+        log "runtime_gameview_bypassed=1"
+    else
+        GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${alias_safe}-${RUNTIME_KEY}"
+        GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
+        mkdir -p "$GAMEVIEW"
+        GAMEVIEW_TARGET="$GAMEVIEW"
+        GAMEVIEW_MOUNTPOINT_CREATED=1
+        if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
+            log "ERROR: compressed-prefix merged gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 81;
+        fi
+        GAMEVIEW_BOUND=1
     fi
-    GAMEVIEW_BOUND=1
 
     EXE_ABS="$GAMEVIEW/$EXE_IN_GAME"
     case "${UMU_CWD:-$ALIAS_MOUNT}" in
@@ -522,7 +534,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     log "runtime_game_source=$GAME_SOURCE"
     log "runtime_gameview=$GAMEVIEW"
     log "runtime_gameview_fstype=$(findmnt -n -o FSTYPE -T "$GAMEVIEW" 2>/dev/null || true)"
-    log "runtime_gameview_bind=1"
+    log "runtime_gameview_bind=$GAMEVIEW_BOUND"
     log "runtime_pfx_overlay_bypassed=1"
     log "runtime_exe=$EXE_ABS"
     log "runtime_exe_exists=$([ -e "$EXE_ABS" ] && echo 1 || echo 0)"
@@ -611,15 +623,22 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
 
     GAME_SOURCE="$ORIGINAL_PREFIX_CANON/$GAME_REL"
     [ -d "$GAME_SOURCE" ] || { log "ERROR: wine split game directory missing: $GAME_SOURCE"; exit 83; }
-    GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${wine_safe}-${RUNTIME_KEY}"
-    GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
-    mkdir -p "$GAMEVIEW"
-    GAMEVIEW_TARGET="$GAMEVIEW"
-    GAMEVIEW_MOUNTPOINT_CREATED=1
-    if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
-        log "ERROR: wine split gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 83;
+    if [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ]; then
+        # Compressed games use the existing merged-overlay alias; .wine games
+        # use their original directory. Keep prefix copying and persistence.
+        GAMEVIEW="$GAME_SOURCE"
+        log "runtime_gameview_bypassed=1"
+    else
+        GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${wine_safe}-${RUNTIME_KEY}"
+        GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
+        mkdir -p "$GAMEVIEW"
+        GAMEVIEW_TARGET="$GAMEVIEW"
+        GAMEVIEW_MOUNTPOINT_CREATED=1
+        if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
+            log "ERROR: wine split gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 83;
+        fi
+        GAMEVIEW_BOUND=1
     fi
-    GAMEVIEW_BOUND=1
 
     EXE_ABS="$GAMEVIEW/$EXE_IN_GAME"
     pwd_canon="$(readlink -f "$PWD" 2>/dev/null || printf '%s' "$PWD")"
@@ -636,7 +655,7 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     log "runtime_game_source=$GAME_SOURCE"
     log "runtime_gameview=$GAMEVIEW"
     log "runtime_gameview_fstype=$(findmnt -n -o FSTYPE -T "$GAMEVIEW" 2>/dev/null || true)"
-    log "runtime_gameview_bind=1"
+    log "runtime_gameview_bind=$GAMEVIEW_BOUND"
     log "runtime_wine_direct_pfx_bypassed=1"
     log "runtime_exe=$EXE_ABS"
     log "runtime_exe_exists=$([ -e "$EXE_ABS" ] && echo 1 || echo 0)"

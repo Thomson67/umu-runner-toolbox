@@ -2,7 +2,7 @@
 set -u
 
 TOOLBOX_VERSION="0.13.6"
-INTEGRATION_VERSION="3.10.3"
+INTEGRATION_VERSION="3.10.4-TEST-direct-game"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
