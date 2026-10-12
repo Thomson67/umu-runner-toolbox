@@ -25,6 +25,11 @@ LOG="$LOG_DIR/runner-$stamp-$$.log"
 log() { printf '%s\n' "$*" >> "$LOG"; }
 
 ORIGINAL_WINEPREFIX="${WINEPREFIX-}"
+# Opt-in path compatibility; only the literal value 1 enables it.
+UMU_DIRECT_GAME_ENABLED=0
+[ "${UMU_DIRECT_GAME:-0}" != 1 ] || UMU_DIRECT_GAME_ENABLED=1
+unset UMU_DIRECT_GAME
+log "umu_direct_game=$UMU_DIRECT_GAME_ENABLED"
 
 # Batocera builds may omit the mountpoint executable.
 mountpoint() { [ "${1:-}" = -q ] && shift; findmnt -rn -M "$1" >/dev/null 2>&1; }
@@ -124,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.3 ====="
+log "===== Batocera UMU runner v3.10.4 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -327,9 +332,168 @@ GAMEVIEW_TARGET=""
 GAMEVIEW_MOUNTPOINT_CREATED=0
 ACTIVE_STATE_FILE=""
 
+# Direct mode only: use real save files on the game's own filesystem.
+# Keep the original save target intact until a complete return copy is ready.
+DIRECT_SAVE_PATH=""
+DIRECT_SAVE_BACKUP=""
+DIRECT_SAVE_SOURCE=""
+DIRECT_SAVE_MOVED=0
+
+restore_direct_save_link() {
+    [ "$DIRECT_SAVE_MOVED" -eq 1 ] || return 0
+    if mountpoint -q "$DIRECT_SAVE_PATH" || [ -L "$DIRECT_SAVE_PATH" ]; then
+        log "WARNING: direct_save_restore_refused=$DIRECT_SAVE_PATH"
+        return 1
+    fi
+    # Stage all data first. Keep the previous persistent directory until
+    # restoration succeeds, and roll back a failed replacement. On any failure,
+    # leave the local saves and the original symlink backup untouched.
+    if ! python3 - "$DIRECT_SAVE_PATH" "$DIRECT_SAVE_SOURCE" >>"$LOG" 2>&1 <<'DIRECT_SAVE_SYNC'
+from pathlib import Path
+import os
+import shutil
+import sys
+import tempfile
+
+local, target = map(Path, sys.argv[1:])
+previous = target.with_name(target.name + '.umu-direct-previous')
+if local.is_symlink() or not local.is_dir() or target.is_symlink() or not target.is_dir():
+    raise RuntimeError('unsafe or missing save directory; local saves retained')
+if os.path.ismount(target):
+    raise RuntimeError('persistent save target is a mountpoint; local saves retained')
+work = Path(tempfile.mkdtemp(prefix='.' + target.name + '.umu-direct-stage-', dir=target.parent))
+stage = work / 'saves'
+try:
+    shutil.copytree(local, stage, symlinks=True,
+                    ignore=lambda folder, names: ['.umu-direct-previous'] if Path(folder) == local else [])
+    # A previous snapshot belongs to this opt-in save target only. Refuse
+    # unexpected types instead of following a symlink or deleting a mount.
+    if previous.exists() or previous.is_symlink():
+        if previous.is_symlink() or not previous.is_dir() or os.path.ismount(previous):
+            raise RuntimeError('unsafe previous save snapshot; local saves retained')
+        shutil.rmtree(previous)
+    target.rename(previous)
+    try:
+        stage.rename(target)
+    except BaseException:
+        if not target.exists():
+            previous.rename(target)
+        raise
+finally:
+    shutil.rmtree(work, ignore_errors=True)
+DIRECT_SAVE_SYNC
+    then
+        log "WARNING: direct_save_sync_failed=$DIRECT_SAVE_PATH source=$DIRECT_SAVE_SOURCE"
+        return 1
+    fi
+    log "direct_save_sync=ok"
+    # Retain local data until the symlink itself has been restored successfully.
+    local retired="$DIRECT_SAVE_PATH.umu-direct-local"
+    if [ -e "$retired" ] || [ -L "$retired" ]; then
+        log "WARNING: direct_save_local_backup_exists=$retired"; return 1
+    fi
+    mv -- "$DIRECT_SAVE_PATH" "$retired" 2>>"$LOG" || return 1
+    if ! mv -- "$DIRECT_SAVE_BACKUP" "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
+        mv -- "$retired" "$DIRECT_SAVE_PATH" 2>>"$LOG" || true
+        log "WARNING: direct_save_restore_failed=$DIRECT_SAVE_PATH"
+        return 1
+    fi
+    DIRECT_SAVE_MOVED=0
+    log "direct_save_link_restored=$DIRECT_SAVE_PATH"
+    # Store one previous generation inside the game's save directory. Never
+    # include that snapshot in the next launch copy or nest snapshots forever.
+    python3 - "$retired" "$DIRECT_SAVE_SOURCE" >>"$LOG" 2>&1 <<'DIRECT_SAVE_REMOVE'
+from pathlib import Path
+import os
+import shutil
+import sys
+retired, target = map(Path, sys.argv[1:])
+previous = target.with_name(target.name + '.umu-direct-previous')
+nested = previous / '.umu-direct-previous'
+backup = target / '.umu-direct-previous'
+for path in (retired, previous, nested, backup):
+    if path.is_symlink() or os.path.ismount(path):
+        raise RuntimeError('refusing unsafe recovery cleanup: ' + str(path))
+if nested.exists():
+    shutil.rmtree(nested)
+if backup.exists():
+    raise RuntimeError('unexpected snapshot in current saves; previous snapshot retained')
+previous.rename(backup)
+shutil.rmtree(retired)
+DIRECT_SAVE_REMOVE
+}
+
+prepare_direct_save_copy() {
+    [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ] || return 0
+    [ -n "${GAME_SOURCE:-}" ] || return 0
+    local prefix autorun line savedir="" path parent source game_root
+    prefix="$ORIGINAL_PREFIX_CANON"
+    [ "$COMPRESSED_OVERLAY" -eq 0 ] || prefix="$ALIAS_MOUNT"
+    autorun="$prefix/autorun.cmd"
+    [ -f "$autorun" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        case "$line" in SAVEDIR=*) savedir="${line#SAVEDIR=}" ;; esac
+    done < "$autorun"
+    savedir="${savedir#\"}"; savedir="${savedir%\"}"
+    savedir="${savedir%/}"
+    case "$savedir" in
+        ""|.|/*|..|../*|*/../*|*/..) return 0 ;;
+    esac
+    path="$prefix/$savedir"
+    # Restrict conversion to the external game directory, which is excluded
+    # from prefix materialization/persistence. Do not touch prefix-side saves.
+    game_root="$(readlink -f "$GAME_SOURCE")" || return 1
+    parent="$(readlink -f "$(dirname "$path")")" || return 1
+    case "$parent/" in "$game_root/"*) ;; *) return 0 ;; esac
+    path="$parent/$(basename "$path")"
+    if [ -e "$path.umu-direct-link" ] || [ -L "$path.umu-direct-link" ]; then
+        log "ERROR: direct_save_backup_exists=$path.umu-direct-link"; return 1
+    fi
+    [ -L "$path" ] || return 0
+    source="$(readlink -f "$path")" || return 1
+    case "$source" in /userdata/saves/windows/*) ;; *)
+        log "ERROR: direct_save_unexpected_target=$source"; return 1 ;;
+    esac
+    [ -d "$source" ] || { log "ERROR: direct_save_target_missing=$source"; return 1; }
+    # Copy beside the save path before touching the link. Partial copies can
+    # never be used as authoritative saves or written back on a failed start.
+    local work
+    work="$(mktemp -d "$parent/.umu-direct-save.XXXXXX")" || return 1
+    local item copy_failed=0
+    for item in "$source"/* "$source"/.[!.]* "$source"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        [ "$(basename "$item")" != .umu-direct-previous ] || continue
+        cp -a -- "$item" "$work/" 2>>"$LOG" || { copy_failed=1; break; }
+    done
+    if [ "$copy_failed" -eq 1 ]; then
+        rm -rf -- "$work"
+        log "ERROR: direct_save_copy_failed=$source"; return 1
+    fi
+    if [ -e "$path.umu-direct-local" ] || [ -L "$path.umu-direct-local" ]; then
+        rm -rf -- "$work"
+        log "ERROR: direct_save_local_backup_exists=$path.umu-direct-local"; return 1
+    fi
+    DIRECT_SAVE_PATH="$path"
+    DIRECT_SAVE_BACKUP="$path.umu-direct-link"
+    DIRECT_SAVE_SOURCE="$source"
+    if ! mv -- "$path" "$DIRECT_SAVE_BACKUP" 2>>"$LOG"; then
+        rm -rf -- "$work"; return 1
+    fi
+    if ! mv -- "$work" "$path" 2>>"$LOG"; then
+        mv -- "$DIRECT_SAVE_BACKUP" "$path" 2>>"$LOG" || true
+        rm -rf -- "$work"; return 1
+    fi
+    DIRECT_SAVE_MOVED=1
+    log "direct_save_copy=1"
+    log "direct_save_path=$path"
+    log "direct_save_source=$source"
+}
+
 cleanup_runtime_mounts() {
     # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
+    restore_direct_save_link || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
         log "runtime_active_state_removed=$ACTIVE_STATE_FILE"
@@ -499,15 +663,22 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     # source is ALIAS_MOUNT (the live OverlayFS view), never the SquashFS lowerdir.
     GAME_SOURCE="$ALIAS_MOUNT/$GAME_REL"
     [ -d "$GAME_SOURCE" ] || { log "ERROR: compressed-prefix merged game directory missing: $GAME_SOURCE"; exit 81; }
-    GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${alias_safe}-${RUNTIME_KEY}"
-    GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
-    mkdir -p "$GAMEVIEW"
-    GAMEVIEW_TARGET="$GAMEVIEW"
-    GAMEVIEW_MOUNTPOINT_CREATED=1
-    if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
-        log "ERROR: compressed-prefix merged gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 81;
+    if [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ]; then
+        # Compressed games use the existing merged-overlay alias; .wine games
+        # use their original directory. Keep prefix copying and persistence.
+        GAMEVIEW="$GAME_SOURCE"
+        log "runtime_gameview_bypassed=1"
+    else
+        GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${alias_safe}-${RUNTIME_KEY}"
+        GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
+        mkdir -p "$GAMEVIEW"
+        GAMEVIEW_TARGET="$GAMEVIEW"
+        GAMEVIEW_MOUNTPOINT_CREATED=1
+        if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
+            log "ERROR: compressed-prefix merged gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 81;
+        fi
+        GAMEVIEW_BOUND=1
     fi
-    GAMEVIEW_BOUND=1
 
     EXE_ABS="$GAMEVIEW/$EXE_IN_GAME"
     case "${UMU_CWD:-$ALIAS_MOUNT}" in
@@ -522,7 +693,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     log "runtime_game_source=$GAME_SOURCE"
     log "runtime_gameview=$GAMEVIEW"
     log "runtime_gameview_fstype=$(findmnt -n -o FSTYPE -T "$GAMEVIEW" 2>/dev/null || true)"
-    log "runtime_gameview_bind=1"
+    log "runtime_gameview_bind=$GAMEVIEW_BOUND"
     log "runtime_pfx_overlay_bypassed=1"
     log "runtime_exe=$EXE_ABS"
     log "runtime_exe_exists=$([ -e "$EXE_ABS" ] && echo 1 || echo 0)"
@@ -611,15 +782,22 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
 
     GAME_SOURCE="$ORIGINAL_PREFIX_CANON/$GAME_REL"
     [ -d "$GAME_SOURCE" ] || { log "ERROR: wine split game directory missing: $GAME_SOURCE"; exit 83; }
-    GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${wine_safe}-${RUNTIME_KEY}"
-    GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
-    mkdir -p "$GAMEVIEW"
-    GAMEVIEW_TARGET="$GAMEVIEW"
-    GAMEVIEW_MOUNTPOINT_CREATED=1
-    if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
-        log "ERROR: wine split gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 83;
+    if [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ]; then
+        # Compressed games use the existing merged-overlay alias; .wine games
+        # use their original directory. Keep prefix copying and persistence.
+        GAMEVIEW="$GAME_SOURCE"
+        log "runtime_gameview_bypassed=1"
+    else
+        GAMEVIEW_ROOT="/userdata/system/umu/gameviews/${wine_safe}-${RUNTIME_KEY}"
+        GAMEVIEW="$GAMEVIEW_ROOT/$GAME_DIR"
+        mkdir -p "$GAMEVIEW"
+        GAMEVIEW_TARGET="$GAMEVIEW"
+        GAMEVIEW_MOUNTPOINT_CREATED=1
+        if ! mount --bind "$GAME_SOURCE" "$GAMEVIEW" 2>>"$LOG"; then
+            log "ERROR: wine split gameview bind failed: $GAME_SOURCE -> $GAMEVIEW"; exit 83;
+        fi
+        GAMEVIEW_BOUND=1
     fi
-    GAMEVIEW_BOUND=1
 
     EXE_ABS="$GAMEVIEW/$EXE_IN_GAME"
     pwd_canon="$(readlink -f "$PWD" 2>/dev/null || printf '%s' "$PWD")"
@@ -636,7 +814,7 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     log "runtime_game_source=$GAME_SOURCE"
     log "runtime_gameview=$GAMEVIEW"
     log "runtime_gameview_fstype=$(findmnt -n -o FSTYPE -T "$GAMEVIEW" 2>/dev/null || true)"
-    log "runtime_gameview_bind=1"
+    log "runtime_gameview_bind=$GAMEVIEW_BOUND"
     log "runtime_wine_direct_pfx_bypassed=1"
     log "runtime_exe=$EXE_ABS"
     log "runtime_exe_exists=$([ -e "$EXE_ABS" ] && echo 1 || echo 0)"
@@ -1069,6 +1247,10 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
+if ! prepare_direct_save_copy; then
+    log "ERROR: direct save compatibility failed; launch refused"
+    exit 95
+fi
 # v3.8: real materialized pfx + external merged Batocera gameview.
 python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
 rc=$?

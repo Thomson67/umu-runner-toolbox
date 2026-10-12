@@ -1,27 +1,19 @@
 ## Français
 
-Correction de la prise en charge native des manettes Sony avec HIDRAW, notamment sur GE-Proton11-5 à 11-7 via UMU.
+- Nouveau mode de compatibilité par jeu : `ENV=UMU_DIRECT_GAME=1` contourne la vue `gameviews` supplémentaire sans extraire le jeu complet. Désactivé par défaut.
+- Pour les jeux refusant les liens de sauvegardes, les dossiers `SAVEDIR` à l’intérieur du jeu sont présentés comme de vrais dossiers, puis synchronisés à la fermeture. Les modifications et suppressions sont répercutées ; le lien Batocera est ensuite restauré.
+- Une seule copie de secours reste dans le dossier de sauvegardes du jeu, sous `.umu-direct-previous`, sans accumulation récursive.
+- Intégration **3.10.4** : Steam Runtime, isolation des préfixes et protection des runners conservés. La mise à jour migre les runners gérés dont le manifeste est valide ; les jeux doivent être fermés.
+- Validation utilisateur sur Batocera avec Azimuth / Forza Horizon 2 et GE-Proton11-7-UMU : lancement, sauvegarde et reprise de progression en `.wine` et `.wsquashfs`.
 
-- L'intégration ne force plus `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé. Cette conversion de compatibilité en XInput pouvait empêcher la bonne détection PlayStation et les fonctions natives de la DualSense.
-- Les valeurs explicitement définies dans la ligne `ENV=` de l'autorun sont conservées. Les correctifs spécifiques aux jeux appliqués par Proton restent actifs.
-- Pour les jeux compatibles Sony nativement, laisser cette variable absente ou conserver `PROTON_SONY_HIDRAW_XINPUT=0`. Le mode `1` reste disponible pour les jeux nécessitant une conversion XInput.
-- La mise à jour migre les runners gérés dont l'intégrité est valide vers l'intégration **3.10.3**, y compris le wrapper modifié par le script de test dont le manifeste a été mis à jour. Aucune modification des DLL amont ni des autorun des jeux.
-- Les protections et contrôles d'intégrité des runners introduits en 0.13.5 sont conservés.
-
-Validation utilisateur sur Batocera : DualSense avec fonctions haptiques opérationnelles dans **Gears of War: E-Day**, et fonctionnement HIDRAW rétabli dans **Resonance: A Plague Tale Legacy**, avec GE-Proton11-7-UMU et `PROTON_SONY_HIDRAW_XINPUT=0`. Ce résultat ne constitue pas une garantie pour tous les jeux.
-
-Fermer les jeux et outils Wine avant la mise à jour. Le patch temporaire est remplacé par le wrapper officiel lors de la migration ; il n'est pas nécessaire de restaurer le patch avant la mise à jour. Ne pas utiliser son ancienne commande de restauration après migration. Les runners déjà altérés restent refusés et ne sont pas réparés automatiquement.
+Le mode direct vise des incompatibilités de chemins et ne corrige pas tous les crashs. Les copies de sauvegardes nécessitent de l’espace libre et ajoutent un délai ; une interruption forcée peut demander une récupération manuelle. Le nom du jeu détermine le dossier de sauvegardes Batocera : le conserver ou transférer les sauvegardes lors d’un renommage.
 
 ## English
 
-Fix native Sony controller support with HIDRAW, particularly with GE-Proton11-5 through 11-7 under UMU.
+- New per-game compatibility mode: `ENV=UMU_DIRECT_GAME=1` bypasses the extra `gameviews` view without extracting the full game. Disabled by default.
+- For games rejecting save symlinks, `SAVEDIR` directories inside the game are presented as real directories and synchronized on exit. Changes and deletions are propagated, then the Batocera link is restored.
+- One recovery snapshot remains inside the game's save directory as `.umu-direct-previous`, without recursive accumulation.
+- Integration **3.10.4** retains Steam Runtime, prefix isolation and runner protection. Updating migrates managed runners with valid manifests; close games first.
+- User validation on Batocera with Azimuth / Forza Horizon 2 and GE-Proton11-7-UMU: launch, save and restored progress in `.wine` and `.wsquashfs`.
 
-- The integration no longer forces `PROTON_SONY_HIDRAW_XINPUT=1` when HIDRAW is enabled. This XInput compatibility conversion could interfere with PlayStation detection and native DualSense features.
-- Explicit settings in the autorun `ENV=` line are preserved. Proton's own game-specific presets remain active.
-- For games with native Sony support, leave this variable unset or keep `PROTON_SONY_HIDRAW_XINPUT=0`. Mode `1` remains available for games needing XInput conversion.
-- The update migrates managed runners with valid integrity manifests to integration **3.10.3**, including the temporary test wrapper whose manifest was updated. Upstream DLLs and game autorun files are not modified.
-- Runner protection and integrity checks from 0.13.5 are retained.
-
-User validation on Batocera: DualSense haptic features working in **Gears of War: E-Day**, and HIDRAW input restored in **Resonance: A Plague Tale Legacy**, using GE-Proton11-7-UMU with `PROTON_SONY_HIDRAW_XINPUT=0`. This does not guarantee compatibility with every game.
-
-Close games and Wine tools before updating. Migration replaces the temporary patch with the official wrapper; restoring the test patch beforehand is unnecessary. Do not run its old restore command after migration. Already damaged runners remain rejected and are not automatically repaired.
+Direct mode targets path incompatibilities and does not fix every crash. Save copies require free space and add latency; forced termination may require manual recovery. The game name determines Batocera's save directory: keep it or transfer saves when renaming.

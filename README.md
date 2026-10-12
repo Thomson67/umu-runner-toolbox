@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.6**
-Runner integration version: **v3.10.3**
+Current stable version: **v0.13.7**
+Runner integration version: **v3.10.4**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
@@ -199,3 +199,7 @@ It relies on and is intended to work alongside the upstream projects that make t
 
 This project is distributed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
 
+
+## Per-game compatibility: direct mode
+
+Add `UMU_DIRECT_GAME=1` to the single `ENV=` line in `autorun.cmd` for games rejecting redirected paths or save symlinks. Other games retain their launch mode. Integration 3.10.4 preserves Steam Runtime and runner protection. `SAVEDIR` saves inside the game directory are copied into a real directory at launch, synchronized on exit, then the Batocera link is restored. One recovery snapshot is retained inside the game's save directory as `.umu-direct-previous` and excluded from subsequent copies. Close the game normally; forced termination may require recovery. Copies need free space and time proportional to save size.
