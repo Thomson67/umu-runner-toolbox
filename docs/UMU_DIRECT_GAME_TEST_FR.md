@@ -1,16 +1,16 @@
-# Test de compatibilité UMU : chemin direct
+# Compatibilité UMU : chemin direct
 
 Option facultative dans autorun.cmd : `ENV=UMU_DIRECT_GAME=1`.
 Si ENV existe déjà, ajouter UMU_DIRECT_GAME=1 sur cette ligne.
 Le mode standard reste la valeur par défaut ; supprimer la variable pour revenir au comportement standard.
 
-La version test des deux toolboxes est nécessaire pour le workflow. Après installation de UMU Runner Toolbox, lancer Maintenance > Réparer / mettre à niveau l’intégration UMU afin de mettre à jour les wrappers des runners sains et leurs manifests. Ne pas remplacer directement bin/wine dans un runner protégé.
+UMU Runner Toolbox 0.13.7 et Ultimate Wine Toolbox 0.5.4 ou plus sont nécessaires pour le workflow. Après installation de UMU Runner Toolbox, lancer Maintenance > Réparer / mettre à niveau l’intégration UMU afin de mettre à jour les wrappers des runners sains et leurs manifests. Ne pas remplacer directement bin/wine dans un runner protégé.
 
-Dans Ultimate Wine Toolbox : création WSquashFS > premier essai > options par jeu > Compatibilité UMU : lancement direct (expérimental), puis relancer. Le choix est conservé dans l’archive finale et peut aussi être retiré dans ce menu.
+Dans Ultimate Wine Toolbox : création WSquashFS > premier essai > options par jeu > Compatibilité UMU : lancement direct, puis relancer. Le choix est conservé dans l’archive finale et peut aussi être retiré dans ce menu.
 
 Le mode direct conserve le préfixe matérialisé, sa persistance, la protection des runners et le Steam Runtime. Pour .wine, il utilise le répertoire original. Pour .wsquashfs/.wtgz, il utilise le montage merged-prefixes existant (OverlayFS complet et inscriptible) sans monter de gameviews supplémentaire. Aucune extraction du jeu au lancement.
 
-## Validation Batocera encore nécessaire
+## Contrôles après installation
 
 1. Azimuth .wine + GE-Proton11-7-UMU, option activée : launcher, jeu, arrêt et relancement.
 2. Azimuth .wsquashfs, même runner : launcher, jeu, écritures/sauvegardes et relancement.
@@ -19,7 +19,7 @@ Le mode direct conserve le préfixe matérialisé, sa persistance, la protection
 
 Les logs doivent indiquer umu_direct_game=1, runtime_gameview_bypassed=1 et runtime_gameview_bind=0. Pour les archives, runtime_game_source doit rester sous merged-prefixes, jamais le lowerdir SquashFS seul.
 
-Les tests statiques et simulés ne valident pas le comportement d’Azimuth dans pressure-vessel : le montage compressed doit être testé sur Batocera avant toute release.
+Validation utilisateur obtenue sur Batocera avec GE-Proton11-7-UMU : lancement, sauvegarde et reprise de progression en .wine et .wsquashfs.
 
 ## Sauvegardes refusant les liens et points de montage
 
@@ -31,4 +31,4 @@ Logs attendus : direct_save_copy=1, direct_save_path=..., direct_save_source=...
 
 En cas d’échec de la copie initiale, le lien et les sauvegardes persistantes restent inchangés et le lancement est refusé. En cas d’échec de synchronisation, le vrai dossier de jeu et son lien de secours restent présents pour récupération ; le lancement suivant est refusé afin de ne pas les écraser. Un arrêt forcé du wrapper (SIGKILL, coupure) peut nécessiter une récupération manuelle. Ne pas supprimer ces dossiers ou refaire le packaging avant récupération. Le mode copie nécessite de l’espace libre sur les systèmes de fichiers du jeu et des sauvegardes et ajoute un délai proportionnel à leur taille.
 
-Validation Batocera : relancer Azimuth .wine avec SAVEDIR et vérifier jeu, sauvegarde, fermeture, restauration du lien et relancement ; valider ensuite le même comportement en .wsquashfs avant toute release.
+Validation Batocera : relancer Azimuth .wine avec SAVEDIR et vérifier jeu, sauvegarde, fermeture, restauration du lien et relancement ; vérifier ensuite le même comportement en .wsquashfs.
