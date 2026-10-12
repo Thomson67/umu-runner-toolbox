@@ -92,9 +92,9 @@ rm "$DIRECT_SAVE_PATH/keep.sav"
 restore_direct_save_link
 test -f "$DIRECT_SAVE_SOURCE/new.sav"
 test ! -e "$DIRECT_SAVE_SOURCE/keep.sav"
-test -f "$DIRECT_SAVE_SOURCE.umu-direct-previous/keep.sav"
-# Fixture also checks the original bytes: recover its file from snapshot.
-cp "$DIRECT_SAVE_SOURCE.umu-direct-previous/keep.sav" "$DIRECT_SAVE_SOURCE/keep.sav"
+test ! -e "$DIRECT_SAVE_SOURCE.umu-direct-previous"
+# Restore fixture data after checking that deletion reached persistent saves.
+printf "original save" > "$DIRECT_SAVE_SOURCE/keep.sav"
 ''')
 
     def test_sync_failure_retains_both_save_copies(self):
@@ -107,7 +107,7 @@ test -L "$DIRECT_SAVE_BACKUP"
 test "$DIRECT_SAVE_MOVED" = 1
 ''')
 
-    def test_previous_snapshot_is_updated_on_second_session(self):
+    def test_successful_sessions_leave_no_previous_snapshot(self):
         self.run_case('''prepare_direct_save_copy
 printf 'first' > "$DIRECT_SAVE_PATH/new.sav"
 restore_direct_save_link
@@ -115,5 +115,5 @@ prepare_direct_save_copy
 printf 'second' > "$DIRECT_SAVE_PATH/new.sav"
 restore_direct_save_link
 test "$(cat "$DIRECT_SAVE_SOURCE/new.sav")" = second
-test "$(cat "$DIRECT_SAVE_SOURCE.umu-direct-previous/new.sav")" = first
+test ! -e "$DIRECT_SAVE_SOURCE.umu-direct-previous"
 ''')

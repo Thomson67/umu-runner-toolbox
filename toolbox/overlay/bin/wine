@@ -345,8 +345,8 @@ restore_direct_save_link() {
         log "WARNING: direct_save_restore_refused=$DIRECT_SAVE_PATH"
         return 1
     fi
-    # Stage all data first. Retain the previous persistent directory as a
-    # recovery snapshot, and roll back a failed replacement. On any failure,
+    # Stage all data first. Keep the previous persistent directory until
+    # restoration succeeds, and roll back a failed replacement. On any failure,
     # leave the local saves and the original symlink backup untouched.
     if ! python3 - "$DIRECT_SAVE_PATH" "$DIRECT_SAVE_SOURCE" >>"$LOG" 2>&1 <<'DIRECT_SAVE_SYNC'
 from pathlib import Path
@@ -399,12 +399,19 @@ DIRECT_SAVE_SYNC
     fi
     DIRECT_SAVE_MOVED=0
     log "direct_save_link_restored=$DIRECT_SAVE_PATH"
-    # Only our retired local copy is removed; the persistent saves and their
-    # previous snapshot are kept. shutil refuses a replaced root symlink.
-    python3 - "$retired" >>"$LOG" 2>&1 <<'DIRECT_SAVE_REMOVE'
+    # Remove recovery copies only after both sync and link restoration succeed.
+    # Persistent current saves are never removed here.
+    python3 - "$retired" "$DIRECT_SAVE_SOURCE.umu-direct-previous" >>"$LOG" 2>&1 <<'DIRECT_SAVE_REMOVE'
+from pathlib import Path
+import os
 import shutil
 import sys
-shutil.rmtree(sys.argv[1])
+for value in sys.argv[1:]:
+    path = Path(value)
+    if path.is_symlink() or os.path.ismount(path):
+        raise RuntimeError('refusing unsafe recovery cleanup: ' + value)
+    if path.exists():
+        shutil.rmtree(path)
 DIRECT_SAVE_REMOVE
 }
 
