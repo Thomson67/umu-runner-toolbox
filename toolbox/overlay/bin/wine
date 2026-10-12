@@ -332,9 +332,101 @@ GAMEVIEW_TARGET=""
 GAMEVIEW_MOUNTPOINT_CREATED=0
 ACTIVE_STATE_FILE=""
 
+# Direct mode only: present the declared save directory as a real mountpoint.
+# Batocera's persistent save target is never copied, removed or renamed.
+DIRECT_SAVE_PATH=""
+DIRECT_SAVE_BACKUP=""
+DIRECT_SAVE_MOVED=0
+DIRECT_SAVE_BOUND=0
+
+restore_direct_save_link() {
+    [ "$DIRECT_SAVE_MOVED" -eq 1 ] || return 0
+    local attempt
+    if [ "$DIRECT_SAVE_BOUND" -eq 1 ]; then
+        for attempt in 1 2 3 4 5; do
+            if umount "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
+                DIRECT_SAVE_BOUND=0
+                break
+            fi
+            sleep 0.2
+        done
+        if [ "$DIRECT_SAVE_BOUND" -eq 1 ]; then
+            log "WARNING: direct_save_restore_pending=$DIRECT_SAVE_PATH backup=$DIRECT_SAVE_BACKUP"
+            return 1
+        fi
+    fi
+    # Never delete a non-empty directory or replace a live mount.
+    if mountpoint -q "$DIRECT_SAVE_PATH" || ! rmdir -- "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
+        log "WARNING: direct_save_restore_refused=$DIRECT_SAVE_PATH backup=$DIRECT_SAVE_BACKUP"
+        return 1
+    fi
+    if ! mv -- "$DIRECT_SAVE_BACKUP" "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
+        log "WARNING: direct_save_restore_failed=$DIRECT_SAVE_PATH backup=$DIRECT_SAVE_BACKUP"
+        return 1
+    fi
+    DIRECT_SAVE_MOVED=0
+    log "direct_save_link_restored=$DIRECT_SAVE_PATH"
+}
+
+prepare_direct_save_bind() {
+    [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ] || return 0
+    [ -n "${GAME_SOURCE:-}" ] || return 0
+    local prefix autorun line savedir="" path parent source game_root
+    prefix="$ORIGINAL_PREFIX_CANON"
+    [ "$COMPRESSED_OVERLAY" -eq 0 ] || prefix="$ALIAS_MOUNT"
+    autorun="$prefix/autorun.cmd"
+    [ -f "$autorun" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        case "$line" in SAVEDIR=*) savedir="${line#SAVEDIR=}" ;; esac
+    done < "$autorun"
+    savedir="${savedir#\"}"; savedir="${savedir%\"}"
+    savedir="${savedir%/}"
+    case "$savedir" in
+        ""|.|/*|..|../*|*/../*|*/..) return 0 ;;
+    esac
+    path="$prefix/$savedir"
+    # Restrict conversion to the external game directory, which is excluded
+    # from prefix materialization/persistence. Do not touch prefix-side saves.
+    game_root="$(readlink -f "$GAME_SOURCE")" || return 1
+    parent="$(readlink -f "$(dirname "$path")")" || return 1
+    case "$parent/" in "$game_root/"*) ;; *) return 0 ;; esac
+    path="$parent/$(basename "$path")"
+    if [ -e "$path.umu-direct-link" ] || [ -L "$path.umu-direct-link" ]; then
+        log "ERROR: direct_save_backup_exists=$path.umu-direct-link"; return 1
+    fi
+    [ -L "$path" ] || return 0
+    source="$(readlink -f "$path")" || return 1
+    case "$source" in /userdata/saves/windows/*) ;; *)
+        log "ERROR: direct_save_unexpected_target=$source"; return 1 ;;
+    esac
+    [ -d "$source" ] || { log "ERROR: direct_save_target_missing=$source"; return 1; }
+    DIRECT_SAVE_PATH="$path"
+    DIRECT_SAVE_BACKUP="$path.umu-direct-link"
+    if [ -e "$DIRECT_SAVE_BACKUP" ] || [ -L "$DIRECT_SAVE_BACKUP" ]; then
+        log "ERROR: direct_save_backup_exists=$DIRECT_SAVE_BACKUP"; return 1
+    fi
+    mv -- "$path" "$DIRECT_SAVE_BACKUP" 2>>"$LOG" || return 1
+    DIRECT_SAVE_MOVED=1
+    # mkdir failure leaves only the retained symlink; restore it immediately.
+    if ! mkdir -- "$path" 2>>"$LOG"; then
+        mv -- "$DIRECT_SAVE_BACKUP" "$path" 2>>"$LOG" && DIRECT_SAVE_MOVED=0
+        return 1
+    fi
+    if ! mount --bind "$source" "$path" 2>>"$LOG"; then
+        log "ERROR: direct_save_bind_failed=$path"
+        return 1
+    fi
+    DIRECT_SAVE_BOUND=1
+    log "direct_save_bind=1"
+    log "direct_save_path=$path"
+    log "direct_save_source=$source"
+}
+
 cleanup_runtime_mounts() {
     # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
+    restore_direct_save_link || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
         log "runtime_active_state_removed=$ACTIVE_STATE_FILE"
@@ -1088,6 +1180,10 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
+if ! prepare_direct_save_bind; then
+    log "ERROR: direct save compatibility failed; launch refused"
+    exit 95
+fi
 # v3.8: real materialized pfx + external merged Batocera gameview.
 python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
 rc=$?
