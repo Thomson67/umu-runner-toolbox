@@ -332,43 +332,83 @@ GAMEVIEW_TARGET=""
 GAMEVIEW_MOUNTPOINT_CREATED=0
 ACTIVE_STATE_FILE=""
 
-# Direct mode only: present the declared save directory as a real mountpoint.
-# Batocera's persistent save target is never copied, removed or renamed.
+# Direct mode only: use real save files on the game's own filesystem.
+# Keep the original save target intact until a complete return copy is ready.
 DIRECT_SAVE_PATH=""
 DIRECT_SAVE_BACKUP=""
+DIRECT_SAVE_SOURCE=""
 DIRECT_SAVE_MOVED=0
-DIRECT_SAVE_BOUND=0
 
 restore_direct_save_link() {
     [ "$DIRECT_SAVE_MOVED" -eq 1 ] || return 0
-    local attempt
-    if [ "$DIRECT_SAVE_BOUND" -eq 1 ]; then
-        for attempt in 1 2 3 4 5; do
-            if umount "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
-                DIRECT_SAVE_BOUND=0
-                break
-            fi
-            sleep 0.2
-        done
-        if [ "$DIRECT_SAVE_BOUND" -eq 1 ]; then
-            log "WARNING: direct_save_restore_pending=$DIRECT_SAVE_PATH backup=$DIRECT_SAVE_BACKUP"
-            return 1
-        fi
-    fi
-    # Never delete a non-empty directory or replace a live mount.
-    if mountpoint -q "$DIRECT_SAVE_PATH" || ! rmdir -- "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
-        log "WARNING: direct_save_restore_refused=$DIRECT_SAVE_PATH backup=$DIRECT_SAVE_BACKUP"
+    if mountpoint -q "$DIRECT_SAVE_PATH" || [ -L "$DIRECT_SAVE_PATH" ]; then
+        log "WARNING: direct_save_restore_refused=$DIRECT_SAVE_PATH"
         return 1
     fi
+    # Stage all data first. Retain the previous persistent directory as a
+    # recovery snapshot, and roll back a failed replacement. On any failure,
+    # leave the local saves and the original symlink backup untouched.
+    if ! python3 - "$DIRECT_SAVE_PATH" "$DIRECT_SAVE_SOURCE" >>"$LOG" 2>&1 <<'DIRECT_SAVE_SYNC'
+from pathlib import Path
+import os
+import shutil
+import sys
+import tempfile
+
+local, target = map(Path, sys.argv[1:])
+previous = target.with_name(target.name + '.umu-direct-previous')
+if local.is_symlink() or not local.is_dir() or target.is_symlink() or not target.is_dir():
+    raise RuntimeError('unsafe or missing save directory; local saves retained')
+if os.path.ismount(target):
+    raise RuntimeError('persistent save target is a mountpoint; local saves retained')
+work = Path(tempfile.mkdtemp(prefix='.' + target.name + '.umu-direct-stage-', dir=target.parent))
+stage = work / 'saves'
+try:
+    shutil.copytree(local, stage, symlinks=True)
+    # A previous snapshot belongs to this opt-in save target only. Refuse
+    # unexpected types instead of following a symlink or deleting a mount.
+    if previous.exists() or previous.is_symlink():
+        if previous.is_symlink() or not previous.is_dir() or os.path.ismount(previous):
+            raise RuntimeError('unsafe previous save snapshot; local saves retained')
+        shutil.rmtree(previous)
+    target.rename(previous)
+    try:
+        stage.rename(target)
+    except BaseException:
+        if not target.exists():
+            previous.rename(target)
+        raise
+finally:
+    shutil.rmtree(work, ignore_errors=True)
+DIRECT_SAVE_SYNC
+    then
+        log "WARNING: direct_save_sync_failed=$DIRECT_SAVE_PATH source=$DIRECT_SAVE_SOURCE"
+        return 1
+    fi
+    log "direct_save_sync=ok"
+    # Retain local data until the symlink itself has been restored successfully.
+    local retired="$DIRECT_SAVE_PATH.umu-direct-local"
+    if [ -e "$retired" ] || [ -L "$retired" ]; then
+        log "WARNING: direct_save_local_backup_exists=$retired"; return 1
+    fi
+    mv -- "$DIRECT_SAVE_PATH" "$retired" 2>>"$LOG" || return 1
     if ! mv -- "$DIRECT_SAVE_BACKUP" "$DIRECT_SAVE_PATH" 2>>"$LOG"; then
-        log "WARNING: direct_save_restore_failed=$DIRECT_SAVE_PATH backup=$DIRECT_SAVE_BACKUP"
+        mv -- "$retired" "$DIRECT_SAVE_PATH" 2>>"$LOG" || true
+        log "WARNING: direct_save_restore_failed=$DIRECT_SAVE_PATH"
         return 1
     fi
     DIRECT_SAVE_MOVED=0
     log "direct_save_link_restored=$DIRECT_SAVE_PATH"
+    # Only our retired local copy is removed; the persistent saves and their
+    # previous snapshot are kept. shutil refuses a replaced root symlink.
+    python3 - "$retired" >>"$LOG" 2>&1 <<'DIRECT_SAVE_REMOVE'
+import shutil
+import sys
+shutil.rmtree(sys.argv[1])
+DIRECT_SAVE_REMOVE
 }
 
-prepare_direct_save_bind() {
+prepare_direct_save_copy() {
     [ "$UMU_DIRECT_GAME_ENABLED" -eq 1 ] || return 0
     [ -n "${GAME_SOURCE:-}" ] || return 0
     local prefix autorun line savedir="" path parent source game_root
@@ -401,24 +441,30 @@ prepare_direct_save_bind() {
         log "ERROR: direct_save_unexpected_target=$source"; return 1 ;;
     esac
     [ -d "$source" ] || { log "ERROR: direct_save_target_missing=$source"; return 1; }
+    # Copy beside the save path before touching the link. Partial copies can
+    # never be used as authoritative saves or written back on a failed start.
+    local work
+    work="$(mktemp -d "$parent/.umu-direct-save.XXXXXX")" || return 1
+    if ! cp -a -- "$source/." "$work/" 2>>"$LOG"; then
+        rm -rf -- "$work"
+        log "ERROR: direct_save_copy_failed=$source"; return 1
+    fi
+    if [ -e "$path.umu-direct-local" ] || [ -L "$path.umu-direct-local" ]; then
+        rm -rf -- "$work"
+        log "ERROR: direct_save_local_backup_exists=$path.umu-direct-local"; return 1
+    fi
     DIRECT_SAVE_PATH="$path"
     DIRECT_SAVE_BACKUP="$path.umu-direct-link"
-    if [ -e "$DIRECT_SAVE_BACKUP" ] || [ -L "$DIRECT_SAVE_BACKUP" ]; then
-        log "ERROR: direct_save_backup_exists=$DIRECT_SAVE_BACKUP"; return 1
+    DIRECT_SAVE_SOURCE="$source"
+    if ! mv -- "$path" "$DIRECT_SAVE_BACKUP" 2>>"$LOG"; then
+        rm -rf -- "$work"; return 1
     fi
-    mv -- "$path" "$DIRECT_SAVE_BACKUP" 2>>"$LOG" || return 1
+    if ! mv -- "$work" "$path" 2>>"$LOG"; then
+        mv -- "$DIRECT_SAVE_BACKUP" "$path" 2>>"$LOG" || true
+        rm -rf -- "$work"; return 1
+    fi
     DIRECT_SAVE_MOVED=1
-    # mkdir failure leaves only the retained symlink; restore it immediately.
-    if ! mkdir -- "$path" 2>>"$LOG"; then
-        mv -- "$DIRECT_SAVE_BACKUP" "$path" 2>>"$LOG" && DIRECT_SAVE_MOVED=0
-        return 1
-    fi
-    if ! mount --bind "$source" "$path" 2>>"$LOG"; then
-        log "ERROR: direct_save_bind_failed=$path"
-        return 1
-    fi
-    DIRECT_SAVE_BOUND=1
-    log "direct_save_bind=1"
+    log "direct_save_copy=1"
     log "direct_save_path=$path"
     log "direct_save_source=$source"
 }
@@ -1180,7 +1226,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
-if ! prepare_direct_save_bind; then
+if ! prepare_direct_save_copy; then
     log "ERROR: direct save compatibility failed; launch refused"
     exit 95
 fi
