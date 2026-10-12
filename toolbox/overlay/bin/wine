@@ -364,7 +364,8 @@ if os.path.ismount(target):
 work = Path(tempfile.mkdtemp(prefix='.' + target.name + '.umu-direct-stage-', dir=target.parent))
 stage = work / 'saves'
 try:
-    shutil.copytree(local, stage, symlinks=True)
+    shutil.copytree(local, stage, symlinks=True,
+                    ignore=lambda folder, names: ['.umu-direct-previous'] if Path(folder) == local else [])
     # A previous snapshot belongs to this opt-in save target only. Refuse
     # unexpected types instead of following a symlink or deleting a mount.
     if previous.exists() or previous.is_symlink():
@@ -399,19 +400,26 @@ DIRECT_SAVE_SYNC
     fi
     DIRECT_SAVE_MOVED=0
     log "direct_save_link_restored=$DIRECT_SAVE_PATH"
-    # Remove recovery copies only after both sync and link restoration succeed.
-    # Persistent current saves are never removed here.
-    python3 - "$retired" "$DIRECT_SAVE_SOURCE.umu-direct-previous" >>"$LOG" 2>&1 <<'DIRECT_SAVE_REMOVE'
+    # Store one previous generation inside the game's save directory. Never
+    # include that snapshot in the next launch copy or nest snapshots forever.
+    python3 - "$retired" "$DIRECT_SAVE_SOURCE" >>"$LOG" 2>&1 <<'DIRECT_SAVE_REMOVE'
 from pathlib import Path
 import os
 import shutil
 import sys
-for value in sys.argv[1:]:
-    path = Path(value)
+retired, target = map(Path, sys.argv[1:])
+previous = target.with_name(target.name + '.umu-direct-previous')
+nested = previous / '.umu-direct-previous'
+backup = target / '.umu-direct-previous'
+for path in (retired, previous, nested, backup):
     if path.is_symlink() or os.path.ismount(path):
-        raise RuntimeError('refusing unsafe recovery cleanup: ' + value)
-    if path.exists():
-        shutil.rmtree(path)
+        raise RuntimeError('refusing unsafe recovery cleanup: ' + str(path))
+if nested.exists():
+    shutil.rmtree(nested)
+if backup.exists():
+    raise RuntimeError('unexpected snapshot in current saves; previous snapshot retained')
+previous.rename(backup)
+shutil.rmtree(retired)
 DIRECT_SAVE_REMOVE
 }
 
@@ -452,7 +460,13 @@ prepare_direct_save_copy() {
     # never be used as authoritative saves or written back on a failed start.
     local work
     work="$(mktemp -d "$parent/.umu-direct-save.XXXXXX")" || return 1
-    if ! cp -a -- "$source/." "$work/" 2>>"$LOG"; then
+    local item copy_failed=0
+    for item in "$source"/* "$source"/.[!.]* "$source"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        [ "$(basename "$item")" != .umu-direct-previous ] || continue
+        cp -a -- "$item" "$work/" 2>>"$LOG" || { copy_failed=1; break; }
+    done
+    if [ "$copy_failed" -eq 1 ]; then
         rm -rf -- "$work"
         log "ERROR: direct_save_copy_failed=$source"; return 1
     fi

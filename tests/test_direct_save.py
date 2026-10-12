@@ -107,13 +107,16 @@ test -L "$DIRECT_SAVE_BACKUP"
 test "$DIRECT_SAVE_MOVED" = 1
 ''')
 
-    def test_successful_sessions_leave_no_previous_snapshot(self):
+    def test_previous_snapshot_inside_saves_without_recursive_copies(self):
         self.run_case('''prepare_direct_save_copy
 printf 'first' > "$DIRECT_SAVE_PATH/new.sav"
 restore_direct_save_link
 prepare_direct_save_copy
+test ! -e "$DIRECT_SAVE_PATH/.umu-direct-previous"
 printf 'second' > "$DIRECT_SAVE_PATH/new.sav"
 restore_direct_save_link
 test "$(cat "$DIRECT_SAVE_SOURCE/new.sav")" = second
+test "$(cat "$DIRECT_SAVE_SOURCE/.umu-direct-previous/new.sav")" = first
+test ! -e "$DIRECT_SAVE_SOURCE/.umu-direct-previous/.umu-direct-previous"
 test ! -e "$DIRECT_SAVE_SOURCE.umu-direct-previous"
 ''')
