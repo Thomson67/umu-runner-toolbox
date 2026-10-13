@@ -2912,13 +2912,13 @@ display_mode_menu() {
         case "$current" in handheld) ;; *) current=normal ;; esac
         if [ "$TOOLBOX_LANGUAGE" = fr ]; then
             desc="Profil actuel : $current. Redémarrer depuis Ports après modification."
-            choice="$(menu_choice "Affichage" --description "$desc" "normal" "Normal (police 11)" "handheld" "Console portable (police 16)" "0" "Retour")" || return
+            choice="$(menu_choice "Affichage" --description "$desc" "normal" "Normal (police 11)" "handheld" "Console portable (police 16)" "fullscreen" "Plein écran (police 11)" "0" "Retour")" || return
         else
             desc="Current profile: $current. Relaunch from Ports after changing it."
-            choice="$(menu_choice "Display" --description "$desc" "normal" "Normal (font 11)" "handheld" "Handheld (font 16)" "0" "Back")" || return
+            choice="$(menu_choice "Display" --description "$desc" "normal" "Normal (font 11)" "handheld" "Handheld (font 16)" "fullscreen" "Fullscreen (font 11)" "0" "Back")" || return
         fi
         case "$choice" in
-            normal|handheld)
+            normal|handheld|fullscreen)
                 mkdir -p "$ROOT/config"
                 printf '%s\n' "$choice" > "$ROOT/config/display-mode"
                 if [ "$TOOLBOX_LANGUAGE" = fr ]; then
