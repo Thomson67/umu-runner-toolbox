@@ -2906,27 +2906,40 @@ language_menu() {
 }
 
 display_mode_menu() {
-    local choice current desc
+    local choice mode font prompt
     while true; do
-        current="$(cat "$ROOT/config/display-mode" 2>/dev/null || true)"
-        case "$current" in handheld) ;; *) current=normal ;; esac
+        mode="$(cat "$ROOT/config/display-mode" 2>/dev/null || true)"
+        font="$(cat "$ROOT/config/font-size" 2>/dev/null || true)"
+        case "$mode" in fullscreen) ;; *) mode=normal ;; esac
+        case "$font" in 11|13|16|18|20) ;; *) font=11 ;; esac
         if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-            desc="Profil actuel : $current. Redémarrer depuis Ports après modification."
-            choice="$(menu_choice "Affichage" --description "$desc" "normal" "Normal (police 11)" "handheld" "Console portable (police 16)" "fullscreen" "Plein écran (police 11)" "0" "Retour")" || return
+            prompt="Fenêtre : $mode | Police : $font. Relancer depuis Ports pour appliquer."
+            choice="$(menu_choice "Affichage" --description "$prompt" "w" "Fenêtre : Normal / Plein écran" "f" "Taille de police : 11 / 13 / 16 / 18 / 20" "0" "Retour")" || return
         else
-            desc="Current profile: $current. Relaunch from Ports after changing it."
-            choice="$(menu_choice "Display" --description "$desc" "normal" "Normal (font 11)" "handheld" "Handheld (font 16)" "fullscreen" "Fullscreen (font 11)" "0" "Back")" || return
+            prompt="Window: $mode | Font: $font. Relaunch from Ports to apply."
+            choice="$(menu_choice "Display" --description "$prompt" "w" "Window: Normal / Fullscreen" "f" "Font size: 11 / 13 / 16 / 18 / 20" "0" "Back")" || return
         fi
         case "$choice" in
-            normal|handheld|fullscreen)
-                mkdir -p "$ROOT/config"
-                printf '%s\n' "$choice" > "$ROOT/config/display-mode"
+            w)
                 if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-                    msg "Affichage" "Profil enregistré. Quittez et relancez la Toolbox depuis Ports."
+                    choice="$(menu_choice "Fenêtre" "normal" "Normal" "fullscreen" "Plein écran" "0" "Retour")" || continue
                 else
-                    msg "Display" "Profile saved. Exit and relaunch the Toolbox from Ports."
+                    choice="$(menu_choice "Window" "normal" "Normal" "fullscreen" "Fullscreen" "0" "Back")" || continue
                 fi
-                return ;;
+                case "$choice" in normal|fullscreen)
+                    mkdir -p "$ROOT/config"
+                    printf '%s\n' "$choice" > "$ROOT/config/display-mode" ;;
+                esac ;;
+            f)
+                if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+                    choice="$(menu_choice "Police" "11" "11" "13" "13" "16" "16" "18" "18" "20" "20" "0" "Retour")" || continue
+                else
+                    choice="$(menu_choice "Font" "11" "11" "13" "13" "16" "16" "18" "18" "20" "20" "0" "Back")" || continue
+                fi
+                case "$choice" in 11|13|16|18|20)
+                    mkdir -p "$ROOT/config"
+                    printf '%s\n' "$choice" > "$ROOT/config/font-size" ;;
+                esac ;;
             0|"") return ;;
         esac
     done
