@@ -2905,6 +2905,49 @@ language_menu() {
     esac
 }
 
+display_mode_menu() {
+    local choice current desc
+    while true; do
+        current="$(cat "$ROOT/config/display-mode" 2>/dev/null || true)"
+        case "$current" in handheld) ;; *) current=normal ;; esac
+        if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+            desc="Profil actuel : $current. Redémarrer depuis Ports après modification."
+            choice="$(menu_choice "Affichage" --description "$desc" "normal" "Normal (police 11)" "handheld" "Console portable (police 16)" "0" "Retour")" || return
+        else
+            desc="Current profile: $current. Relaunch from Ports after changing it."
+            choice="$(menu_choice "Display" --description "$desc" "normal" "Normal (font 11)" "handheld" "Handheld (font 16)" "0" "Back")" || return
+        fi
+        case "$choice" in
+            normal|handheld)
+                mkdir -p "$ROOT/config"
+                printf '%s\n' "$choice" > "$ROOT/config/display-mode"
+                if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+                    msg "Affichage" "Profil enregistré. Quittez et relancez la Toolbox depuis Ports."
+                else
+                    msg "Display" "Profile saved. Exit and relaunch the Toolbox from Ports."
+                fi
+                return ;;
+            0|"") return ;;
+        esac
+    done
+}
+
+settings_menu() {
+    local choice
+    while true; do
+        if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+            choice="$(menu_choice "Paramètres" --description "Langue et mode d'affichage." "l" "Langue" "d" "Affichage" "0" "Retour")" || return
+        else
+            choice="$(menu_choice "Settings" --description "Language and display mode." "l" "Language" "d" "Display" "0" "Back")" || return
+        fi
+        case "$choice" in
+            l) language_menu ;;
+            d) display_mode_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+
 latest_stable_toolbox_version() {
     local latest_url tag
     latest_url="$(curl -fsSL --connect-timeout 5 --max-time 10 -o /dev/null -w '%{url_effective}' "https://github.com/$TOOLBOX_REPO/releases/latest" 2>/dev/null)" || return 1
@@ -2958,7 +3001,7 @@ main_menu() {
             "5" "$(ui maintenance)" \
             "6" "$(ui update_toolbox)" \
             "7" "$(ui documentation)" \
-            "8" "$(ui language)" \
+            "8" "$([ "$TOOLBOX_LANGUAGE" = fr ] && printf Paramètres || printf Settings)" \
             "0" "$(ui quit)")" || exit 0
         case "$choice" in
             1) install_runner_menu ;;
@@ -2968,7 +3011,7 @@ main_menu() {
             5) maintenance_menu ;;
             6) update_toolbox ;;
             7) documentation_about ;;
-            8) language_menu ;;
+            8) settings_menu ;;
             0|"") clear; exit 0 ;;
         esac
     done
