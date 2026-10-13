@@ -1,19 +1,15 @@
 ## Français
 
-- Nouveau mode de compatibilité par jeu : `ENV=UMU_DIRECT_GAME=1` contourne la vue `gameviews` supplémentaire sans extraire le jeu complet. Désactivé par défaut.
-- Pour les jeux refusant les liens de sauvegardes, les dossiers `SAVEDIR` à l’intérieur du jeu sont présentés comme de vrais dossiers, puis synchronisés à la fermeture. Les modifications et suppressions sont répercutées ; le lien Batocera est ensuite restauré.
-- Une seule copie de secours reste dans le dossier de sauvegardes du jeu, sous `.umu-direct-previous`, sans accumulation récursive.
-- Intégration **3.10.4** : Steam Runtime, isolation des préfixes et protection des runners conservés. La mise à jour migre les runners gérés dont le manifeste est valide ; les jeux doivent être fermés.
-- Validation utilisateur sur Batocera avec Azimuth / Forza Horizon 2 et GE-Proton11-7-UMU : lancement, sauvegarde et reprise de progression en `.wine` et `.wsquashfs`.
-
-Le mode direct vise des incompatibilités de chemins et ne corrige pas tous les crashs. Les copies de sauvegardes nécessitent de l’espace libre et ajoutent un délai ; une interruption forcée peut demander une récupération manuelle. Le nom du jeu détermine le dossier de sauvegardes Batocera : le conserver ou transférer les sauvegardes lors d’un renommage.
+- Version **0.13.8**, intégration **3.10.5** : les dossiers de cache graphiques configurés et existants sont exposés en lecture/écriture dans Steam Runtime (VKD3D, DXVK, Mesa et NVIDIA).
+- Conserve les chemins et caches existants, notamment `/userdata/system/cache` utilisé par Batocera. Les liens symboliques sont pris en charge et les montages déjà configurés sont conservés.
+- Corrige le cas où VKD3D recevait un chemin invisible dans le conteneur UMU. Le test utilisateur avec un chemin visible a réduit « Preparing graphic pipelines » d'environ 15 secondes à moins d'une seconde sur Azimuth / Forza Horizon 2. La correction automatique a ensuite été validée sur Batocera : aucune recompilation au deuxième lancement.
+- Les chemins vides, désactivés (`0`), relatifs ou inexistants ne sont pas montés. Les décisions sont consignées dans le journal du runner.
+- Fermer les jeux avant installation : les runners gérés dont le manifeste est valide sont migrés automatiquement.
 
 ## English
 
-- New per-game compatibility mode: `ENV=UMU_DIRECT_GAME=1` bypasses the extra `gameviews` view without extracting the full game. Disabled by default.
-- For games rejecting save symlinks, `SAVEDIR` directories inside the game are presented as real directories and synchronized on exit. Changes and deletions are propagated, then the Batocera link is restored.
-- One recovery snapshot remains inside the game's save directory as `.umu-direct-previous`, without recursive accumulation.
-- Integration **3.10.4** retains Steam Runtime, prefix isolation and runner protection. Updating migrates managed runners with valid manifests; close games first.
-- User validation on Batocera with Azimuth / Forza Horizon 2 and GE-Proton11-7-UMU: launch, save and restored progress in `.wine` and `.wsquashfs`.
-
-Direct mode targets path incompatibilities and does not fix every crash. Save copies require free space and add latency; forced termination may require manual recovery. The game name determines Batocera's save directory: keep it or transfer saves when renaming.
+- Version **0.13.8**, integration **3.10.5**: configured, existing graphics cache directories are shared read/write with Steam Runtime (VKD3D, DXVK, Mesa and NVIDIA).
+- Preserves existing cache paths and contents, including Batocera's `/userdata/system/cache`. Supports symlinks and retains previously configured mounts.
+- Fixes VKD3D receiving a cache path invisible inside the UMU container. A user test with a visible path reduced “Preparing graphic pipelines” from about 15 seconds to less than one second on Azimuth / Forza Horizon 2. Automatic sharing was subsequently validated on Batocera: no recompilation on the second launch.
+- Empty, disabled (`0`), relative and missing paths are not mounted. Decisions are recorded in the runner log.
+- Close games before installation: managed runners with valid integrity manifests are migrated automatically.
