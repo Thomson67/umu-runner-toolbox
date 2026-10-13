@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.8"
+TOOLBOX_VERSION="0.13.9"
 INTEGRATION_VERSION="3.10.5"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
@@ -116,6 +116,55 @@ rotate_umu_logs() {
     log "log_rotation toolbox_deleted=$tb runner_deleted=$rb max_count=20 max_age=30d"
 }
 rotate_umu_logs
+
+
+# Fit Dialog windows to the current terminal while preserving desktop sizes.
+# Only defined when the real Dialog executable is available.
+if type -P dialog >/dev/null 2>&1; then
+dialog() {
+    local -a args=("$@")
+    local cols lines index widget h w limit max_h max_w list_h
+    cols="$(tput cols 2>/dev/null || true)"
+    lines="$(tput lines 2>/dev/null || true)"
+    if [[ ! "$cols" =~ ^[0-9]+$ || ! "$lines" =~ ^[0-9]+$ ]]; then
+        command dialog "$@"
+        return $?
+    fi
+    max_w=$((cols - 4))
+    max_h=$((lines - 2))
+    # Too small even for Dialog: let it report its own error.
+    if ((max_w < 24 || max_h < 8)); then
+        command dialog "$@"
+        return $?
+    fi
+    for ((index=0; index<${#args[@]}; index++)); do
+        widget="${args[index]}"
+        case "$widget" in
+            --msgbox|--yesno|--inputbox|--passwordbox|--menu|--checklist|--radiolist|--textbox|--tailbox|--dselect|--fselect|--infobox|--gauge)
+                # Dialog widget syntax: option, text/path, height, width.
+                ((index+3 < ${#args[@]})) || break
+                h="${args[index+2]}"
+                w="${args[index+3]}"
+                [[ "$h" =~ ^[0-9]+$ && "$w" =~ ^[0-9]+$ ]] || break
+                ((h > max_h)) && args[index+2]="$max_h"
+                ((w > max_w)) && args[index+3]="$max_w"
+                case "$widget" in
+                    --menu|--checklist|--radiolist)
+                        list_h="${args[index+4]:-}"
+                        if [[ "$list_h" =~ ^[0-9]+$ ]]; then
+                            limit=$((${args[index+2]} - 7))
+                            ((limit < 1)) && limit=1
+                            ((list_h > limit)) && args[index+4]="$limit"
+                        fi
+                        ;;
+                esac
+                break
+                ;;
+        esac
+    done
+    command dialog "${args[@]}"
+}
+fi
 
 pause() {
     printf '\n%s' "$(ui press_enter)"
@@ -2856,6 +2905,62 @@ language_menu() {
     esac
 }
 
+display_mode_menu() {
+    local choice mode font prompt
+    while true; do
+        mode="$(cat "$ROOT/config/display-mode" 2>/dev/null || true)"
+        font="$(cat "$ROOT/config/font-size" 2>/dev/null || true)"
+        case "$mode" in fullscreen) ;; *) mode=normal ;; esac
+        case "$font" in 11|13|16|18|20) ;; *) font=11 ;; esac
+        if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+            prompt="Fenêtre : $mode | Police : $font. Relancer depuis Ports pour appliquer."
+            choice="$(menu_choice "Affichage" --description "$prompt" "w" "Fenêtre : Normal / Plein écran" "f" "Taille de police : 11 / 13 / 16 / 18 / 20" "0" "Retour")" || return
+        else
+            prompt="Window: $mode | Font: $font. Relaunch from Ports to apply."
+            choice="$(menu_choice "Display" --description "$prompt" "w" "Window: Normal / Fullscreen" "f" "Font size: 11 / 13 / 16 / 18 / 20" "0" "Back")" || return
+        fi
+        case "$choice" in
+            w)
+                if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+                    choice="$(menu_choice "Fenêtre" "normal" "Normal" "fullscreen" "Plein écran" "0" "Retour")" || continue
+                else
+                    choice="$(menu_choice "Window" "normal" "Normal" "fullscreen" "Fullscreen" "0" "Back")" || continue
+                fi
+                case "$choice" in normal|fullscreen)
+                    mkdir -p "$ROOT/config"
+                    printf '%s\n' "$choice" > "$ROOT/config/display-mode" ;;
+                esac ;;
+            f)
+                if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+                    choice="$(menu_choice "Police" "11" "11" "13" "13" "16" "16" "18" "18" "20" "20" "0" "Retour")" || continue
+                else
+                    choice="$(menu_choice "Font" "11" "11" "13" "13" "16" "16" "18" "18" "20" "20" "0" "Back")" || continue
+                fi
+                case "$choice" in 11|13|16|18|20)
+                    mkdir -p "$ROOT/config"
+                    printf '%s\n' "$choice" > "$ROOT/config/font-size" ;;
+                esac ;;
+            0|"") return ;;
+        esac
+    done
+}
+
+settings_menu() {
+    local choice
+    while true; do
+        if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+            choice="$(menu_choice "Paramètres" --description "Langue et mode d'affichage." "l" "Langue" "d" "Affichage" "0" "Retour")" || return
+        else
+            choice="$(menu_choice "Settings" --description "Language and display mode." "l" "Language" "d" "Display" "0" "Back")" || return
+        fi
+        case "$choice" in
+            l) language_menu ;;
+            d) display_mode_menu ;;
+            0|"") return ;;
+        esac
+    done
+}
+
 latest_stable_toolbox_version() {
     local latest_url tag
     latest_url="$(curl -fsSL --connect-timeout 5 --max-time 10 -o /dev/null -w '%{url_effective}' "https://github.com/$TOOLBOX_REPO/releases/latest" 2>/dev/null)" || return 1
@@ -2909,7 +3014,7 @@ main_menu() {
             "5" "$(ui maintenance)" \
             "6" "$(ui update_toolbox)" \
             "7" "$(ui documentation)" \
-            "8" "$(ui language)" \
+            "8" "$([ "$TOOLBOX_LANGUAGE" = fr ] && printf Paramètres || printf Settings)" \
             "0" "$(ui quit)")" || exit 0
         case "$choice" in
             1) install_runner_menu ;;
@@ -2919,7 +3024,7 @@ main_menu() {
             5) maintenance_menu ;;
             6) update_toolbox ;;
             7) documentation_about ;;
-            8) language_menu ;;
+            8) settings_menu ;;
             0|"") clear; exit 0 ;;
         esac
     done
