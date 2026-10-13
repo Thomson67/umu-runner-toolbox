@@ -117,6 +117,55 @@ rotate_umu_logs() {
 }
 rotate_umu_logs
 
+
+# Fit Dialog windows to the current terminal while preserving desktop sizes.
+# Only defined when the real Dialog executable is available.
+if type -P dialog >/dev/null 2>&1; then
+dialog() {
+    local -a args=("$@")
+    local cols lines index widget h w limit max_h max_w list_h
+    cols="$(tput cols 2>/dev/null || true)"
+    lines="$(tput lines 2>/dev/null || true)"
+    if [[ ! "$cols" =~ ^[0-9]+$ || ! "$lines" =~ ^[0-9]+$ ]]; then
+        command dialog "$@"
+        return $?
+    fi
+    max_w=$((cols - 4))
+    max_h=$((lines - 2))
+    # Too small even for Dialog: let it report its own error.
+    if ((max_w < 24 || max_h < 8)); then
+        command dialog "$@"
+        return $?
+    fi
+    for ((index=0; index<${#args[@]}; index++)); do
+        widget="${args[index]}"
+        case "$widget" in
+            --msgbox|--yesno|--inputbox|--passwordbox|--menu|--checklist|--radiolist|--textbox|--tailbox|--dselect|--fselect|--infobox|--gauge)
+                # Dialog widget syntax: option, text/path, height, width.
+                ((index+3 < ${#args[@]})) || break
+                h="${args[index+2]}"
+                w="${args[index+3]}"
+                [[ "$h" =~ ^[0-9]+$ && "$w" =~ ^[0-9]+$ ]] || break
+                ((h > max_h)) && args[index+2]="$max_h"
+                ((w > max_w)) && args[index+3]="$max_w"
+                case "$widget" in
+                    --menu|--checklist|--radiolist)
+                        list_h="${args[index+4]:-}"
+                        if [[ "$list_h" =~ ^[0-9]+$ ]]; then
+                            limit=$((${args[index+2]} - 7))
+                            ((limit < 1)) && limit=1
+                            ((list_h > limit)) && args[index+4]="$limit"
+                        fi
+                        ;;
+                esac
+                break
+                ;;
+        esac
+    done
+    command dialog "${args[@]}"
+}
+fi
+
 pause() {
     printf '\n%s' "$(ui press_enter)"
     read -r _
