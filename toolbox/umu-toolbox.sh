@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.8-dev1"
+TOOLBOX_VERSION="0.13.8"
 INTEGRATION_VERSION="3.10.5"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"

@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.7**
-Runner integration version: **v3.10.4**
+Current stable version: **v0.13.8**
+Runner integration version: **v3.10.5**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
@@ -202,4 +202,8 @@ This project is distributed under the **GNU General Public License v3.0 (GPL-3.0
 
 ## Per-game compatibility: direct mode
 
-Add `UMU_DIRECT_GAME=1` to the single `ENV=` line in `autorun.cmd` for games rejecting redirected paths or save symlinks. Other games retain their launch mode. Integration 3.10.4 preserves Steam Runtime and runner protection. `SAVEDIR` saves inside the game directory are copied into a real directory at launch, synchronized on exit, then the Batocera link is restored. One recovery snapshot is retained inside the game's save directory as `.umu-direct-previous` and excluded from subsequent copies. Close the game normally; forced termination may require recovery. Copies need free space and time proportional to save size.
+Add `UMU_DIRECT_GAME=1` to the single `ENV=` line in `autorun.cmd` for games rejecting redirected paths or save symlinks. Other games retain their launch mode. Integration 3.10.5 preserves Steam Runtime and runner protection. `SAVEDIR` saves inside the game directory are copied into a real directory at launch, synchronized on exit, then the Batocera link is restored. One recovery snapshot is retained inside the game's save directory as `.umu-direct-previous` and excluded from subsequent copies. Close the game normally; forced termination may require recovery. Copies need free space and time proportional to save size.
+
+### Graphics cache visibility
+
+Configured, existing VKD3D, DXVK, Mesa and NVIDIA cache directories are shared read/write with Steam Runtime. This preserves Batocera cache locations and avoids repeated compilation when an inherited cache path was invisible inside UMU. Cache sharing decisions are recorded in the runner log.
