@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.4 ====="
+log "===== Batocera UMU runner v3.10.5 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -987,6 +987,37 @@ append_pv_rw() {
     esac
 }
 [ -d /userdata/saves ] && append_pv_rw /userdata/saves
+# Batocera can point graphics caches outside the directories shared by UMU.
+# Preserve those paths (and existing caches), but make them visible in the
+# Steam Runtime. Disabled, relative and missing paths are not mount requests.
+expose_graphics_caches() {
+    local key path resolved
+    for key in VKD3D_SHADER_CACHE_PATH DXVK_STATE_CACHE_PATH DXVK_SHADER_CACHE_PATH MESA_SHADER_CACHE_DIR MESA_GLSL_CACHE_DIR __GL_SHADER_DISK_CACHE_PATH; do
+        path="${!key-}"
+        case "$path" in
+            ''|0) continue ;;
+            /*) ;;
+            *) log "graphics_cache_skip=$key (relative path)"; continue ;;
+        esac
+        case "$path" in
+            *:*|*$'\n'*) log "graphics_cache_skip=$key (invalid mount path)"; continue ;;
+        esac
+        if [ ! -d "$path" ]; then
+            log "graphics_cache_skip=$key (directory absent): $path"
+            continue
+        fi
+        resolved="$(readlink -f -- "$path")" || continue
+        case "$resolved" in
+            /|/userdata|/userdata/system) log "graphics_cache_skip=$key (broad mount path)"; continue ;;
+            *:*|*$'\n'*) log "graphics_cache_skip=$key (invalid resolved path)"; continue ;;
+        esac
+        append_pv_rw "$path"
+        # Also expose a symlink's target when it lives outside shared paths.
+        [ "$resolved" = "$path" ] || append_pv_rw "$resolved"
+        log "graphics_cache_rw=$key: $path"
+    done
+}
+expose_graphics_caches
 if [ -n "${UMU_BATOCERA_EXTRA_RW-}" ]; then
     oldIFS="$IFS"; IFS=':'
     for extra_rw in $UMU_BATOCERA_EXTRA_RW; do append_pv_rw "$extra_rw"; done
