@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.9"
-INTEGRATION_VERSION="3.10.5"
+TOOLBOX_VERSION="0.13.10-dev1"
+INTEGRATION_VERSION="3.10.6"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -2945,17 +2945,42 @@ display_mode_menu() {
     done
 }
 
+graphics_cache_menu() {
+    local choice current title prompt on off back
+    current="$(cat "$ROOT/config/graphics-cache-sharing" 2>/dev/null || true)"
+    case "$current" in 0) ;; *) current=1 ;; esac
+    if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+        title="Partage des caches graphiques"
+        on="Activer (par défaut)"; off="Désactiver pour comparaison"; back="Retour"
+        prompt="État : $current (1=activé, 0=désactivé). Partage des dossiers de cache Batocera avec UMU. Désactiver retrouve le comportement avant le correctif et peut provoquer des recompilations. Aucun cache n'est supprimé. S'applique aux prochains lancements avec l'intégration 3.10.6 ou ultérieure. ENV=UMU_GRAPHICS_CACHE_SHARING=0 ou 1 dans l'autorun est prioritaire pour un jeu."
+    else
+        title="Graphics cache sharing"
+        on="Enable (default)"; off="Disable for comparison"; back="Back"
+        prompt="State: $current (1=enabled, 0=disabled). Share Batocera cache directories with UMU. Disabling restores the behavior before the fix and may cause recompilation. No cache files are deleted. Applies to subsequent launches with integration 3.10.6 or later. ENV=UMU_GRAPHICS_CACHE_SHARING=0 or 1 in autorun takes priority for a game."
+    fi
+    choice="$(menu_choice "$title" --description "$prompt" 1 "$on" 0 "$off" back "$back")" || return
+    case "$choice" in
+        0|1)
+            mkdir -p "$ROOT/config" || return 1
+            printf '%s\n' "$choice" > "$ROOT/config/graphics-cache-sharing.tmp" || return 1
+            mv -f "$ROOT/config/graphics-cache-sharing.tmp" "$ROOT/config/graphics-cache-sharing" || return 1
+            log "graphics_cache_sharing_setting=$choice"
+            ;;
+    esac
+}
+
 settings_menu() {
     local choice
     while true; do
         if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-            choice="$(menu_choice "Paramètres" --description "Langue et mode d'affichage." "l" "Langue" "d" "Affichage" "0" "Retour")" || return
+            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "0" "Retour")" || return
         else
-            choice="$(menu_choice "Settings" --description "Language and display mode." "l" "Language" "d" "Display" "0" "Back")" || return
+            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "0" "Back")" || return
         fi
         case "$choice" in
             l) language_menu ;;
             d) display_mode_menu ;;
+            c) graphics_cache_menu ;;
             0|"") return ;;
         esac
     done

@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.5 ====="
+log "===== Batocera UMU runner v3.10.6 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -1017,7 +1017,21 @@ expose_graphics_caches() {
         log "graphics_cache_rw=$key: $path"
     done
 }
-expose_graphics_caches
+# Per-game ENV takes priority over the persistent Toolbox setting. Only read
+# literal data from config; never source it as shell code. Default stays on.
+graphics_cache_sharing="${UMU_GRAPHICS_CACHE_SHARING-}"
+if [ -z "$graphics_cache_sharing" ]; then
+    graphics_cache_sharing="$(cat /userdata/system/umu/toolbox/config/graphics-cache-sharing 2>/dev/null || true)"
+fi
+case "$graphics_cache_sharing" in
+    0|1) ;;
+    *) graphics_cache_sharing=1 ;;
+esac
+log "graphics_cache_sharing=$graphics_cache_sharing"
+if [ "$graphics_cache_sharing" = 1 ]; then
+    expose_graphics_caches
+fi
+unset UMU_GRAPHICS_CACHE_SHARING
 if [ -n "${UMU_BATOCERA_EXTRA_RW-}" ]; then
     oldIFS="$IFS"; IFS=':'
     for extra_rw in $UMU_BATOCERA_EXTRA_RW; do append_pv_rw "$extra_rw"; done

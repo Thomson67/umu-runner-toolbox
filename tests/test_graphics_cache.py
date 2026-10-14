@@ -12,16 +12,56 @@ KEYS = ('VKD3D_SHADER_CACHE_PATH', 'DXVK_STATE_CACHE_PATH',
 
 
 class GraphicsCacheTests(unittest.TestCase):
-    def mounts(self, settings, previous='/existing'):
+    def mounts(self, settings, previous='/existing', saved=None):
         wrapper = (ROOT / 'toolbox/overlay/bin/wine').read_text()
         block = wrapper[wrapper.index('append_pv_rw() {'):
                         wrapper.index('if [ -n "${UMU_BATOCERA_EXTRA_RW-}" ]; then')]
         env = dict(os.environ)
         for key in KEYS:
             env.pop(key, None)
+        env.pop('UMU_GRAPHICS_CACHE_SHARING', None)
         env.update(settings, PV_RW=previous)
         script = 'set -eu\nlog() { :; }\n' + block + '\nprintf "%s" "$PV_RW"'
-        return subprocess.check_output(['bash', '-c', script], env=env, text=True).split(':')
+        with tempfile.TemporaryDirectory() as folder:
+            config = Path(folder) / 'graphics-cache-sharing'
+            if saved is not None:
+                config.write_text(saved)
+            script = script.replace('/userdata/system/umu/toolbox/config/graphics-cache-sharing', str(config))
+            return subprocess.check_output(['bash', '-c', script], env=env, text=True).split(':')
+
+    def test_disable_restores_previous_mounts_without_deleting_cache(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cache = Path(folder) / 'pipelines.bin'
+            cache.write_bytes(b'cached pipelines')
+            for settings, saved in (({'UMU_GRAPHICS_CACHE_SHARING': '0'}, None), ({}, '0\n')):
+                mounts = self.mounts(dict(settings, VKD3D_SHADER_CACHE_PATH=folder), saved=saved)
+                self.assertNotIn(folder, mounts)
+                self.assertIn('/existing', mounts)
+                self.assertEqual(cache.read_bytes(), b'cached pipelines')
+            # Explicit shares from the caller remain authoritative, even off.
+            self.assertIn(folder, self.mounts({'UMU_GRAPHICS_CACHE_SHARING': '0'}, previous=folder))
+
+    def test_per_game_setting_overrides_global_setting_and_invalid_defaults_on(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for local, saved, enabled in (('1', '0', True), ('0', '1', False),
+                                          (None, '1', True), (None, 'invalid', True),
+                                          ('invalid', '0', True)):
+                settings = {'VKD3D_SHADER_CACHE_PATH': folder}
+                if local is not None:
+                    settings['UMU_GRAPHICS_CACHE_SHARING'] = local
+                self.assertEqual(folder in self.mounts(settings, saved=saved), enabled)
+
+    def test_settings_menu_saves_both_choices_and_back_preserves_setting(self):
+        source = (ROOT / 'toolbox/umu-toolbox.sh').read_text()
+        block = source[source.index('graphics_cache_menu() {'):source.index('settings_menu() {')]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for language in ('fr', 'en'):
+                for choice, expected in (('0', '0'), ('1', '1'), ('back', '1')):
+                    script = 'log() { :; }\nmenu_choice() { printf "%s" "$TEST_CHOICE"; }\n' + block + '\ngraphics_cache_menu\n'
+                    subprocess.run(['bash', '-eu', '-c', script], check=True,
+                        env=dict(os.environ, ROOT=folder, TOOLBOX_LANGUAGE=language, TEST_CHOICE=choice))
+                    self.assertEqual((root / 'config/graphics-cache-sharing').read_text().strip(), expected)
 
     def test_all_cache_types_preserve_paths_and_existing_mounts(self):
         with tempfile.TemporaryDirectory() as folder:

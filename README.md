@@ -207,3 +207,7 @@ Add `UMU_DIRECT_GAME=1` to the single `ENV=` line in `autorun.cmd` for games rej
 ### Graphics cache visibility
 
 Configured, existing VKD3D, DXVK, Mesa and NVIDIA cache directories are shared read/write with Steam Runtime. This preserves Batocera cache locations and avoids repeated compilation when an inherited cache path was invisible inside UMU. Cache sharing decisions are recorded in the runner log.
+
+With integration 3.10.6, **Settings → Graphics cache sharing** enables or disables this automatic sharing for performance comparisons. It defaults to enabled and takes effect on the next launch. A game can override the global setting with `UMU_GRAPHICS_CACHE_SHARING=0` (off) or `1` (on) in its autorun `ENV=` line. The runner log records `graphics_cache_sharing=0` or `1`.
+
+Disabling restores the mount behavior before the visibility fix; it does not delete caches or disable every Proton/Mesa cache. Existing user-provided mounts and default runtime shares remain available. Recompilation may return when Batocera's configured cache is no longer visible, so distinguish the first launch from subsequent launches when comparing performance.

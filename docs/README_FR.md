@@ -205,6 +205,14 @@ Pour une utilisation normale, il n'est pas nécessaire de modifier manuellement 
 
 ## Documentation complémentaire
 
+### Comparaison du partage des caches graphiques
+
+Avec l’intégration 3.10.6, **Paramètres → Partage des caches graphiques (test performances)** permet de désactiver puis réactiver le partage automatique des dossiers de cache Batocera avec le conteneur UMU. Activé par défaut, ce choix s’applique aux prochains lancements et reste conservé après mise à jour.
+
+Pour un seul jeu, ajouter `UMU_GRAPHICS_CACHE_SHARING=0` à sa ligne `ENV=` d’autorun ; `1` force l’activation. Ce réglage par jeu est prioritaire sur le choix global. Le journal du runner indique `graphics_cache_sharing=0` ou `1`.
+
+Aucun cache n’est supprimé. Désactiver retrouve le comportement de partage antérieur au correctif : les autres caches de Proton/Mesa et les partages explicitement configurés restent possibles. La compilation peut reprendre si un chemin de cache Batocera redevient invisible. Comparer séparément le premier lancement et les suivants. Fermer le jeu entre chaque changement.
+
 L'ancien guide détaillé d'installation et de partage reste disponible dans [GUIDE_PARTAGE_ET_INSTALLATION.txt](GUIDE_PARTAGE_ET_INSTALLATION.txt).
 
 ## Crédits
