@@ -204,6 +204,14 @@ This project is distributed under the **GNU General Public License v3.0 (GPL-3.0
 
 Add `UMU_DIRECT_GAME=1` to the single `ENV=` line in `autorun.cmd` for games rejecting redirected paths or save symlinks. Other games retain their launch mode. Integration 3.10.5 preserves Steam Runtime and runner protection. `SAVEDIR` saves inside the game directory are copied into a real directory at launch, synchronized on exit, then the Batocera link is restored. One recovery snapshot is retained inside the game's save directory as `.umu-direct-previous` and excluded from subsequent copies. Close the game normally; forced termination may require recovery. Copies need free space and time proportional to save size.
 
+### Stable game paths on C:
+
+Integration 3.10.7 exposes the original top-level game directory inside Proton's active `pfx/drive_c` with a temporary directory bind. A source `drive_c/game` is thus available as `C:\game`, including files selected by launchers, without copying game data into the materialized prefix. A different original folder name is preserved. This applies to split `.wine` and merged `.wsquashfs` launches; `.pc` and standalone prefix layouts are unchanged.
+
+Normal launches also use this view for the executable and working directory. `UMU_DIRECT_GAME=1` keeps its existing launch paths and gains the C: view as an additional access path. Original game files and save redirects remain the source of data. The temporary view is unmounted before `.wine` prefix persistence and before the parent pfx mount; game contents are excluded from prefix copying.
+
+For comparison, `UMU_C_GAME_PATH=0` in the game's `ENV=` line restores the previous path behavior. Existing application settings containing `S:\...` are not rewritten: select the C: path once in the application. The runner log records `runtime_c_game_*`. Runtime validation on Batocera is required for this test version.
+
 ### Graphics cache visibility
 
 Configured, existing VKD3D, DXVK, Mesa and NVIDIA cache directories are shared read/write with Steam Runtime. This preserves Batocera cache locations and avoids repeated compilation when an inherited cache path was invisible inside UMU. Cache sharing decisions are recorded in the runner log.

@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.6 ====="
+log "===== Batocera UMU runner v3.10.7 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -330,6 +330,9 @@ ALIAS_MOUNT=""
 GAMEVIEW_BOUND=0
 GAMEVIEW_TARGET=""
 GAMEVIEW_MOUNTPOINT_CREATED=0
+C_GAME_PATH_BOUND=0
+C_GAME_PATH_TARGET=""
+C_GAME_PATH_CREATED=0
 ACTIVE_STATE_FILE=""
 
 # Direct mode only: use real save files on the game's own filesystem.
@@ -490,10 +493,79 @@ prepare_direct_save_copy() {
     log "direct_save_source=$source"
 }
 
+expose_c_game_path() {
+    local requested="${UMU_C_GAME_PATH:-1}" target name
+    unset UMU_C_GAME_PATH
+    case "$requested" in 0) log "runtime_c_game_enabled=0"; return 0 ;; esac
+    log "runtime_c_game_enabled=1"
+    # Only split prefixes have an excluded game directory to expose. Ordinary
+    # .pc/standalone prefixes retain their existing drive layout.
+    [ -n "${MATERIALIZED_PREFIX:-}" ] && [ -n "${GAMEVIEW:-}" ] || return 0
+    [ "${PFX_BOUND:-0}" -eq 1 ] && [ -d "$PFX_MOUNT/drive_c" ] || return 1
+    name="${GAME_DIR:-}"
+    case "$name" in ''|.|..|*/*|*\\*) log "ERROR: unsafe C game directory name"; return 1 ;; esac
+    [ "${GAME_REL:-}" = "drive_c/$name" ] || return 1
+    case "${name,,}" in windows|users|programdata|system32|syswow64)
+        log "ERROR: refusing system directory for C game view: $name"; return 1 ;;
+    esac
+    [ -d "$GAMEVIEW" ] && [ ! -L "$PFX_MOUNT/drive_c" ] || return 1
+    target="$PFX_MOUNT/$GAME_REL"
+    # The game was excluded from materialization. Never hide existing files,
+    # follow an alias, reuse a stale mount or replace a real game directory.
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        log "ERROR: C game target already exists: $target"; return 1
+    fi
+    mkdir -- "$target" || return 1
+    C_GAME_PATH_CREATED=1
+    C_GAME_PATH_TARGET="$target"
+    # Mount AFTER the pfx bind: a plain parent bind does not carry submounts.
+    # A directory bind also avoids Wine resolving a Unix symlink back to S:.
+    if ! mount --bind "$GAMEVIEW" "$target" 2>>"$LOG"; then
+        log "ERROR: C game bind failed: $GAMEVIEW -> $target"; return 1
+    fi
+    C_GAME_PATH_BOUND=1
+    log "runtime_c_game_source=$GAMEVIEW"
+    log "runtime_c_game_target=$target"
+    log "runtime_c_game_windows=C:\\$name"
+    # Direct mode intentionally keeps its original EXE/CWD paths, while the
+    # same C: view remains available to launchers and saved path settings.
+    if [ "$UMU_DIRECT_GAME_ENABLED" -eq 0 ]; then
+        case "$EXE_ABS" in "$GAMEVIEW"/*) EXE_ABS="$target/${EXE_ABS#"$GAMEVIEW"/}" ;; *) return 1 ;; esac
+        case "${UMU_CWD:-}" in
+            "$GAMEVIEW") UMU_CWD="$target" ;;
+            "$GAMEVIEW"/*) UMU_CWD="$target/${UMU_CWD#"$GAMEVIEW"/}" ;;
+            *) UMU_CWD="$target" ;;
+        esac
+        log "runtime_c_game_exe=$EXE_ABS"
+        log "runtime_c_game_cwd=$UMU_CWD"
+    fi
+    return 0
+}
+
+cleanup_c_game_path() {
+    if [ "${C_GAME_PATH_BOUND:-0}" -eq 1 ]; then
+        if ! umount "$C_GAME_PATH_TARGET" 2>>"$LOG" && ! umount -l "$C_GAME_PATH_TARGET" 2>>"$LOG"; then
+            log "WARNING: C game unmount failed: $C_GAME_PATH_TARGET"; return 1
+        fi
+        if mountpoint -q "$C_GAME_PATH_TARGET"; then
+            log "WARNING: C game view remains mounted: $C_GAME_PATH_TARGET"; return 1
+        fi
+        C_GAME_PATH_BOUND=0
+        log "runtime_c_game_unmounted=$C_GAME_PATH_TARGET"
+    fi
+    if [ "${C_GAME_PATH_CREATED:-0}" -eq 1 ] && [ -n "${C_GAME_PATH_TARGET:-}" ]; then
+        # rmdir only: never recurse into the game or delete a non-empty path.
+        rmdir -- "$C_GAME_PATH_TARGET" 2>>"$LOG" || true
+        C_GAME_PATH_CREATED=0
+    fi
+    return 0
+}
+
 cleanup_runtime_mounts() {
     # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
     restore_direct_save_link || true
+    cleanup_c_game_path || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
         log "runtime_active_state_removed=$ACTIVE_STATE_FILE"
@@ -1287,15 +1359,22 @@ if [ ! -s "$RUNNER_DIR/proton" ]; then
     exit 127
 fi
 
+if ! prepare_direct_save_copy; then
+    log "ERROR: direct save compatibility failed; launch refused"
+    exit 95
+fi
+if ! expose_c_game_path; then
+    log "ERROR: cannot expose stable C game path; launch refused"
+    exit 96
+fi
+if [ "$C_GAME_PATH_BOUND" -eq 1 ] && [ "$UMU_DIRECT_GAME_ENABLED" -eq 0 ]; then
+    cd "$UMU_CWD" || { log "ERROR: cannot enter C game working directory"; exit 96; }
+fi
 UMU_EXE="$exe"
 if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
-if ! prepare_direct_save_copy; then
-    log "ERROR: direct save compatibility failed; launch refused"
-    exit 95
-fi
 # v3.8: real materialized pfx + external merged Batocera gameview.
 python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
 rc=$?
@@ -1304,10 +1383,15 @@ rc=$?
 if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
 fi
+cleanup_c_game_path || log "WARNING: C game cleanup incomplete before persistence"
 
 if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
-    persist_split_wine_prefix
-    persist_rc=$?
+    if [ "$C_GAME_PATH_BOUND" -eq 0 ]; then
+        persist_split_wine_prefix
+        persist_rc=$?
+    else
+        persist_rc=15
+    fi
     log "wine_persistence_rc=$persist_rc"
     if [ "$persist_rc" -ne 0 ]; then
         log "WARNING: .wine persistence failed; original game exit code preserved"

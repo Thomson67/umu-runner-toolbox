@@ -205,6 +205,14 @@ Pour une utilisation normale, il n'est pas nécessaire de modifier manuellement 
 
 ## Documentation complémentaire
 
+### Chemin du jeu conservé sur C:
+
+L’intégration 3.10.7 monte temporairement le dossier réel du jeu sous drive_c dans le préfixe Proton actif. Avec un dossier d’origine drive_c/game, le jeu et ses sélecteurs de fichiers retrouvent C:\game. Un autre nom d’origine reste conservé. Les formats .wine et .wsquashfs utilisent cette vue, sans copier les données du jeu dans le préfixe matérialisé ; pour une archive, la source reste la vue fusionnée de Batocera.
+
+Le lancement normal utilise aussi cette vue pour l’exécutable et son répertoire courant. Le mode UMU_DIRECT_GAME=1 garde ses chemins de lancement actuels, avec l’accès C: disponible en complément. La vue est démontée avant la synchronisation du préfixe et avant son montage parent. Les fichiers du jeu restent exclus de la copie du préfixe.
+
+Sélectionner une fois C:\game dans l’application si elle avait enregistré un chemin S:\... ; aucun réglage applicatif n’est réécrit automatiquement. Pour comparer avec l’ancien fonctionnement, ajouter UMU_C_GAME_PATH=0 à la ligne ENV= de l’autorun. Le journal indique runtime_c_game_source, runtime_c_game_target, runtime_c_game_windows et le nettoyage runtime_c_game_unmounted. Cette version demande encore une validation réelle sur Batocera, notamment en .wsquashfs.
+
 ### Comparaison du partage des caches graphiques
 
 Avec l’intégration 3.10.6, **Paramètres → Partage des caches graphiques (test performances)** permet de désactiver puis réactiver le partage automatique des dossiers de cache Batocera avec le conteneur UMU. Activé par défaut, ce choix s’applique aux prochains lancements et reste conservé après mise à jour.
