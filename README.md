@@ -49,6 +49,8 @@ This allows ProtonFixes to load game-specific fixes when available without requi
 
 For `.wsquashfs` games, integration v3.9.3 keeps the game payload on Batocera's merged OverlayFS view but materializes the Proton/Wine PFX on a real filesystem under `/userdata/system/umu/materialized-prefixes`. The external game view is exposed under `/userdata/system/umu/gameviews`. Compressed-game compatdata identities are runner-specific to prevent unwanted cross-migrations between managed runners.
 
+Test integration 3.10.8 excludes the old game directory retained by an active Ultimate Wine Toolbox update from `.wine` prefix materialization. It verifies the active UWT state and update journal against the exact prefix and backup path, then preserves that backup during return persistence as well. Unrelated `.bak` directories and launches without a matching update journal keep their existing behavior. Install this integration only after the current UMU session has ended; it does not change a running wrapper.
+
 ## Automatic Steam ProtonFix fallback
 
 When a title is absent from the UMU database, the resolver can inspect the locally installed `gamefixes-steam/*.py` ProtonFixes. It reads only the module docstring, never executes the fix during detection, and accepts an automatic Steam AppID only when exactly one ProtonFix title matches the normalized Batocera title. Ambiguous or missing matches remain on the safe fallback. Successful detections are logged as `AUTO_STEAM_MATCH`.

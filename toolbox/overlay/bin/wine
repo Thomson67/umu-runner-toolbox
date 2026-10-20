@@ -819,7 +819,50 @@ case "$(printf '%s' "$pwd_canon_for_pc" | tr '[:upper:]' '[:lower:]')" in
         ;;
 esac
 
+# Only UWT's active, journaled old-game directory is payload rather than Wine
+# prefix data. Keep this decision for both copying and persistence: excluding it
+# on entry alone would let persistence remove the original rollback directory.
+uwt_update_backup_name() {
+    python3 - "$ORIGINAL_PREFIX_CANON" "$GAME_DIR" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+try:
+    prefix = Path(sys.argv[1]).resolve(strict=True)
+    game = sys.argv[2]
+    if not game or Path(game).name != game or '\n' in game or '\r' in game:
+        raise ValueError('invalid game name')
+    state_dir = Path('/userdata/system/ultimate-wine-toolbox/state')
+    state_path = state_dir / 'wsquashfs-builder.json'
+    if state_path.is_symlink():
+        raise ValueError('redirected state')
+    state = json.loads(state_path.read_text())
+    if not isinstance(state, dict) or state.get('mode') != 'update' or Path(state['prefix']).resolve(strict=True) != prefix:
+        raise ValueError('unrelated workflow')
+    manifest = Path(state['metadata'])
+    if (manifest.parent != state_dir or manifest.is_symlink()
+            or not manifest.name.startswith('wsquashfs-update-') or manifest.suffix != '.json'):
+        raise ValueError('invalid manifest')
+    data = json.loads(manifest.read_text())
+    backup = prefix / 'drive_c' / (game + '.bak')
+    if (not isinstance(data, dict) or Path(data['prefix']).resolve(strict=True) != prefix
+            or data['game_dir'] != 'drive_c/' + game
+            or Path(data['game_backup']) != backup
+            or data.get('committed') or data.get('game_backup_removed')
+            or backup.is_symlink() or not backup.is_dir()
+            or backup.resolve(strict=True) != backup):
+        raise ValueError('unrecognized backup')
+    print(backup.name)
+except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+    pass  # No validated UWT update: preserve ordinary prefix semantics.
+PY
+}
+
+UWT_GAME_BACKUP_NAME=""
 if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
+    UWT_GAME_BACKUP_NAME="$(uwt_update_backup_name)"
+    [ -z "$UWT_GAME_BACKUP_NAME" ] || log "runtime_excluded_uwt_backup=drive_c/$UWT_GAME_BACKUP_NAME"
     wine_anchor="$(basename "$ORIGINAL_PREFIX_CANON")"
     wine_safe="$(printf '%s' "$wine_anchor" | tr -c 'A-Za-z0-9._-' '_')"
     RUNTIME_KEY="$(printf 'wine-split-pfx|%s|%s' "$wine_anchor" "$RUNNER_DIR" | cksum | awk '{print $1}')"
@@ -841,6 +884,7 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     for COPY_ITEM in "$ORIGINAL_PREFIX_CANON/drive_c"/* "$ORIGINAL_PREFIX_CANON/drive_c"/.[!.]* "$ORIGINAL_PREFIX_CANON/drive_c"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
         [ "$(basename "$COPY_ITEM")" = "$GAME_DIR" ] && continue
+        [ -n "$UWT_GAME_BACKUP_NAME" ] && [ "$(basename "$COPY_ITEM")" = "$UWT_GAME_BACKUP_NAME" ] && continue
         cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/drive_c/" 2>>"$LOG" || {
             log "ERROR: wine split drive_c copy failed: $COPY_ITEM"; exit 82;
         }
@@ -933,6 +977,7 @@ persist_split_wine_prefix() {
     log "wine_persistence_source=$source"
     log "wine_persistence_target=$target"
     log "wine_persistence_excluded=drive_c/$GAME_DIR"
+    [ -z "${UWT_GAME_BACKUP_NAME:-}" ] || log "wine_persistence_excluded_uwt_backup=drive_c/$UWT_GAME_BACKUP_NAME"
     log "wine_persistence_begin=$(date -Is 2>/dev/null || date)"
 
     # Root of the prefix: make the original mirror the post-Proton materialized
@@ -958,13 +1003,15 @@ persist_split_wine_prefix() {
 
     mkdir -p -- "$target/drive_c" || return 9
 
-    # drive_c: preserve only the real game directory. Everything else must
+    # drive_c: preserve the real game and the validated UWT rollback directory.
+    # Everything else must
     # reflect the materialized PFX so ProtonFixes/Winetricks registry/files and
     # save changes outside the game directory survive the session.
     for item in "$target/drive_c"/* "$target/drive_c"/.[!.]* "$target/drive_c"/..?*; do
         [ -e "$item" ] || [ -L "$item" ] || continue
         name="$(basename "$item")"
         [ "$name" = "$GAME_DIR" ] && continue
+        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
         rm -rf -- "$item" 2>>"$LOG" || {
             log "wine_persistence_result=failed phase=remove-drive-c item=$item"
             return 10
@@ -974,6 +1021,7 @@ persist_split_wine_prefix() {
         [ -e "$item" ] || [ -L "$item" ] || continue
         name="$(basename "$item")"
         [ "$name" = "$GAME_DIR" ] && continue
+        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
         cp -a -- "$item" "$target/drive_c/" 2>>"$LOG" || {
             log "wine_persistence_result=failed phase=copy-drive-c item=$item"
             return 11

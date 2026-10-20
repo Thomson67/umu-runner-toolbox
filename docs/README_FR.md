@@ -7,6 +7,8 @@
 Version stable actuelle : **v0.13.10**
 Version de l'intégration runner : **v3.10.7**
 
+Sur cette branche de test, l'intégration **3.10.8-test** exclut de la copie du préfixe `.wine` l'ancien dossier de jeu conservé par une mise à jour Ultimate Wine Toolbox en cours. L'état actif et son journal doivent correspondre exactement au préfixe et au dossier de secours. Ce dossier est également préservé pendant la synchronisation au retour du jeu. Les autres dossiers `.bak` et les lancements sans journal correspondant gardent leur comportement habituel. Installer cette intégration après la fin de la session UMU actuelle : elle ne modifie pas un wrapper déjà lancé.
+
 L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
 
 ## Fonctionnalités principales
