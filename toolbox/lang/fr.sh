@@ -1,6 +1,8 @@
 # UMU Runner Toolbox - Francais
 # shellcheck shell=bash
 I18N=(
+  [runtime_recovery_title]="Copies UMU conservees"
+  [runtime_recovery_body]="Des anciennes copies sans journal ou des sessions non synchronisees sont conservees pour recuperation.\\n\\nEspace total des prefixes temporaires : %s\\nNombre et chemins (5 maximum) :\\n%s\\n\\nLes sessions identifiees peuvent etre reprises au prochain lancement du meme jeu. Les nouvelles sessions sont nettoyees automatiquement apres synchronisation. Verifiez ces copies avant d'utiliser le nettoyage runtime dans Maintenance : celui-ci efface aussi les donnees de recuperation."
   [runner_error]="Erreur %s"
   [runner_unexpected_structure]="Structure %s inattendue. Rien n'a ete installe."
   [runner_integrity_failed]="Controle d'integrite du runner prepare impossible."

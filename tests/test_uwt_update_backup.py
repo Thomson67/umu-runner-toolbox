@@ -9,7 +9,7 @@ import unittest
 WRAPPER = (Path(__file__).resolve().parents[1] / 'toolbox/overlay/bin/wine').read_text()
 DETECT = WRAPPER[WRAPPER.index('uwt_update_backup_name() {'):WRAPPER.index('UWT_GAME_BACKUP_NAME=""')]
 START = WRAPPER.index('    for COPY_ITEM in "$ORIGINAL_PREFIX_CANON/drive_c"', WRAPPER.index('UWT_GAME_BACKUP_NAME=""'))
-COPY = WRAPPER[START:WRAPPER.index('    COPY_END=', START)]
+COPY = WRAPPER[START:WRAPPER.index('    fi\n    COPY_END=', START)]
 PERSIST = WRAPPER[WRAPPER.index('persist_split_wine_prefix() {'):WRAPPER.index('# v3.9.2: every materialized-prefix session')]
 
 

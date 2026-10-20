@@ -2,7 +2,7 @@
 set -u
 
 TOOLBOX_VERSION="0.13.10"
-INTEGRATION_VERSION="3.10.8-test"
+INTEGRATION_VERSION="3.10.9-test"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -309,6 +309,7 @@ manifest_files() {
         bin/wineserver \
         umu-batocera/umu-root-runner.py \
         umu-batocera/prefix-isolation.py \
+        umu-batocera/runtime-prefix.py \
         umu-batocera/umu-gameid-resolver.py \
         umu-batocera/data/umu-database.csv \
         files/bin/wine \
@@ -1837,6 +1838,7 @@ upgrade_integration() {
            ! cp -a "$OVERLAY/bin/wine64" "$tmpstage/bin/wine64" ||
            ! cp -a "$OVERLAY/bin/wineserver" "$tmpstage/bin/wineserver" ||
            ! cp -a "$OVERLAY/umu-batocera/prefix-isolation.py" "$tmpstage/umu-batocera/prefix-isolation.py" ||
+           ! cp -a "$OVERLAY/umu-batocera/runtime-prefix.py" "$tmpstage/umu-batocera/runtime-prefix.py" ||
            ! cp -a "$OVERLAY/umu-batocera/umu-root-runner.py" "$tmpstage/umu-batocera/umu-root-runner.py" ||
            ! cp -a "$OVERLAY/umu-batocera/umu-gameid-resolver.py" "$tmpstage/umu-batocera/umu-gameid-resolver.py" ||
            ! cp -a "$OVERLAY/umu-batocera/data/umu-database.csv" "$tmpstage/umu-batocera/data/umu-database.csv"; then
@@ -1847,6 +1849,7 @@ upgrade_integration() {
            ! cp -a "$tmpstage/bin/wine64" "$base/bin/wine64" ||
            ! cp -a "$tmpstage/bin/wineserver" "$base/bin/wineserver" ||
            ! cp -a "$tmpstage/umu-batocera/prefix-isolation.py" "$base/umu-batocera/prefix-isolation.py" ||
+           ! cp -a "$tmpstage/umu-batocera/runtime-prefix.py" "$base/umu-batocera/runtime-prefix.py" ||
            ! cp -a "$tmpstage/umu-batocera/umu-root-runner.py" "$base/umu-batocera/umu-root-runner.py" ||
            ! cp -a "$tmpstage/umu-batocera/umu-gameid-resolver.py" "$base/umu-batocera/umu-gameid-resolver.py" ||
            ! cp -a "$tmpstage/umu-batocera/data/umu-database.csv" "$base/umu-batocera/data/umu-database.csv"; then
@@ -2413,6 +2416,14 @@ clear_dir_contents() {
 }
 
 umu_game_active() {
+    if [ "${UMU_RUNTIME_CLEANER_LOCKED:-0}" != 1 ] && [ -f "$UMU_DIR/.materialized-prefix.lock" ] &&
+       ! flock -n "$UMU_DIR/.materialized-prefix.lock" true; then
+        return 0
+    fi
+    if [ -f "$ROOT/overlay/umu-batocera/runtime-prefix.py" ] &&
+       ! python3 "$ROOT/overlay/umu-batocera/runtime-prefix.py" check-idle >/dev/null 2>&1; then
+        return 0
+    fi
     # Never clean while UMU itself, our bridge, or an alias under merged-prefixes
     # is in use. The cleaner intentionally prefers a false positive to deleting
     # data belonging to a running game.
@@ -2425,7 +2436,37 @@ umu_game_active() {
     return 1
 }
 
-clean_umu_runtime_data() {
+runtime_recovery_notice() (
+    local helper="$ROOT/overlay/umu-batocera/runtime-prefix.py" report fingerprint previous size
+    [ -f "$helper" ] || return 0
+    mkdir -p "$UMU_DIR"
+    exec 8>"$UMU_DIR/.materialized-prefix.lock" || return 0
+    flock -n 8 || return 0
+    UMU_RUNTIME_CLEANER_LOCKED=1
+    umu_game_active && return 0
+    python3 "$helper" collect >>"$LOG" 2>&1 || return 0
+    report="$(python3 "$helper" report 2>>"$LOG")" || return 0
+    [ -n "$report" ] || return 0
+    fingerprint="$(printf '%s' "$report" | sha256sum | awk '{print $1}')"
+    previous="$(cat "$UMU_DIR/runtime-prefix-state/notice.sha256" 2>/dev/null)"
+    [ "$fingerprint" != "$previous" ] || return 0
+    size="$(human_bytes "$(dir_bytes "$UMU_DIR/materialized-prefixes")")"
+    msg "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_body "$size" "$report")"
+    printf '%s\n' "$fingerprint" >"$UMU_DIR/runtime-prefix-state/notice.sha256"
+)
+
+clean_umu_runtime_data() (
+    mkdir -p "$UMU_DIR"
+    exec 8>"$UMU_DIR/.materialized-prefix.lock" || return
+    if ! flock -n 8; then
+        msg "$(i18n cleanup_refused)" "$(i18n cleanup_active)"
+        return
+    fi
+    UMU_RUNTIME_CLEANER_LOCKED=1
+    clean_umu_runtime_data_locked
+)
+
+clean_umu_runtime_data_locked() {
     local compat="$UMU_DIR/compatdata"
     local merged="$UMU_DIR/merged-prefixes"
     local materialized="$UMU_DIR/materialized-prefixes"
@@ -3090,5 +3131,6 @@ if [ "${UMU_TOOLBOX_INSTALL_SYNC:-0}" = "1" ]; then
 fi
 post_update_integration
 startup_update_check
+runtime_recovery_notice
 main_menu
 

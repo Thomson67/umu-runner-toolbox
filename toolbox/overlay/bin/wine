@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.8-test ====="
+log "===== Batocera UMU runner v3.10.9-test ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -334,6 +334,10 @@ C_GAME_PATH_BOUND=0
 C_GAME_PATH_TARGET=""
 C_GAME_PATH_CREATED=0
 ACTIVE_STATE_FILE=""
+RUNTIME_TRACKED=0
+RUNTIME_SAFE_TO_REMOVE=1
+RUNTIME_REUSED=0
+RUNTIME_HELPER="$RUNNER_DIR/umu-batocera/runtime-prefix.py"
 
 # Direct mode only: use real save files on the game's own filesystem.
 # Keep the original save target intact until a complete return copy is ready.
@@ -564,7 +568,7 @@ cleanup_c_game_path() {
 cleanup_runtime_mounts() {
     # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
-    restore_direct_save_link || true
+    restore_direct_save_link || RUNTIME_SAFE_TO_REMOVE=0
     cleanup_c_game_path || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
@@ -595,8 +599,63 @@ cleanup_runtime_mounts() {
         ALIAS_BOUND=0
     fi
     unprotect_umu_runners
+    if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
+        local -a finish_args=()
+        [ "$RUNTIME_SAFE_TO_REMOVE" -ne 1 ] || finish_args+=(--safe)
+        python3 "$RUNTIME_HELPER" finish "$MATERIALIZED_PREFIX" --pid "$$" "${finish_args[@]}" >>"$LOG" 2>&1 || \
+            log "WARNING: runtime cleanup refused; prefix retained=$MATERIALIZED_PREFIX"
+        RUNTIME_TRACKED=0
+    fi
 }
-trap cleanup_runtime_mounts EXIT INT TERM HUP
+trap cleanup_runtime_mounts EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+prepare_materialized_prefix() {
+    local begin_rc
+    # Hold the lock throughout copying, launch, persistence and mount cleanup.
+    # Child processes inherit it, so a killed parent cannot expose a live copy
+    # to the next launcher. Manual runtime cleanup probes the same lock.
+    exec 8>/userdata/system/umu/.materialized-prefix.lock || return 1
+    flock -n 8 || { log "ERROR: another materialized-prefix session is active"; return 1; }
+    python3 "$RUNTIME_HELPER" begin "$MATERIALIZED_PREFIX" \
+        --source "$ORIGINAL_PREFIX_CANON" --game-dir "$GAME_DIR" --pid "$$" >>"$LOG" 2>&1
+    begin_rc=$?
+    case "$begin_rc" in
+        0) RUNTIME_REUSED=0;;
+        10) RUNTIME_REUSED=1; RUNTIME_SAFE_TO_REMOVE=0;;
+        *) return 1;;
+    esac
+    RUNTIME_TRACKED=1
+    mkdir -p "$MATERIALIZED_PREFIX/drive_c" || return 1
+}
+
+check_materialized_space() {
+    [ "${RUNTIME_REUSED:-0}" -eq 0 ] || return 0
+    local item name needed available
+    local -a items=()
+    for item in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        [ "$(basename "$item")" = drive_c ] || items+=("$item")
+    done
+    for item in "$ORIGINAL_PREFIX_CANON/drive_c"/* "$ORIGINAL_PREFIX_CANON/drive_c"/.[!.]* "$ORIGINAL_PREFIX_CANON/drive_c"/..?*; do
+        [ -e "$item" ] || [ -L "$item" ] || continue
+        name="$(basename "$item")"
+        [ "$name" = "$GAME_DIR" ] && continue
+        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
+        items+=("$item")
+    done
+    [ "${#items[@]}" -gt 0 ] || return 1
+    needed="$(set -o pipefail; du -sk -- "${items[@]}" 2>>"$LOG" | awk '{n+=$1} END {printf "%.0f", n}')" || return 1
+    available="$(df -Pk "$MATERIALIZED_PREFIX" 2>>"$LOG" | awk 'NR==2 {print $4}')"
+    case "$needed:$available" in *[!0-9:]*|:*|*:) log "ERROR: cannot estimate runtime free space"; return 1;; esac
+    log "runtime_space_needed_kib=$needed available_kib=$available reserve_kib=262144"
+    [ "$available" -ge "$((needed+262144))" ] || {
+        log "ERROR: insufficient free space for materialized prefix (256 MiB reserve); launch refused"
+        return 1
+    }
+}
 
 if ! protect_all_umu_runners_ro; then
     log "ERROR: UMU runner isolation could not be established; launch refused"
@@ -702,12 +761,11 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     # Materialize the merged Wine prefix, excluding the complete game directory.
     RUNTIME_KEY="$(printf 'compressed-pfx|%s|%s' "$compressed_anchor" "$RUNNER_DIR" | cksum | awk '{print $1}')"
     MATERIALIZED_PREFIX="/userdata/system/umu/materialized-prefixes/${alias_safe}-${RUNTIME_KEY}"
-    mkdir -p "$(dirname "$MATERIALIZED_PREFIX")"
-    rm -rf "$MATERIALIZED_PREFIX"
-    mkdir -p "$MATERIALIZED_PREFIX/drive_c"
+    prepare_materialized_prefix && check_materialized_space || exit 82
 
     COPY_START="$(date +%s)"
     log "runtime_copy_begin=$(date -Is 2>/dev/null || date)"
+    if [ "$RUNTIME_REUSED" -eq 0 ]; then
     for COPY_ITEM in "$ALIAS_MOUNT"/* "$ALIAS_MOUNT"/.[!.]* "$ALIAS_MOUNT"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
         [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
@@ -722,6 +780,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
             log "ERROR: compressed-prefix drive_c copy failed: $COPY_ITEM"; exit 80;
         }
     done
+    fi
     COPY_END="$(date +%s)"
     COPY_SECONDS=$((COPY_END-COPY_START))
     COPY_SIZE="$(du -sh "$MATERIALIZED_PREFIX" 2>/dev/null | awk '{print $1}')"
@@ -867,13 +926,12 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     wine_safe="$(printf '%s' "$wine_anchor" | tr -c 'A-Za-z0-9._-' '_')"
     RUNTIME_KEY="$(printf 'wine-split-pfx|%s|%s' "$wine_anchor" "$RUNNER_DIR" | cksum | awk '{print $1}')"
     MATERIALIZED_PREFIX="/userdata/system/umu/materialized-prefixes/${wine_safe}-${RUNTIME_KEY}"
-    mkdir -p "$(dirname "$MATERIALIZED_PREFIX")"
-    rm -rf "$MATERIALIZED_PREFIX"
-    mkdir -p "$MATERIALIZED_PREFIX/drive_c"
+    prepare_materialized_prefix && check_materialized_space || exit 82
 
     COPY_START="$(date +%s)"
     log "wine_split_prefix=1"
     log "runtime_copy_begin=$(date -Is 2>/dev/null || date)"
+    if [ "$RUNTIME_REUSED" -eq 0 ]; then
     for COPY_ITEM in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
         [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
@@ -889,6 +947,7 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
             log "ERROR: wine split drive_c copy failed: $COPY_ITEM"; exit 82;
         }
     done
+    fi
     COPY_END="$(date +%s)"
     log "runtime_copy_end=$(date -Is 2>/dev/null || date)"
     log "runtime_copy_seconds=$((COPY_END-COPY_START))"
@@ -937,27 +996,33 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     log "runtime_cwd=$UMU_CWD"
 fi
 
-# v3.9.4-TEST: ordinary .wine bottles run from a materialized split prefix
-# for Proton/pressure-vessel compatibility. After a normal UMU session, persist
-# every prefix-side change back into the original .wine while preserving the
-# original top-level game directory exactly as-is. This is deliberately limited
-# to WINE_SPLIT_PREFIX=1: .pc, .wsquashfs and .wtgz semantics are unchanged.
+# Synchronize prefix-side changes before releasing the runtime copy. Compressed
+# games write to Batocera's writable merged bottle, never to the archive. Keep
+# the external game (and any owned UWT rollback directory) untouched.
 persist_split_wine_prefix() {
     local source="${MATERIALIZED_PREFIX:-}"
     local target="${ORIGINAL_PREFIX_CANON:-}"
     local item name
 
-    [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || return 0
+    [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || [ "${COMPRESSED_OVERLAY:-0}" -eq 1 ] || return 0
     [ -n "$source" ] && [ -n "$target" ] && [ -n "${GAME_DIR:-}" ] || return 1
 
     case "$source" in
         /userdata/system/umu/materialized-prefixes/*) ;;
         *) log "wine_persistence_result=refused-source source=$source"; return 2 ;;
     esac
-    case "$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')" in
+    if [ "${COMPRESSED_OVERLAY:-0}" -eq 1 ]; then
+        case "$target" in
+            /run/wine/*.wsquashfs|/run/wine/*.wtgz|/var/run/wine/*.wsquashfs|/var/run/wine/*.wtgz) ;;
+            *) log "wine_persistence_result=refused-compressed-target target=$target"; return 3;;
+        esac
+        [ "$(findmnt -n -o FSTYPE -T "$target" 2>/dev/null)" = overlay ] || return 3
+    else
+      case "$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')" in
         *.wine) ;;
         *) log "wine_persistence_result=refused-target target=$target"; return 3 ;;
-    esac
+      esac
+    fi
 
     is_prefix_root "$source" || {
         log "wine_persistence_result=invalid-source source=$source"
@@ -986,6 +1051,7 @@ persist_split_wine_prefix() {
         [ -e "$item" ] || [ -L "$item" ] || continue
         name="$(basename "$item")"
         [ "$name" = "drive_c" ] && continue
+        [ "${name,,}" = autorun.cmd ] && continue
         rm -rf -- "$item" 2>>"$LOG" || {
             log "wine_persistence_result=failed phase=remove-root item=$item"
             return 7
@@ -995,6 +1061,7 @@ persist_split_wine_prefix() {
         [ -e "$item" ] || [ -L "$item" ] || continue
         name="$(basename "$item")"
         [ "$name" = "drive_c" ] && continue
+        [ "${name,,}" = autorun.cmd ] && continue
         cp -a -- "$item" "$target/" 2>>"$LOG" || {
             log "wine_persistence_result=failed phase=copy-root item=$item"
             return 8
@@ -1423,6 +1490,10 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     UMU_EXE="$EXE_ABS"
 fi
 log "umu_exe=$UMU_EXE"
+if [ "$RUNTIME_TRACKED" -eq 1 ]; then
+    python3 "$RUNTIME_HELPER" running "$MATERIALIZED_PREFIX" --pid "$$" >>"$LOG" 2>&1 || exit 97
+    RUNTIME_SAFE_TO_REMOVE=0
+fi
 # v3.8: real materialized pfx + external merged Batocera gameview.
 python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1
 rc=$?
@@ -1433,7 +1504,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ] || [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
 fi
 cleanup_c_game_path || log "WARNING: C game cleanup incomplete before persistence"
 
-if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
+if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     if [ "$C_GAME_PATH_BOUND" -eq 0 ]; then
         persist_split_wine_prefix
         persist_rc=$?
@@ -1442,7 +1513,9 @@ if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ]; then
     fi
     log "wine_persistence_rc=$persist_rc"
     if [ "$persist_rc" -ne 0 ]; then
-        log "WARNING: .wine persistence failed; original game exit code preserved"
+        log "WARNING: prefix persistence failed; runtime retained for recovery=$MATERIALIZED_PREFIX"
+    else
+        RUNTIME_SAFE_TO_REMOVE=1
     fi
 fi
 

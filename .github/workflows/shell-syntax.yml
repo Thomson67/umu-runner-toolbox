@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/noninteractive-runner-install
+      - fix/uwt-update-backup
   pull_request:
 
 jobs:
@@ -23,6 +24,9 @@ jobs:
           bash -n install.sh
           bash -n uninstall.sh
           bash -n packaging/install.sh
+          bash -n toolbox/overlay/bin/wine
+          bash -n toolbox/overlay/bin/wineserver
+          bash -n toolbox/hooks/runner-guard.sh
           # Legacy translator must stay removed: all UI strings must use catalog keys.
           if grep -n 'tr_ui' toolbox/umu-toolbox.sh; then
             echo "ERROR: legacy tr_ui translator was reintroduced"
