@@ -22,6 +22,57 @@ repair = module('repair', 'toolbox/helpers/repair-runner-dlls.py')
 
 
 class IsolationTests(unittest.TestCase):
+    def test_legacy_dll_link_becomes_private_file_from_same_runner_and_arch(self):
+        for arch in ('i386-windows', 'x86_64-windows'):
+            with self.subTest(arch=arch), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                runners = root / 'runners'
+                runner = runners / 'GE-Proton11-7-UMU'
+                source = runner / 'files/lib/wine' / arch / 'ddraw.dll'
+                source.parent.mkdir(parents=True)
+                source.write_bytes(b'original DLL')
+                windows = root / 'Game.wine/drive_c/windows/syswow64'
+                windows.mkdir(parents=True)
+                link = windows / 'ddraw.dll'
+                old_target = runner / 'lib/wine' / arch / 'ddraw.dll'
+                link.symlink_to(old_target)
+                isolation.isolate(root / 'Game.wine', runners)
+                self.assertFalse(link.is_symlink())
+                self.assertEqual(link.read_bytes(), b'original DLL')
+                link.write_bytes(b'private change')
+                self.assertEqual(source.read_bytes(), b'original DLL')
+                self.assertFalse(old_target.exists())
+
+    def test_broken_dll_without_exact_local_replacement_is_refused(self):
+        for layout in ('missing', 'wrong-arch', 'other-runner', 'outside-link', 'wrong-layout'):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                runners = root / 'runners'
+                runner = runners / 'GE-Proton11-7-UMU'
+                runner.mkdir(parents=True)
+                windows = root / 'Game.wine/drive_c/windows/syswow64'
+                windows.mkdir(parents=True)
+                target = runner / 'lib/wine/i386-windows/ddraw.dll'
+                if layout == 'wrong-layout': target = runner / 'elsewhere/ddraw.dll'
+                link = windows / 'ddraw.dll'
+                link.symlink_to(target)
+                candidate = runner / 'files/lib/wine/i386-windows/ddraw.dll'
+                if layout == 'wrong-arch':
+                    candidate = runner / 'files/lib/wine/x86_64-windows/ddraw.dll'
+                if layout == 'other-runner':
+                    candidate = runners / 'Other-UMU/files/lib/wine/i386-windows/ddraw.dll'
+                candidate.parent.mkdir(parents=True)
+                if layout == 'outside-link':
+                    outside = root / 'external.dll'
+                    outside.write_bytes(b'external')
+                    candidate.symlink_to(outside)
+                elif layout != 'missing':
+                    candidate.write_bytes(b'different DLL')
+                with self.assertRaisesRegex(ValueError, 'broken runner file link'):
+                    isolation.isolate(root / 'Game.wine', runners)
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(link.readlink(), target)
+
     def test_maintenance_detaches_before_wine_and_waits_before_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
