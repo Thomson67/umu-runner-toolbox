@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.10**
-Runner integration version: **v3.10.7**
+Current stable version: **v0.13.11**
+Runner integration version: **v3.10.9**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
@@ -49,11 +49,11 @@ This allows ProtonFixes to load game-specific fixes when available without requi
 
 For `.wsquashfs` games, integration v3.9.3 keeps the game payload on Batocera's merged OverlayFS view but materializes the Proton/Wine PFX on a real filesystem under `/userdata/system/umu/materialized-prefixes`. The external game view is exposed under `/userdata/system/umu/gameviews`. Compressed-game compatdata identities are runner-specific to prevent unwanted cross-migrations between managed runners.
 
-Test integration 3.10.8 excludes the old game directory retained by an active Ultimate Wine Toolbox update from `.wine` prefix materialization. It verifies the active UWT state and update journal against the exact prefix and backup path, then preserves that backup during return persistence as well. Unrelated `.bak` directories and launches without a matching update journal keep their existing behavior. Install this integration only after the current UMU session has ended; it does not change a running wrapper.
+Integration 3.10.9 excludes the old game directory retained by an active Ultimate Wine Toolbox update from `.wine` prefix materialization. It verifies the active UWT state and update journal against the exact prefix and backup path, then preserves that backup during return persistence as well. Unrelated `.bak` directories and launches without a matching update journal keep their existing behavior. Install integration updates only after the current UMU session has ended; it does not change a running wrapper.
 
-This test integration also handles broken prefix DLL links using a Wine-style `<runner>/lib/wine/<arch>/<name>.dll` path when that same runner stores the real file at `files/lib/wine/<arch>/<name>.dll`. The DLL is copied privately into the prefix; the runner is never modified. The fallback requires the exact runner, architecture and filename, with no redirected replacement path. Missing or unrecognized targets still stop the launch with a diagnostic.
+This integration also handles broken prefix DLL links using a Wine-style `<runner>/lib/wine/<arch>/<name>.dll` path when that same runner stores the real file at `files/lib/wine/<arch>/<name>.dll`. The DLL is copied privately into the prefix; the runner is never modified. The fallback requires the exact runner, architecture and filename, with no redirected replacement path. Missing or unrecognized targets still stop the launch with a diagnostic.
 
-Test integration **3.10.9-test** automatically removes materialized prefixes after prefix changes are successfully synchronized and runtime mounts are released. `.wine` changes return to the original prefix; compressed-game changes return to Batocera's writable merged bottle, leaving the archive and external game directory untouched. Saves handled by direct mode must also synchronize successfully before removal. The copy preflight excludes the game and validated UWT backup, checks available space and reserves 256 MiB.
+Integration **3.10.9** automatically removes materialized prefixes after prefix changes are successfully synchronized and runtime mounts are released. `.wine` changes return to the original prefix; compressed-game changes return to Batocera's writable merged bottle, leaving the archive and external game directory untouched. Saves handled by direct mode must also synchronize successfully before removal. The copy preflight excludes the game and validated UWT backup, checks available space and reserves 256 MiB.
 
 Sessions share a runtime lock with manual cleanup. A journal tracks the process identity (including boot and start time), preparation and synchronization. Interrupted preparation copies can be reclaimed automatically at the next launch or Toolbox startup. Unsynchronized game sessions remain available for recovery. At the next launch, a complete owned copy with the same source, runner identity and game directory is reused without another copy, including after Hotkey + Start. If the identity cannot be verified, reuse and overwrite are refused. Old copies without a journal are retained once under `.legacy-*` on first reuse; they require review rather than automatic deletion. The Toolbox displays a notice with occupied space and retained paths. Automatic cleanup only removes owned, disposable copies and refuses active mounts, including mounts in surviving containers. Compatdata, shader caches, runners and persistent saves are not automatically purged.
 
