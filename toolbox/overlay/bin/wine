@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.9 ====="
+log "===== Batocera UMU runner v3.10.10 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -288,7 +288,7 @@ if [ -z "$exe" ]; then
     fi
     if is_prefix_root "$ORIGINAL_WINEPREFIX"; then
         if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$ORIGINAL_WINEPREFIX" \
-            --runners "$(dirname "$RUNNER_DIR")" >>"$LOG" 2>&1; then
+            --runners "$(dirname "$RUNNER_DIR")" --selected-runner "$RUNNER_DIR" >>"$LOG" 2>&1; then
             log "FATAL: maintenance prefix isolation failed"
             exit 94
         fi
@@ -337,7 +337,22 @@ ACTIVE_STATE_FILE=""
 RUNTIME_TRACKED=0
 RUNTIME_SAFE_TO_REMOVE=1
 RUNTIME_REUSED=0
+RUNTIME_RECOVERY_REASON="interrupted-or-unsynchronized"
 RUNTIME_HELPER="$RUNNER_DIR/umu-batocera/runtime-prefix.py"
+
+notify_runtime_recovery() {
+    local language catalog message
+    language="$(cat /userdata/system/umu/toolbox/config/language 2>/dev/null || true)"
+    case "$language" in en|fr) ;; *) language=fr;; esac
+    catalog="/userdata/system/umu/toolbox/lang/$language.sh"
+    local -A I18N=()
+    [ ! -r "$catalog" ] || source "$catalog"
+    message="${I18N[runtime_sync_failed_notification]:-UMU: changes retained. Open UMU Toolbox > Maintenance > Retained copies.}"
+    # ES queues the popup on its UI thread. A missing/older API must never
+    # prevent mount cleanup or change the game's exit status.
+    curl -fsS --max-time 2 -H 'Content-Type: text/plain' --data-binary "$message" \
+        http://127.0.0.1:1234/notify >>"$LOG" 2>&1 || true
+}
 
 # Direct mode only: use real save files on the game's own filesystem.
 # Keep the original save target intact until a complete return copy is ready.
@@ -602,8 +617,12 @@ cleanup_runtime_mounts() {
     if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
         local -a finish_args=()
         [ "$RUNTIME_SAFE_TO_REMOVE" -ne 1 ] || finish_args+=(--safe)
-        python3 "$RUNTIME_HELPER" finish "$MATERIALIZED_PREFIX" --pid "$$" "${finish_args[@]}" >>"$LOG" 2>&1 || \
+        python3 "$RUNTIME_HELPER" finish "$MATERIALIZED_PREFIX" --pid "$$" \
+            --reason "$RUNTIME_RECOVERY_REASON" "${finish_args[@]}" >>"$LOG" 2>&1 || \
             log "WARNING: runtime cleanup refused; prefix retained=$MATERIALIZED_PREFIX"
+        if [ "$RUNTIME_SAFE_TO_REMOVE" -ne 1 ]; then
+            notify_runtime_recovery
+        fi
         RUNTIME_TRACKED=0
     fi
 }
@@ -620,7 +639,8 @@ prepare_materialized_prefix() {
     exec 8>/userdata/system/umu/.materialized-prefix.lock || return 1
     flock -n 8 || { log "ERROR: another materialized-prefix session is active"; return 1; }
     python3 "$RUNTIME_HELPER" begin "$MATERIALIZED_PREFIX" \
-        --source "$ORIGINAL_PREFIX_CANON" --game-dir "$GAME_DIR" --pid "$$" >>"$LOG" 2>&1
+        --source "$ORIGINAL_PREFIX_CANON" --game-dir "$GAME_DIR" --pid "$$" \
+        --runner "${RUNNER_DIR##*/}" --log "$LOG" >>"$LOG" 2>&1
     begin_rc=$?
     case "$begin_rc" in
         0) RUNTIME_REUSED=0;;
@@ -1460,7 +1480,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
 fi
 
 if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$EFFECTIVE_WINEPREFIX" \
-    --runners "$(dirname "$RUNNER_DIR")" >>"$LOG" 2>&1; then
+    --runners "$(dirname "$RUNNER_DIR")" --selected-runner "$RUNNER_DIR" >>"$LOG" 2>&1; then
     log "FATAL: prefix isolation failed; launch refused"
     exit 94
 fi
@@ -1513,6 +1533,7 @@ if [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     fi
     log "wine_persistence_rc=$persist_rc"
     if [ "$persist_rc" -ne 0 ]; then
+        RUNTIME_RECOVERY_REASON="persistence-failed:$persist_rc"
         log "WARNING: prefix persistence failed; runtime retained for recovery=$MATERIALIZED_PREFIX"
     else
         RUNTIME_SAFE_TO_REMOVE=1

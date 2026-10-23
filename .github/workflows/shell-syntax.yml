@@ -6,6 +6,7 @@ on:
       - main
       - feature/noninteractive-runner-install
       - fix/uwt-update-backup
+      - fix/stale-runner-prefix-links
   pull_request:
 
 jobs:
