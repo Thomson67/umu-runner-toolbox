@@ -87,6 +87,7 @@ class PrefixStore:
     def write(self, prefix, data):
         if self.record(prefix).is_symlink():
             raise ValueError('redirected runtime journal')
+        data['updated_at'] = time.time()
         fd, temporary = tempfile.mkstemp(dir=self.records, prefix='.state-')
         try:
             with os.fdopen(fd, 'w') as stream:
@@ -125,7 +126,7 @@ class PrefixStore:
                 # Unknown/invalid journals never authorize recursive deletion.
                 continue
 
-    def begin(self, prefix, source, pid, game_dir=''):
+    def begin(self, prefix, source, pid, game_dir='', runner='', log=''):
         prefix = self.path(prefix)
         self.collect()
         if mounted(prefix):
@@ -147,6 +148,8 @@ class PrefixStore:
             # Reuse this exact owned prefix after interruption, without copying
             # over unique changes. Pre-launch failures must retain it as well.
             data.update(pid=pid, process_token=token, phase='running')
+            if runner: data['runner'] = runner
+            if log: data['log'] = log
             self.write(prefix, data)
             print(f'runtime_reused_after_interruption={prefix}', flush=True)
             return True
@@ -160,7 +163,7 @@ class PrefixStore:
             self.write(legacy, data)
             prefix.rename(legacy)
             print(f'runtime_legacy_retained={legacy}', flush=True)
-        data = dict(version=1, prefix=str(prefix), source=str(source), pid=pid,
+        data = dict(version=1, prefix=str(prefix), source=str(source), pid=pid, runner=runner, log=log,
                     game_dir=game_dir, process_token=process_token(pid), phase='preparing')
         if not data['process_token']:
             raise ValueError('runtime owner is not alive')
@@ -176,12 +179,13 @@ class PrefixStore:
         data['phase'] = phase
         self.write(prefix, data)
 
-    def finish(self, prefix, pid, safe):
+    def finish(self, prefix, pid, safe, reason=''):
         prefix = self.path(prefix)
         self.phase(prefix, pid, 'disposable' if safe else 'recovery')
         data = self.read(prefix)
         data['pid'] = 0
         data['process_token'] = ''
+        data['reason'] = '' if safe else (reason or 'interrupted-or-unsynchronized')
         self.write(prefix, data)
         self.collect()
 
@@ -229,14 +233,17 @@ if __name__ == '__main__':
     parser.add_argument('--pid', type=int, default=os.getppid())
     parser.add_argument('--game-dir', default='')
     parser.add_argument('--safe', action='store_true')
+    parser.add_argument('--runner', default='')
+    parser.add_argument('--log', default='')
+    parser.add_argument('--reason', default='')
     args = parser.parse_args()
     try:
         store = PrefixStore()
         if args.action == 'begin':
-            reused = store.begin(args.prefix, args.source, args.pid, args.game_dir)
+            reused = store.begin(args.prefix, args.source, args.pid, args.game_dir, args.runner, args.log)
             raise SystemExit(10 if reused else 0)
         elif args.action == 'running': store.phase(args.prefix, args.pid, 'running')
-        elif args.action == 'finish': store.finish(args.prefix, args.pid, args.safe)
+        elif args.action == 'finish': store.finish(args.prefix, args.pid, args.safe, args.reason)
         elif args.action == 'collect': store.collect()
         elif args.action == 'report': print(store.report(), end='')
         else: raise SystemExit(0 if store.idle() else 2)

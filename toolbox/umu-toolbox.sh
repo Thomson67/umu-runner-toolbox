@@ -2,7 +2,7 @@
 set -u
 
 TOOLBOX_VERSION="0.13.11"
-INTEGRATION_VERSION="3.10.10-test3"
+INTEGRATION_VERSION="3.10.10-test4"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -2437,23 +2437,78 @@ umu_game_active() {
 }
 
 runtime_recovery_notice() (
-    local helper="$ROOT/overlay/umu-batocera/runtime-prefix.py" report fingerprint previous size
+    local helper="$ROOT/helpers/runtime-recovery.py" report fingerprint previous
     [ -f "$helper" ] || return 0
-    mkdir -p "$UMU_DIR"
-    exec 8>"$UMU_DIR/.materialized-prefix.lock" || return 0
-    flock -n 8 || return 0
-    UMU_RUNTIME_CLEANER_LOCKED=1
-    umu_game_active && return 0
-    python3 "$helper" collect >>"$LOG" 2>&1 || return 0
-    report="$(python3 "$helper" report 2>>"$LOG")" || return 0
-    [ -n "$report" ] || return 0
-    fingerprint="$(printf '%s' "$report" | sha256sum | awk '{print $1}')"
+    fingerprint="$(python3 "$helper" fingerprint 2>>"$LOG")" || return 0
+    [ -n "$fingerprint" ] || return 0
     previous="$(cat "$UMU_DIR/runtime-prefix-state/notice.sha256" 2>/dev/null)"
     [ "$fingerprint" != "$previous" ] || return 0
-    size="$(human_bytes "$(dir_bytes "$UMU_DIR/materialized-prefixes")")"
-    msg "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_body "$size" "$report")"
+    report="$(python3 "$helper" list 2>>"$LOG")" || return 0
+    report="$(printf '%s\n' "$report" | cut -f2- | head -n 5)"
+    if yesno "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_prompt "$report")"; then
+        runtime_recovery_menu
+    fi
     printf '%s\n' "$fingerprint" >"$UMU_DIR/runtime-prefix-state/notice.sha256"
 )
+
+runtime_recovery_menu() {
+    local helper="$ROOT/helpers/runtime-recovery.py" entries identity label choice detail_text description reason summary index
+    local -a options details identities
+    while true; do
+        entries="$(python3 "$helper" list 2>>"$LOG")" || {
+            msg "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_busy)"; return;
+        }
+        [ -n "$entries" ] || { msg "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_empty)"; return; }
+        options=(); identities=()
+        while IFS=$'\t' read -r identity label; do
+            identities+=("$identity")
+            options+=("${#identities[@]}" "$label")
+        done <<<"$entries"
+        choice="$(menu_choice "$(i18n runtime_recovery_title)" --description "$(i18n runtime_recovery_choose)" \
+            "${options[@]}" "0" "$(i18n back)")" || return 0
+        [ -n "$choice" ] && [ "$choice" != 0 ] || return 0
+        identity=""
+        for index in "${!identities[@]}"; do
+            if [ "$choice" = "$((index + 1))" ]; then identity="${identities[$index]}"; break; fi
+        done
+        [ -n "$identity" ] || continue
+        detail_text="$(python3 "$helper" details "$identity" 2>>"$LOG")" || {
+            msg "$(i18n error)" "$(i18n runtime_recovery_failed)"; continue;
+        }
+        mapfile -t details <<<"$detail_text"
+        [ "${#details[@]}" -eq 10 ] || continue
+        [ "${details[5]}" != - ] || details[5]="$(i18n runtime_recovery_unknown_runner)"
+        case "${details[6]}" in
+            persistence-failed:*) reason="$(i18n runtime_recovery_reason_failed "${details[6]#*:}")" ;;
+            legacy-untracked) reason="$(i18n runtime_recovery_reason_legacy)" ;;
+            interrupted-or-unsynchronized) reason="$(i18n runtime_recovery_reason_interrupted)" ;;
+            *) reason="$(i18n runtime_recovery_reason_unknown)" ;;
+        esac
+        description="$(i18n runtime_recovery_details "${details[0]}" "${details[3]}" "${details[4]}" \
+            "${details[5]}" "$reason" "${details[1]}" "${details[2]}" "${details[8]}")"
+        summary="$(i18n runtime_recovery_summary "${details[0]}" "${details[3]}" "$reason")"
+        choice="$(menu_choice "$(i18n runtime_recovery_title)" --description "$summary" \
+            "1" "$(i18n runtime_recovery_inspect)" "2" "$(i18n runtime_recovery_resume)" \
+            "3" "$(i18n runtime_recovery_discard)" \
+            "0" "$(i18n back)")" || continue
+        case "$choice" in
+            1) msg "$(i18n runtime_recovery_inspect)" "$description" ;;
+            2) if [ "${details[7]}" = 1 ]; then
+                   msg "$(i18n runtime_recovery_resume)" "$(i18n runtime_recovery_resume_body "${details[0]}" "${details[5]}")"
+               else
+                   msg "$(i18n runtime_recovery_resume)" "$(i18n runtime_recovery_manual "${details[2]}")"
+               fi ;;
+            3) if yesno "$(i18n runtime_recovery_discard)" \
+                   "$(i18n runtime_recovery_confirm "${details[0]}" "${details[3]}" "${details[2]}")"; then
+                   if python3 "$helper" discard "$identity" >>"$LOG" 2>&1; then
+                       msg "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_removed)"
+                   else
+                       msg "$(i18n error)" "$(i18n runtime_recovery_failed)"
+                   fi
+               fi ;;
+        esac
+    done
+}
 
 clean_umu_runtime_data() (
     mkdir -p "$UMU_DIR"
@@ -2479,6 +2534,17 @@ clean_umu_runtime_data_locked() {
 
     if umu_game_active; then
         msg "$(i18n cleanup_refused)" "$(i18n cleanup_active)"
+        return
+    fi
+
+    # Bulk runtime cleanup must not silently include unsynchronized copies.
+    # Review/discard those one by one in the dedicated menu first.
+    local recovery_report
+    recovery_report="$(python3 "$ROOT/overlay/umu-batocera/runtime-prefix.py" report 2>>"$LOG")" || {
+        msg "$(i18n cleanup_refused)" "$(i18n runtime_recovery_failed)"; return;
+    }
+    if [ -n "$recovery_report" ]; then
+        msg "$(i18n cleanup_refused)" "$(i18n runtime_recovery_bulk_protected)"
         return
     fi
 
@@ -2815,6 +2881,7 @@ maintenance_menu() {
             "4" "$(i18n clean_logs)" \
             "5" "$(i18n clean_ro)" \
             "6" "$(i18n uninstall)" \
+            "7" "$(i18n runtime_recovery_title)" \
             "0" "$(i18n back)")" || return
         case "$choice" in
             1) verify_install ;;
@@ -2823,6 +2890,7 @@ maintenance_menu() {
             4) clean_umu_logs ;;
             5) orphan_runner_protections ;;
             6) uninstall_menu ;;
+            7) runtime_recovery_menu ;;
             0|"") return ;;
         esac
     done
