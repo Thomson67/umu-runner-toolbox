@@ -125,6 +125,103 @@ class IsolationTests(unittest.TestCase):
             self.assertEqual(theme.read_bytes(), self.pe(0x8664))
             self.assertEqual(replacement.read_bytes(), self.pe(0x8664))
 
+    def test_stale_fonts_replaced_privately_or_absent_links_removed(self):
+        # Reproduce all 18 names from the Warhammer logs, with both font layouts.
+        names = ('cour.ttf msyh.ttf tahomabd.ttf msgothic.ttc symbol.ttf marlett.ttf '
+                 'webdings.ttf wingding.ttf arialbd.ttf arial.ttf simsun.ttc tahoma.ttf '
+                 'nirmala.ttf courbd.ttf malgun.ttf times.ttf georgia.ttf micross.ttf').split()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; selected = runners / 'current'
+            fonts = selected / 'files/share/wine/fonts'; fonts.mkdir(parents=True)
+            prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'
+            destination = windows / 'Fonts'; destination.mkdir(parents=True)
+            for index, name in enumerate(names):
+                layout = 'share/fonts' if index % 2 else 'files/share/wine/fonts'
+                (destination / name).symlink_to(runners / 'removed' / layout / name)
+                if index % 3:
+                    source = fonts / name
+                    source.write_bytes((b'ttcf' if name.endswith('.ttc') else b'\x00\x01\x00\x00') + b'font data')
+                    source.chmod(0o444)
+            external = root / 'save'; external.mkdir()
+            save_link = prefix / 'drive_c/save'; save_link.symlink_to(external)
+            output = io.StringIO()
+            with redirect_stdout(output): isolation.isolate(prefix, runners, selected)
+            for index, name in enumerate(names):
+                target = destination / name
+                self.assertFalse(target.is_symlink())
+                if index % 3:
+                    self.assertEqual(target.read_bytes(), (fonts / name).read_bytes())
+                    target.write_bytes(b'private font change')
+                    self.assertTrue((fonts / name).read_bytes().endswith(b'font data'))
+                else:
+                    self.assertFalse(target.exists())
+            self.assertTrue(save_link.is_symlink())
+            self.assertIn('prefix_removed_stale_font_link=', output.getvalue())
+
+    def test_font_repair_remains_narrow_and_preflight_is_atomic(self):
+        for invalid in ('unknown-source', 'wrong-name', 'outside-fonts', 'redirected-replacement', 'invalid-font', 'mandatory-dll'):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder); runners = root / 'runners'; selected = runners / 'current'
+                fonts = selected / 'files/share/fonts'; fonts.mkdir(parents=True)
+                prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'
+                destination = windows / 'Fonts'; destination.mkdir(parents=True)
+                optional = destination / 'absent.ttf'
+                optional.symlink_to(runners / 'removed/share/fonts/absent.ttf')
+                source = runners / 'removed/share/fonts/arial.ttf'
+                link = destination / 'arial.ttf'
+                if invalid == 'unknown-source': source = runners / 'removed/elsewhere/arial.ttf'
+                if invalid == 'wrong-name': source = source.with_name('other.ttf')
+                if invalid == 'outside-fonts': link = windows / 'arial.ttf'
+                if invalid == 'mandatory-dll':
+                    source = runners / 'removed/files/lib/wine/x86_64-windows/missing.dll'
+                    link = windows / 'missing.dll'
+                link.symlink_to(source)
+                if invalid == 'redirected-replacement':
+                    external = root / 'arial.ttf'; external.write_bytes(b'\x00\x01\x00\x00font')
+                    (fonts / 'arial.ttf').symlink_to(external)
+                if invalid == 'invalid-font': (fonts / 'arial.ttf').write_bytes(b'not a font')
+                # A redirected candidate is simply unavailable; its dangling
+                # source link may be removed, but it must never be followed.
+                if invalid == 'redirected-replacement':
+                    isolation.isolate(prefix, runners, selected)
+                    self.assertFalse(link.exists()); self.assertFalse(link.is_symlink())
+                    self.assertEqual(external.read_bytes(), b'\x00\x01\x00\x00font')
+                else:
+                    with self.assertRaises(ValueError): isolation.isolate(prefix, runners, selected)
+                    self.assertTrue(link.is_symlink()); self.assertTrue(optional.is_symlink())
+
+    def test_guard_passes_per_game_selected_runner_to_real_isolation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; selected = runners / 'current-UMU'
+            replacement = selected / 'files/lib/wine/x86_64-windows/winhlp32.exe'
+            replacement.parent.mkdir(parents=True); replacement.write_bytes(self.pe(0x8664))
+            prefix = root / 'Warhammer [Hidraw].wine'
+            windows = prefix / 'drive_c/windows'; (windows / 'Fonts').mkdir(parents=True)
+            module_link = windows / 'winhlp32.exe'
+            module_link.symlink_to(runners / 'deleted/files/lib/wine/x86_64-windows/winhlp32.exe')
+            (windows / 'Fonts/cour.ttf').symlink_to(runners / 'deleted/share/fonts/cour.ttf')
+            trace = root / 'trace'
+            binaries = root / 'bin'; binaries.mkdir()
+            settings = binaries / 'batocera-settings-get'
+            settings.write_text('#!/bin/bash\nprintf "%s\\n" "$@" >"$TRACE"\nprintf "current-UMU\\n"\n')
+            settings.chmod(0o755)
+            guard = (ROOT / 'toolbox/hooks/runner-guard.sh').read_text()
+            start = guard.index('    # Detach old runner DLL links')
+            stop = guard.index('    ;;', start)
+            script = ('set -u\nROOT="$1"; HELPER="$2"; LOG="$3"\nlog() { echo "$*" >>"$LOG"; }\n'
+                      + guard[start:stop])
+            import os
+            env = dict(os.environ, TRACE=str(trace), PATH=str(binaries) + ':' + os.environ['PATH'])
+            log = root / 'guard.log'
+            result = subprocess.run(['bash', '-c', script, '_', str(runners),
+                                     str(ROOT / 'toolbox/overlay/umu-batocera/prefix-isolation.py'),
+                                     str(log), 'unused', str(prefix)], capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr + log.read_text())
+            self.assertEqual(module_link.read_bytes(), self.pe(0x8664))
+            self.assertFalse((windows / 'Fonts/cour.ttf').is_symlink())
+            self.assertEqual(trace.read_text().splitlines()[0], f'windows["{prefix.name}"].wine-runner')
+            self.assertIn('isolation_selected_runner=current-UMU', log.read_text())
+
     def test_all_unresolved_links_are_reported_before_any_repair(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); runners = root / 'runners'; selected = runners / 'current'

@@ -35,9 +35,26 @@ gameStart)
     done
     # Detach old runner DLL links before classic Wine's prefix migration.
     rom="${5:-}"
+    # Match batocera-wine's per-game -> system -> global selection, including
+    # the legacy core fallback. Do not guess a runner from an old prefix link.
+    selected=""
+    if command -v batocera-settings-get >/dev/null 2>&1; then
+        selected="$(batocera-settings-get "windows[\"${rom##*/}\"].wine-runner" windows.wine-runner global.wine-runner 2>/dev/null || true)"
+        if [ -z "$selected" ]; then
+            selected="$(batocera-settings-get "windows[\"${rom##*/}\"].core" windows.core global.core 2>/dev/null || true)"
+        fi
+    fi
+    isolation_args=()
+    case "$selected" in
+        ''|*/*|.|..) ;;
+        *) if [ -d "$ROOT/$selected" ]; then
+               isolation_args=(--selected-runner "$ROOT/$selected")
+               log "isolation_selected_runner=$selected"
+           fi ;;
+    esac
     for prefix in "$rom" /userdata/system/wine-bottles/windows/*/"${rom##*/}.wine"; do
         [ -d "$prefix/drive_c/windows" ] || continue
-        python3 "$HELPER" "$prefix" >>"$LOG" 2>&1 || { log "ERROR isolation=$prefix"; exit 1; }
+        python3 "$HELPER" "$prefix" --runners "$ROOT" "${isolation_args[@]}" >>"$LOG" 2>&1 || { log "ERROR isolation=$prefix"; exit 1; }
     done
     ;;
 gameStop)

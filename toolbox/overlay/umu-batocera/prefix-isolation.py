@@ -52,6 +52,34 @@ def runner_file_source(path, runners, selected_runner=None):
     raise ValueError(f'broken runner file link: {path} -> {origin}')
 
 
+def missing_runner_font(path, windows, runners):
+    """Only identify dangling font links in Wine's Fonts directory."""
+    if path.parent != windows / 'Fonts' or path.suffix.lower() not in ('.ttf', '.ttc', '.otf'):
+        return False
+    origin = path.resolve()
+    if origin.exists() or not origin.is_relative_to(runners):
+        return False
+    parts = origin.relative_to(runners).parts
+    layout = parts[1:]
+    if layout[:1] in (('files',), ('dist',)):
+        layout = layout[1:]
+    return (layout[:-1] in (('share', 'fonts'), ('share', 'wine', 'fonts'))
+            and layout[-1].casefold() == path.name.casefold())
+
+
+def replacement_font(path, selected_runner):
+    for base in (selected_runner / 'files', selected_runner, selected_runner / 'dist'):
+        for directory in ('share/fonts', 'share/wine/fonts'):
+            candidate = base / directory / path.name
+            if candidate.is_file() and candidate.resolve() == candidate:
+                with candidate.open('rb') as source:
+                    signature = source.read(4)
+                if signature in (b'\x00\x01\x00\x00', b'OTTO', b'true', b'typ1', b'ttcf'):
+                    return candidate
+                raise ValueError(f'invalid replacement font: {candidate}')
+    return None
+
+
 def isolate(prefix, runners, selected_runner=None):
     prefix = Path(prefix).resolve(strict=True)
     runners = Path(runners).resolve(strict=True)
@@ -85,7 +113,12 @@ def isolate(prefix, runners, selected_runner=None):
                 shared = not path.is_symlink() and path.stat().st_nlink > 1
                 if not linked and not shared:
                     continue
-                origin = runner_file_source(path, runners, selected_runner) if linked else path.resolve()
+                if linked and selected_runner is not None and missing_runner_font(path, windows, runners):
+                    # An absent font link has no data to preserve. If the current
+                    # runner does not ship it, let Wine use its font fallbacks.
+                    origin = replacement_font(path, selected_runner)
+                else:
+                    origin = runner_file_source(path, runners, selected_runner) if linked else path.resolve()
                 plan.append((path, origin, shared, path.resolve()))
             except (OSError, ValueError, RuntimeError) as error:
                 problems.append(str(error))
@@ -95,6 +128,10 @@ def isolate(prefix, runners, selected_runner=None):
     # Validate every link before detaching files. An unknown missing component
     # must not leave a partially repaired maintenance prefix.
     for path, origin, shared, previous in plan:
+        if origin is None:
+            path.unlink()
+            print(f'prefix_removed_stale_font_link={path} previous_target={previous}', flush=True)
+            continue
         fd, temporary = tempfile.mkstemp(prefix='.umu-detach-', dir=path.parent)
         os.close(fd)
         try:
