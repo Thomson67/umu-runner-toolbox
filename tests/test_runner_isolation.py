@@ -85,7 +85,7 @@ class IsolationTests(unittest.TestCase):
     def test_removed_runner_links_use_selected_runner_same_file_and_arch_privately(self):
         for arch, machine in [('i386-windows', 0x14c), ('x86_64-windows', 0x8664)]:
             for layout in ('lib/wine', 'files/lib/wine', 'dist/lib/wine'):
-                for name in ('winhlp32.exe', 'ddraw.dll'):
+                for name in ('winhlp32.exe', 'ddraw.dll', 'light.msstyles', 'theme.drv', 'control.cpl', 'device.sys', 'filter.acm', 'component.ocx', 'module.other'):
                     with self.subTest(arch=arch, layout=layout, name=name), tempfile.TemporaryDirectory() as folder:
                         root = Path(folder); runners = root / 'runners'
                         selected = runners / 'GE-Proton11-7-UMU'
@@ -109,6 +109,51 @@ class IsolationTests(unittest.TestCase):
                         self.assertTrue(savedir.is_symlink())
                         self.assertIn('prefix_repaired_link=', output.getvalue())
                         self.assertIn(str(previous), output.getvalue())
+
+    def test_theme_resource_link_in_nested_windows_directory_is_repaired(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; selected = runners / 'GE-Proton11-7-UMU'
+            replacement = selected / 'files/lib/wine/x86_64-windows/light.msstyles'
+            replacement.parent.mkdir(parents=True); replacement.write_bytes(self.pe(0x8664))
+            prefix = root / 'Game.wine'
+            theme = prefix / 'drive_c/windows/resources/themes/light/light.msstyles'
+            theme.parent.mkdir(parents=True)
+            previous = runners / 'GE-Proton11-6-UMU/files/lib/wine/x86_64-windows/light.msstyles'
+            theme.symlink_to(previous)
+            isolation.isolate(prefix, runners, selected)
+            self.assertFalse(theme.is_symlink())
+            self.assertEqual(theme.read_bytes(), self.pe(0x8664))
+            self.assertEqual(replacement.read_bytes(), self.pe(0x8664))
+
+    def test_all_unresolved_links_are_reported_before_any_repair(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; selected = runners / 'current'
+            candidate = selected / 'files/lib/wine/x86_64-windows/light.msstyles'
+            candidate.parent.mkdir(parents=True); candidate.write_bytes(self.pe(0x8664))
+            prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'; windows.mkdir(parents=True)
+            repairable = windows / 'light.msstyles'
+            repairable.symlink_to(runners / 'deleted/files/lib/wine/x86_64-windows/light.msstyles')
+            for name in ('missing1.dll', 'missing2.exe'):
+                (windows / name).symlink_to(runners / 'deleted/files/lib/wine/x86_64-windows' / name)
+            with self.assertRaises(ValueError) as caught:
+                isolation.isolate(prefix, runners, selected)
+            self.assertIn('2 unresolved entries', str(caught.exception))
+            self.assertIn('missing1.dll', str(caught.exception))
+            self.assertIn('missing2.exe', str(caught.exception))
+            self.assertTrue(repairable.is_symlink())
+            self.assertFalse(list(windows.glob('.umu-detach-*')))
+
+    def test_theme_architecture_is_validated_despite_its_extension(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; selected = runners / 'current'
+            candidate = selected / 'files/lib/wine/x86_64-windows/light.msstyles'
+            candidate.parent.mkdir(parents=True); candidate.write_bytes(self.pe(0x14c))
+            prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'; windows.mkdir(parents=True)
+            theme = windows / 'light.msstyles'
+            theme.symlink_to(runners / 'deleted/files/lib/wine/x86_64-windows/light.msstyles')
+            with self.assertRaisesRegex(ValueError, 'broken runner file link'):
+                isolation.isolate(prefix, runners, selected)
+            self.assertTrue(theme.is_symlink())
 
     def test_selected_fallback_refuses_unknown_layout_wrong_arch_and_redirected_files(self):
         for invalid in ('wrong-arch', 'invalid-pe', 'outside-link', 'unknown-layout', 'wrong-name', 'absent'):

@@ -29,9 +29,11 @@ def runner_file_source(path, runners, selected_runner=None):
     layout = parts[1:]
     if layout[:1] in (('files',), ('dist',)):
         layout = layout[1:]
+    # The architecture directory contains PE modules with many extensions:
+    # themes (.msstyles), drivers (.drv/.sys), control panels (.cpl), etc.
+    # For a different runner, the PE header below is authoritative.
     recognized = (len(layout) == 4 and layout[:2] == ('lib', 'wine')
                   and layout[2] in ('i386-windows', 'x86_64-windows')
-                  and layout[3].casefold().endswith(('.dll', '.exe'))
                   and layout[3].casefold() == path.name.casefold())
     if recognized:
         runner = runners / parts[0]
@@ -65,20 +67,31 @@ def isolate(prefix, runners, selected_runner=None):
         return
     if not windows.resolve().is_relative_to(prefix):
         raise ValueError('Windows directory escapes the prefix')
-    plan = []
-    for root, dirs, files in os.walk(windows, followlinks=False):
+    plan, problems = [], []
+    def scan_error(error):
+        problems.append(str(error))
+    for root, dirs, files in os.walk(windows, followlinks=False, onerror=scan_error):
         for name in dirs:
             path = Path(root) / name
-            if path.is_symlink() and path.resolve().is_relative_to(runners):
-                raise ValueError(f'runner directory link requires manual repair: {path}')
+            try:
+                if path.is_symlink() and path.resolve().is_relative_to(runners):
+                    problems.append(f'runner directory link requires manual repair: {path}')
+            except (OSError, RuntimeError) as error:
+                problems.append(f'{path}: {error}')
         for name in files:
             path = Path(root) / name
-            linked = path.is_symlink() and path.resolve().is_relative_to(runners)
-            shared = not path.is_symlink() and path.stat().st_nlink > 1
-            if not linked and not shared:
-                continue
-            origin = runner_file_source(path, runners, selected_runner) if linked else path.resolve()
-            plan.append((path, origin, shared, path.resolve()))
+            try:
+                linked = path.is_symlink() and path.resolve().is_relative_to(runners)
+                shared = not path.is_symlink() and path.stat().st_nlink > 1
+                if not linked and not shared:
+                    continue
+                origin = runner_file_source(path, runners, selected_runner) if linked else path.resolve()
+                plan.append((path, origin, shared, path.resolve()))
+            except (OSError, ValueError, RuntimeError) as error:
+                problems.append(str(error))
+    if problems:
+        raise ValueError(f'prefix isolation preflight failed ({len(problems)} unresolved entries):\n'
+                         + '\n'.join(problems))
     # Validate every link before detaching files. An unknown missing component
     # must not leave a partially repaired maintenance prefix.
     for path, origin, shared, previous in plan:
