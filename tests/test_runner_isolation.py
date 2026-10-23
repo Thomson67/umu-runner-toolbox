@@ -1,3 +1,4 @@
+from contextlib import redirect_stdout
 import hashlib
 import importlib.util
 import io
@@ -72,6 +73,113 @@ class IsolationTests(unittest.TestCase):
                     isolation.isolate(root / 'Game.wine', runners)
                 self.assertTrue(link.is_symlink())
                 self.assertEqual(link.readlink(), target)
+
+    def pe(self, machine):
+        content = bytearray(134)
+        content[:2] = b'MZ'
+        content[60:64] = (128).to_bytes(4, 'little')
+        content[128:132] = b'PE\0\0'
+        content[132:134] = machine.to_bytes(2, 'little')
+        return bytes(content)
+
+    def test_removed_runner_links_use_selected_runner_same_file_and_arch_privately(self):
+        for arch, machine in [('i386-windows', 0x14c), ('x86_64-windows', 0x8664)]:
+            for layout in ('lib/wine', 'files/lib/wine', 'dist/lib/wine'):
+                for name in ('winhlp32.exe', 'ddraw.dll'):
+                    with self.subTest(arch=arch, layout=layout, name=name), tempfile.TemporaryDirectory() as folder:
+                        root = Path(folder); runners = root / 'runners'
+                        selected = runners / 'GE-Proton11-7-UMU'
+                        replacement = selected / 'files/lib/wine' / arch / name
+                        replacement.parent.mkdir(parents=True); replacement.write_bytes(self.pe(machine))
+                        replacement.chmod(0o555)
+                        prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'; windows.mkdir(parents=True)
+                        previous = runners / 'GE-Proton11-6-UMU' / layout / arch / name
+                        link = windows / name; link.symlink_to(previous)
+                        saves = root / 'saves'; saves.mkdir()
+                        savedir = prefix / 'drive_c/save'; savedir.symlink_to(saves)
+                        output = io.StringIO()
+                        with redirect_stdout(output): isolation.isolate(prefix, runners, selected)
+                        self.assertFalse(link.is_symlink())
+                        self.assertEqual(link.read_bytes(), self.pe(machine))
+                        self.assertTrue(link.stat().st_mode & 0o200)
+                        link.write_bytes(b'private migration')
+                        self.assertEqual(replacement.read_bytes(), self.pe(machine))
+                        self.assertEqual(replacement.stat().st_mode & 0o777, 0o555)
+                        self.assertFalse(previous.exists())
+                        self.assertTrue(savedir.is_symlink())
+                        self.assertIn('prefix_repaired_link=', output.getvalue())
+                        self.assertIn(str(previous), output.getvalue())
+
+    def test_selected_fallback_refuses_unknown_layout_wrong_arch_and_redirected_files(self):
+        for invalid in ('wrong-arch', 'invalid-pe', 'outside-link', 'unknown-layout', 'wrong-name', 'absent'):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder); runners = root / 'runners'; selected = runners / 'current'
+                replacement = selected / 'files/lib/wine/i386-windows/winhlp32.exe'
+                replacement.parent.mkdir(parents=True)
+                if invalid == 'outside-link':
+                    outside = root / 'outside.exe'; outside.write_bytes(self.pe(0x14c))
+                    replacement.symlink_to(outside)
+                elif invalid != 'absent':
+                    replacement.write_bytes(b'not PE' if invalid == 'invalid-pe' else self.pe(0x8664 if invalid == 'wrong-arch' else 0x14c))
+                prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'; windows.mkdir(parents=True)
+                previous = runners / 'deleted/files/lib/wine/i386-windows/winhlp32.exe'
+                if invalid == 'unknown-layout': previous = runners / 'deleted/unknown/i386-windows/winhlp32.exe'
+                link = windows / ('different.exe' if invalid == 'wrong-name' else 'winhlp32.exe')
+                link.symlink_to(previous)
+                with self.assertRaisesRegex(ValueError, 'broken runner file link'):
+                    isolation.isolate(prefix, runners, selected)
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(link.readlink(), previous)
+                self.assertFalse(list(windows.glob('.umu-detach-*')))
+
+    def test_preflight_failure_leaves_all_prefix_links_and_hardlinks_unchanged(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; runners.mkdir()
+            original = runners / 'private.dll'; original.write_bytes(b'unchanged')
+            prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'; windows.mkdir(parents=True)
+            valid = windows / 'valid.dll'; valid.symlink_to(original)
+            shared = windows / 'shared.dll'; shared.hardlink_to(original)
+            inode = shared.stat().st_ino
+            broken = windows / 'winhlp32.exe'; broken.symlink_to(runners / 'missing/files/lib/wine/i386-windows/winhlp32.exe')
+            with self.assertRaisesRegex(ValueError, 'broken runner file link'):
+                isolation.isolate(prefix, runners)
+            self.assertTrue(valid.is_symlink())
+            self.assertTrue(broken.is_symlink())
+            self.assertEqual(shared.stat().st_ino, inode)
+            self.assertEqual(original.read_bytes(), b'unchanged')
+            self.assertFalse(list(windows.glob('.umu-detach-*')))
+
+    def test_existing_old_runner_file_is_preserved_instead_of_using_selected_replacement(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'
+            selected = runners / 'current'; selected.mkdir(parents=True)
+            previous = runners / 'old/files/lib/wine/i386-windows/winhlp32.exe'
+            previous.parent.mkdir(parents=True); previous.write_bytes(b'old valid contents')
+            candidate = selected / 'files/lib/wine/i386-windows/winhlp32.exe'
+            candidate.parent.mkdir(parents=True); candidate.write_bytes(self.pe(0x14c))
+            prefix = root / 'Game.wine'; windows = prefix / 'drive_c/windows'; windows.mkdir(parents=True)
+            link = windows / 'winhlp32.exe'; link.symlink_to(previous)
+            isolation.isolate(prefix, runners, selected)
+            self.assertEqual(link.read_bytes(), b'old valid contents')
+            self.assertEqual(previous.read_bytes(), b'old valid contents')
+
+    def test_selected_runner_outside_managed_root_or_alias_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); runners = root / 'runners'; runners.mkdir()
+            external = root / 'external'; external.mkdir()
+            alias = runners / 'alias'; alias.symlink_to(external, target_is_directory=True)
+            prefix = root / 'Game.wine'; prefix.mkdir()
+            for selected in (external, alias):
+                with self.subTest(selected=selected), self.assertRaisesRegex(ValueError, 'selected runner'):
+                    isolation.isolate(prefix, runners, selected)
+
+    def test_managed_root_can_itself_be_a_symlink(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); physical = root / 'disk/runners'; physical.mkdir(parents=True)
+            runners = root / 'custom'; runners.symlink_to(physical, target_is_directory=True)
+            selected = runners / 'current'; selected.mkdir()
+            prefix = root / 'Game.wine'; prefix.mkdir()
+            isolation.isolate(prefix, runners, selected)
 
     def test_maintenance_detaches_before_wine_and_waits_before_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:

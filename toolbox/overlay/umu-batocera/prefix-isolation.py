@@ -7,28 +7,57 @@ import shutil
 import tempfile
 
 
-def runner_file_source(path, runners):
+def pe_machine(path):
+    """Read the PE architecture before using a different runner's replacement."""
+    with path.open('rb') as source:
+        header = source.read(64)
+        if len(header) != 64 or header[:2] != b'MZ':
+            return None
+        offset = int.from_bytes(header[60:64], 'little')
+        if offset < 64 or offset > 16 * 1024 * 1024:
+            return None
+        source.seek(offset)
+        pe = source.read(6)
+        return int.from_bytes(pe[4:6], 'little') if pe[:4] == b'PE\0\0' and len(pe) == 6 else None
+
+
+def runner_file_source(path, runners, selected_runner=None):
     origin = path.resolve()
     if origin.is_file():
         return origin
-    # Batocera prefixes may retain Wine-layout links, whereas managed Proton
-    # distributions store these DLLs under files/lib/wine. Resolve only this
-    # exact layout difference, within the same referenced runner and arch.
     parts = origin.relative_to(runners).parts
-    if (len(parts) == 5 and parts[1:3] == ('lib', 'wine')
-            and parts[3] in ('i386-windows', 'x86_64-windows')
-            and parts[4].endswith('.dll')):
+    layout = parts[1:]
+    if layout[:1] in (('files',), ('dist',)):
+        layout = layout[1:]
+    recognized = (len(layout) == 4 and layout[:2] == ('lib', 'wine')
+                  and layout[2] in ('i386-windows', 'x86_64-windows')
+                  and layout[3].casefold().endswith(('.dll', '.exe'))
+                  and layout[3].casefold() == path.name.casefold())
+    if recognized:
         runner = runners / parts[0]
-        candidate = runner / 'files' / Path(*parts[1:])
-        if (runner.resolve() == runner and candidate.is_file()
-                and candidate.resolve() == candidate):
-            return candidate.resolve()
+        # Preserve the existing same-runner Wine -> Proton layout repair.
+        candidate = runner / 'files' / Path(*layout)
+        if (parts[1:3] == ('lib', 'wine') and runner.resolve() == runner
+                and candidate.is_file() and candidate.resolve() == candidate):
+            return candidate
+        if selected_runner is not None:
+            expected = 0x14c if layout[2] == 'i386-windows' else 0x8664
+            for base in (selected_runner / 'files', selected_runner, selected_runner / 'dist'):
+                candidate = base / Path(*layout)
+                if (candidate.is_file() and candidate.resolve() == candidate
+                        and pe_machine(candidate) == expected):
+                    return candidate
     raise ValueError(f'broken runner file link: {path} -> {origin}')
 
 
-def isolate(prefix, runners):
+def isolate(prefix, runners, selected_runner=None):
     prefix = Path(prefix).resolve(strict=True)
     runners = Path(runners).resolve(strict=True)
+    if selected_runner is not None:
+        selected_path = Path(selected_runner).absolute()
+        selected_runner = selected_path.resolve(strict=True)
+        if (selected_path.is_symlink() or selected_runner.parent != runners or not selected_runner.is_dir()):
+            raise ValueError('selected runner must be a real direct child of the runner tree')
     if prefix.is_relative_to(runners):
         raise ValueError('prefix is inside the runner tree')
     windows = prefix / 'drive_c/windows'
@@ -36,6 +65,7 @@ def isolate(prefix, runners):
         return
     if not windows.resolve().is_relative_to(prefix):
         raise ValueError('Windows directory escapes the prefix')
+    plan = []
     for root, dirs, files in os.walk(windows, followlinks=False):
         for name in dirs:
             path = Path(root) / name
@@ -47,22 +77,29 @@ def isolate(prefix, runners):
             shared = not path.is_symlink() and path.stat().st_nlink > 1
             if not linked and not shared:
                 continue
-            origin = runner_file_source(path, runners) if linked else path.resolve()
-            fd, temporary = tempfile.mkstemp(prefix='.umu-detach-', dir=path.parent)
-            os.close(fd)
-            try:
-                shutil.copy2(origin, temporary)
-                os.chmod(temporary, os.stat(temporary).st_mode | 0o200)
-                os.replace(temporary, path)
-            finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
-            print(f'prefix_detached={path} previous_target={origin} hardlink={int(shared)}', flush=True)
+            origin = runner_file_source(path, runners, selected_runner) if linked else path.resolve()
+            plan.append((path, origin, shared, path.resolve()))
+    # Validate every link before detaching files. An unknown missing component
+    # must not leave a partially repaired maintenance prefix.
+    for path, origin, shared, previous in plan:
+        fd, temporary = tempfile.mkstemp(prefix='.umu-detach-', dir=path.parent)
+        os.close(fd)
+        try:
+            shutil.copy2(origin, temporary)
+            os.chmod(temporary, os.stat(temporary).st_mode | 0o200)
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        if previous != origin:
+            print(f'prefix_repaired_link={path} previous_target={previous} replacement={origin}', flush=True)
+        print(f'prefix_detached={path} previous_target={previous} hardlink={int(shared)}', flush=True)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('prefix')
     parser.add_argument('--runners', default='/userdata/system/wine/custom')
+    parser.add_argument('--selected-runner')
     args = parser.parse_args()
-    isolate(args.prefix, args.runners)
+    isolate(args.prefix, args.runners, args.selected_runner)

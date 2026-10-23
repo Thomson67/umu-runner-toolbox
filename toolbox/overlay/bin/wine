@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.9 ====="
+log "===== Batocera UMU runner v3.10.10-test ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -288,7 +288,7 @@ if [ -z "$exe" ]; then
     fi
     if is_prefix_root "$ORIGINAL_WINEPREFIX"; then
         if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$ORIGINAL_WINEPREFIX" \
-            --runners "$(dirname "$RUNNER_DIR")" >>"$LOG" 2>&1; then
+            --runners "$(dirname "$RUNNER_DIR")" --selected-runner "$RUNNER_DIR" >>"$LOG" 2>&1; then
             log "FATAL: maintenance prefix isolation failed"
             exit 94
         fi
@@ -1460,7 +1460,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
 fi
 
 if ! python3 "$RUNNER_DIR/umu-batocera/prefix-isolation.py" "$EFFECTIVE_WINEPREFIX" \
-    --runners "$(dirname "$RUNNER_DIR")" >>"$LOG" 2>&1; then
+    --runners "$(dirname "$RUNNER_DIR")" --selected-runner "$RUNNER_DIR" >>"$LOG" 2>&1; then
     log "FATAL: prefix isolation failed; launch refused"
     exit 94
 fi
