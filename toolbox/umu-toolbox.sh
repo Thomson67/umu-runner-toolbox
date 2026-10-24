@@ -1612,7 +1612,7 @@ install_ge() {
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
         tag="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_ge_title)" \
-            --menu "$(i18n help_ge_versions)"  \
+            --menu "$(i18n help_ge_versions)"
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
@@ -3210,7 +3210,6 @@ post_update_integration
 startup_update_check
 runtime_recovery_notice
 main_menu
-
 \n\n'"$([ "$TOOLBOX_LANGUAGE" = fr ] && printf 'Conseil manettes Sony : GE-Proton 11-8 minimum (XInput automatique natif).' || printf 'Sony controller tip: GE-Proton 11-8+ (native automatic XInput).')"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
@@ -4809,4 +4808,3 @@ post_update_integration
 startup_update_check
 runtime_recovery_notice
 main_menu
-
