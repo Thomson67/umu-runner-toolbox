@@ -5,7 +5,7 @@
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton via UMU** sous Batocera.
 
 Version stable actuelle : **v0.13.12**
-Version de l'intégration runner : **v3.10.10**
+Version de l'intégration runner : **v3.10.12**
 
 L'intégration **3.10.9** exclut de la copie du préfixe `.wine` l'ancien dossier de jeu conservé par une mise à jour Ultimate Wine Toolbox en cours. L'état actif et son journal doivent correspondre exactement au préfixe et au dossier de secours. Ce dossier est également préservé pendant la synchronisation au retour du jeu. Les autres dossiers `.bak` et les lancements sans journal correspondant gardent leur comportement habituel. Installer cette intégration après la fin de la session UMU actuelle : elle ne modifie pas un wrapper déjà lancé.
 
