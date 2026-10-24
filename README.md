@@ -9,6 +9,10 @@ Runner integration version: **v3.10.10**
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 
+## Test feature: Sony automatic XInput (UMU)
+
+The experimental **Settings > Sony controllers: automatic XInput** control has three choices: **Native (recommended)** leaves GE-Proton 11-8+ automatic PlayStation-to-XInput fallback unmodified; **Force** sets `PROTON_SONY_AUTO_XINPUT=1`; **Disable** sets `PROTON_SONY_AUTO_XINPUT=0` for subsequent UMU launches. Explicit variables supplied by a game through `autorun.cmd` take priority. `PROTON_SONY_HIDRAW_XINPUT` is independent and is never changed. This setting does not affect non-UMU runners. Set Native to revert the test. Logs record the chosen mode.
+
 ## Features
 
 - Install and safely remove GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU, Proton-EM-UMU and DW-Proton-UMU runners.
