@@ -1612,7 +1612,7 @@ install_ge() {
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
         tag="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_ge_title)" \
-            --menu "$(i18n help_ge_versions)"
+            --menu "$(i18n help_ge_versions) | $([ "$TOOLBOX_LANGUAGE" = fr ] && printf 'Manettes Sony : GE-Proton 11-8 minimum recommandé.' || printf 'Sony controllers: GE-Proton 11-8+ recommended.')"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
