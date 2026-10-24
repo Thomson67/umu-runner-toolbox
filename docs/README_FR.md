@@ -4,8 +4,8 @@
 
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.13.12**
-Version de l'intégration runner : **v3.10.12**
+Version stable actuelle : **v0.13.13**
+Version de l'intégration runner : **v3.10.10**
 
 ## Manettes Sony : GE-Proton recommandé
 
