@@ -7,6 +7,10 @@
 Version stable actuelle : **v0.13.12**
 Version de l'intégration runner : **v3.10.12**
 
+## Manettes Sony : GE-Proton recommandé
+
+Pour les manettes **DualShock 4 et DualSense**, utiliser de préférence **GE-Proton 11-8 ou supérieur** avec UMU. Depuis GE-Proton 11-8, le repli automatique vers XInput est normalement disponible sans ajouter `PROTON_SONY_HIDRAW_XINPUT=1` manuellement. La Toolbox ne force aucune de ces variables : le fonctionnement natif du runner et les exceptions définies dans `autorun.cmd` sont respectés. Les runners antérieurs restent disponibles. Le conseil apparaît dans **Paramètres > Manettes Sony** et lors du choix d'un GE-Proton.
+
 L'intégration **3.10.9** exclut de la copie du préfixe `.wine` l'ancien dossier de jeu conservé par une mise à jour Ultimate Wine Toolbox en cours. L'état actif et son journal doivent correspondre exactement au préfixe et au dossier de secours. Ce dossier est également préservé pendant la synchronisation au retour du jeu. Les autres dossiers `.bak` et les lancements sans journal correspondant gardent leur comportement habituel. Installer cette intégration après la fin de la session UMU actuelle : elle ne modifie pas un wrapper déjà lancé.
 
 L'intégration **3.10.10** répare aussi les liens vers un ancien runner disparu en utilisant le runner explicitement sélectionné. Les modules PE Wine, notamment DLL, exécutables, pilotes et thèmes, exigent le même nom de fichier et une architecture PE correspondante. Une copie privée remplace le lien dans le préfixe ; les runners restent protégés. Les liens de polices déjà cassés sous Windows/Fonts sont remplacés depuis le runner sélectionné si la police existe, ou retirés pour laisser Wine utiliser ses polices de remplacement. Les autres entrées non résolues sont toutes signalées avant modification. Le contrôle préalable tient lui aussi compte du runner choisi pour le jeu dans Batocera.
