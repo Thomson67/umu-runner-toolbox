@@ -2,7 +2,7 @@
 set -u
 
 TOOLBOX_VERSION="0.13.12"
-INTEGRATION_VERSION="3.10.10"
+INTEGRATION_VERSION="3.10.11"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -3054,6 +3054,29 @@ display_mode_menu() {
     done
 }
 
+sony_auto_xinput_menu() {
+    local choice current title description
+    current="$(cat "$ROOT/config/sony-auto-xinput" 2>/dev/null || true)"
+    case "$current" in enable|disable) ;; *) current=native ;; esac
+    if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+        title="Manettes Sony : XInput automatique (test)"
+        description="Mode actuel : $current. Natif = aucun forçage : GE-Proton 11-8+ gère déjà le repli XInput automatiquement. Forcer active PROTON_SONY_AUTO_XINPUT=1; Désactiver applique =0. Valable pour les prochains lancements UMU, pas pour Wine classique. Un ENV=PROTON_SONY_AUTO_XINPUT dans autorun.cmd reste prioritaire. N'affecte pas PROTON_SONY_HIDRAW_XINPUT."
+        choice="$(menu_choice "$title" --description "$description" "native" "Natif (recommandé)" "enable" "Forcer le mode automatique" "disable" "Désactiver le mode automatique" "back" "Retour")" || return
+    else
+        title="Sony controllers: automatic XInput (test)"
+        description="Current mode: $current. Native leaves GE-Proton 11-8+ built-in automatic fallback untouched. Force sets PROTON_SONY_AUTO_XINPUT=1; Disable sets =0. Applies to future UMU launches only. Explicit autorun.cmd ENV takes priority. Does not affect PROTON_SONY_HIDRAW_XINPUT."
+        choice="$(menu_choice "$title" --description "$description" "native" "Native (recommended)" "enable" "Force automatic mode" "disable" "Disable automatic mode" "back" "Back")" || return
+    fi
+    case "$choice" in
+        native|enable|disable)
+            mkdir -p "$ROOT/config" || return 1
+            printf '%s\n' "$choice" > "$ROOT/config/sony-auto-xinput.tmp" || return 1
+            mv -f "$ROOT/config/sony-auto-xinput.tmp" "$ROOT/config/sony-auto-xinput" || return 1
+            log "sony_auto_xinput_setting=$choice"
+            ;;
+    esac
+}
+
 graphics_cache_menu() {
     local choice current title prompt on off back
     current="$(cat "$ROOT/config/graphics-cache-sharing" 2>/dev/null || true)"
@@ -3082,14 +3105,15 @@ settings_menu() {
     local choice
     while true; do
         if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "0" "Retour")" || return
+            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "s" "Manettes Sony : XInput automatique (test)" "0" "Retour")" || return
         else
-            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "0" "Back")" || return
+            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "s" "Sony controllers: automatic XInput (test)" "0" "Back")" || return
         fi
         case "$choice" in
             l) language_menu ;;
             d) display_mode_menu ;;
             c) graphics_cache_menu ;;
+            s) sony_auto_xinput_menu ;;
             0|"") return ;;
         esac
     done
