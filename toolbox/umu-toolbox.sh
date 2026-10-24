@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.12"
+TOOLBOX_VERSION="0.13.13"
 INTEGRATION_VERSION="3.10.10"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
@@ -1612,7 +1612,7 @@ install_ge() {
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
         tag="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_ge_title)" \
-            --menu "$(i18n help_ge_versions)"  \
+            --menu "$(i18n help_ge_versions) | $([ "$TOOLBOX_LANGUAGE" = fr ] && printf 'Manettes Sony : GE-Proton 11-8 minimum recommandé.' || printf 'Sony controllers: GE-Proton 11-8+ recommended.')"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
@@ -3054,6 +3054,14 @@ display_mode_menu() {
     done
 }
 
+sony_controller_info() {
+    if [ "$TOOLBOX_LANGUAGE" = fr ]; then
+        msg "Manettes Sony / XInput" "Pour les DualShock 4 et DualSense, GE-Proton 11-8 ou supérieur est recommandé via UMU. Depuis 11-8, le repli automatique vers XInput est normalement actif sans réglage manuel. Les jeux disposant déjà d'une configuration explicite dans autorun.cmd conservent leur comportement. Aucun réglage n'est nécessaire dans la Toolbox."
+    else
+        msg "Sony controllers / XInput" "GE-Proton 11-8 or newer is recommended for DualShock 4 and DualSense with UMU. From 11-8, automatic XInput fallback is normally enabled without manual configuration. Explicit autorun.cmd game settings remain effective. No Toolbox setting is required."
+    fi
+}
+
 graphics_cache_menu() {
     local choice current title prompt on off back
     current="$(cat "$ROOT/config/graphics-cache-sharing" 2>/dev/null || true)"
@@ -3082,14 +3090,15 @@ settings_menu() {
     local choice
     while true; do
         if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "0" "Retour")" || return
+            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "s" "Conseil : manettes Sony (GE-Proton 11-8+)" "0" "Retour")" || return
         else
-            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "0" "Back")" || return
+            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "s" "Sony controller advice (GE-Proton 11-8+)" "0" "Back")" || return
         fi
         case "$choice" in
             l) language_menu ;;
             d) display_mode_menu ;;
             c) graphics_cache_menu ;;
+            s) sony_controller_info ;;
             0|"") return ;;
         esac
     done

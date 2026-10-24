@@ -4,8 +4,12 @@
 
 **UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton via UMU** sous Batocera.
 
-Version stable actuelle : **v0.13.12**
+Version stable actuelle : **v0.13.13**
 Version de l'intégration runner : **v3.10.10**
+
+## Manettes Sony : GE-Proton recommandé
+
+Pour les manettes **DualShock 4 et DualSense**, utiliser de préférence **GE-Proton 11-8 ou supérieur** avec UMU. Depuis GE-Proton 11-8, le repli automatique vers XInput est normalement disponible sans ajouter `PROTON_SONY_HIDRAW_XINPUT=1` manuellement. La Toolbox ne force aucune de ces variables : le fonctionnement natif du runner et les exceptions définies dans `autorun.cmd` sont respectés. Les runners antérieurs restent disponibles. Le conseil apparaît dans **Paramètres > Manettes Sony** et lors du choix d'un GE-Proton.
 
 L'intégration **3.10.9** exclut de la copie du préfixe `.wine` l'ancien dossier de jeu conservé par une mise à jour Ultimate Wine Toolbox en cours. L'état actif et son journal doivent correspondre exactement au préfixe et au dossier de secours. Ce dossier est également préservé pendant la synchronisation au retour du jeu. Les autres dossiers `.bak` et les lancements sans journal correspondant gardent leur comportement habituel. Installer cette intégration après la fin de la session UMU actuelle : elle ne modifie pas un wrapper déjà lancé.
 
