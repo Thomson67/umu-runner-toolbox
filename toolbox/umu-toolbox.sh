@@ -2,7 +2,7 @@
 set -u
 
 TOOLBOX_VERSION="0.13.12"
-INTEGRATION_VERSION="3.10.11"
+INTEGRATION_VERSION="3.10.12"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -1612,7 +1612,7 @@ install_ge() {
         tag="${requested%-UMU}"
     elif command -v dialog >/dev/null 2>&1; then
         tag="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_ge_title)" \
-            --menu "$(i18n help_ge_versions)"  \
+            --menu "$(i18n help_ge_versions)\n\n$([ "$TOOLBOX_LANGUAGE" = fr ] && printf 'Conseil manettes Sony : GE-Proton 11-8 minimum (XInput automatique natif).' || printf 'Sony controller tip: GE-Proton 11-8+ (native automatic XInput).')"  \
             24 96 17 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
         clear
@@ -3054,27 +3054,12 @@ display_mode_menu() {
     done
 }
 
-sony_auto_xinput_menu() {
-    local choice current title description
-    current="$(cat "$ROOT/config/sony-auto-xinput" 2>/dev/null || true)"
-    case "$current" in enable|disable) ;; *) current=native ;; esac
+sony_controller_info() {
     if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-        title="Manettes Sony : XInput automatique (test)"
-        description="Mode actuel : $current. Natif = aucun forçage : GE-Proton 11-8+ gère déjà le repli XInput automatiquement. Forcer active PROTON_SONY_AUTO_XINPUT=1; Désactiver applique =0. Valable pour les prochains lancements UMU, pas pour Wine classique. Un ENV=PROTON_SONY_AUTO_XINPUT dans autorun.cmd reste prioritaire. N'affecte pas PROTON_SONY_HIDRAW_XINPUT."
-        choice="$(menu_choice "$title" --description "$description" "native" "Natif (recommandé)" "enable" "Forcer le mode automatique" "disable" "Désactiver le mode automatique" "back" "Retour")" || return
+        msg "Manettes Sony / XInput" "Pour les DualShock 4 et DualSense, GE-Proton 11-8 ou supérieur est recommandé via UMU. Depuis 11-8, le repli automatique vers XInput est normalement actif sans réglage manuel. Les jeux disposant déjà d'une configuration explicite dans autorun.cmd conservent leur comportement. Aucun réglage n'est nécessaire dans la Toolbox."
     else
-        title="Sony controllers: automatic XInput (test)"
-        description="Current mode: $current. Native leaves GE-Proton 11-8+ built-in automatic fallback untouched. Force sets PROTON_SONY_AUTO_XINPUT=1; Disable sets =0. Applies to future UMU launches only. Explicit autorun.cmd ENV takes priority. Does not affect PROTON_SONY_HIDRAW_XINPUT."
-        choice="$(menu_choice "$title" --description "$description" "native" "Native (recommended)" "enable" "Force automatic mode" "disable" "Disable automatic mode" "back" "Back")" || return
+        msg "Sony controllers / XInput" "GE-Proton 11-8 or newer is recommended for DualShock 4 and DualSense with UMU. From 11-8, automatic XInput fallback is normally enabled without manual configuration. Explicit autorun.cmd game settings remain effective. No Toolbox setting is required."
     fi
-    case "$choice" in
-        native|enable|disable)
-            mkdir -p "$ROOT/config" || return 1
-            printf '%s\n' "$choice" > "$ROOT/config/sony-auto-xinput.tmp" || return 1
-            mv -f "$ROOT/config/sony-auto-xinput.tmp" "$ROOT/config/sony-auto-xinput" || return 1
-            log "sony_auto_xinput_setting=$choice"
-            ;;
-    esac
 }
 
 graphics_cache_menu() {
@@ -3105,15 +3090,15 @@ settings_menu() {
     local choice
     while true; do
         if [ "$TOOLBOX_LANGUAGE" = fr ]; then
-            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "s" "Manettes Sony : XInput automatique (test)" "0" "Retour")" || return
+            choice="$(menu_choice "Paramètres" --description "Langue, affichage et comparaison des caches graphiques." "l" "Langue" "d" "Affichage" "c" "Partage des caches graphiques (test performances)" "s" "Conseil : manettes Sony (GE-Proton 11-8+)" "0" "Retour")" || return
         else
-            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "s" "Sony controllers: automatic XInput (test)" "0" "Back")" || return
+            choice="$(menu_choice "Settings" --description "Language, display and graphics cache comparison." "l" "Language" "d" "Display" "c" "Graphics cache sharing (performance test)" "s" "Sony controller advice (GE-Proton 11-8+)" "0" "Back")" || return
         fi
         case "$choice" in
             l) language_menu ;;
             d) display_mode_menu ;;
             c) graphics_cache_menu ;;
-            s) sony_auto_xinput_menu ;;
+            s) sony_controller_info ;;
             0|"") return ;;
         esac
     done
