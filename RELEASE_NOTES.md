@@ -1,7 +1,8 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.14-test5 — intégration 3.10.15 (test)**
+**UMU Runner Toolbox v0.13.14-test6 — intégration 3.10.16 (test)**
 
+- Ajout d’une attente de fin du wrapper dans le wineserver -w natif : le nettoyage Batocera attend le retour des données et la libération des montages. Identification du processus, libération après kill/zombie et conservation des copies non synchronisées. Le workdir est journalisé et un workdir disparu bloque le retour avec un motif explicite. Validation réelle encore requise.
 - Adaptation du retour après ENOENT sur le manifeste OpenXR : fichiers temporaires placés à côté de leur destination et diagnostic détaillé en cas de nouvel échec. Test de simulation réussi ; validation Batocera encore requise.
 - Correction de `dosdevices: Directory not empty` au retour FH2 : dossiers synchronisés sur place, suppression des entrées obsolètes et remplacement privé des fichiers. Le jeu, les sauvegardes externes et les runners restent protégés.
 - Correction du faux refus `refused-alias-upperdir` pour les chemins contenant des espaces : lecture décodée des options findmnt et test avec le vrai formateur util-linux.
@@ -16,8 +17,9 @@
 
 ## English
 
-**UMU Runner Toolbox v0.13.14-test5 — integration 3.10.15 (test)**
+**UMU Runner Toolbox v0.13.14-test6 — integration 3.10.16 (test)**
 
+- Add a verified host-wrapper completion barrier to native wineserver -w before Batocera cleanup; release on dead/zombie owners without discarding unsynchronized copies. Log and guard the OverlayFS workdir. Actual Batocera validation is still required.
 - Adapt return after OpenXR manifest ENOENT: stage each file beside its destination and report detailed failure context. Simulated regression test passes; Batocera validation is still required.
 - Fix FH2 `dosdevices: Directory not empty` during return: synchronize existing directories in place, remove obsolete entries and replace files privately while preserving game data, external saves and runners.
 - Fix false `refused-alias-upperdir` errors for paths containing spaces by reading decoded findmnt options; regression tested with the real util-linux formatter.
