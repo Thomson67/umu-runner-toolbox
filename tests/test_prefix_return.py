@@ -31,10 +31,21 @@ class PrefixReturnTests(unittest.TestCase):
         self.outside.mkdir()
         (self.outside / 'save').write_text('external save remains')
 
-    def persist(self, block_directory_removal=False):
+    def persist(self, block_directory_removal=False, reject_cross_directory_manifest=False):
         function = WRAPPER[WRAPPER.index('persist_split_wine_prefix() {'):
                            WRAPPER.index('# v3.9.2: every materialized-prefix session')]
         function = function.replace('/userdata/system/umu/materialized-prefixes/', str(self.source.parent) + '/')
+        if reject_cross_directory_manifest:
+            injection = '''
+real_replace = os.replace
+def overlay_replace(src, dst):
+    if Path(dst).name == 'wineopenxr64.json' and Path(src).parent != Path(dst).parent:
+        raise FileNotFoundError(2, 'No such file or directory', str(src), None, str(dst))
+    return real_replace(src, dst)
+os.replace = overlay_replace
+'''
+            function = function.replace('source, target = map(Path, sys.argv[1:3])',
+                                        injection + '\nsource, target = map(Path, sys.argv[1:3])')
         script = '''set -u
 log() { printf '%s\\n' "$*"; }
 is_prefix_root() { [ -f "$1/system.reg" ] && [ -f "$1/user.reg" ]; }
@@ -92,6 +103,16 @@ rm() {
         self.assertFalse((self.target / 'user.reg').is_symlink())
         self.assertEqual((self.target / 'drive_c/windows/settings/save').read_text(), 'private save')
         self.assertNotEqual(runner.stat().st_ino, (self.target / 'drive_c/windows/module.dll').stat().st_ino)
+
+    def test_manifest_is_replaced_with_a_temporary_sibling_not_a_root_staged_file(self):
+        for directory in (self.source, self.target):
+            (directory / 'drive_c/openxr').mkdir()
+            (directory / 'drive_c/openxr/wineopenxr64.json').write_text('old manifest')
+        (self.source / 'drive_c/openxr/wineopenxr64.json').write_text('new manifest')
+        result = self.persist(reject_cross_directory_manifest=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.target / 'drive_c/openxr/wineopenxr64.json').read_text(), 'new manifest')
+        self.assertEqual(list(self.target.rglob('.umu-prefix-sync-*')), [])
 
     def test_copy_failure_is_reported_and_runtime_remains_for_recovery(self):
         os.mkfifo(self.source / 'unsupported-entry')
