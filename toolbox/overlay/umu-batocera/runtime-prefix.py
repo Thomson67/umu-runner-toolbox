@@ -19,11 +19,36 @@ import time
 
 def process_token(pid):
     try:
-        start = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+        fields = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
+        if fields[0] in ('Z', 'X'):
+            return ''
+        start = fields[19]
         boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
         return boot + ':' + start
     except (OSError, IndexError):
         return ''
+
+
+def wait_owner(state_file, pid, token):
+    """Keep native wineserver -w open until return copying has finished.
+
+    Batocera removes the OverlayFS workdir after -w. A surviving bind of the
+    merged view cannot protect that directory against the native rm -rf.
+    Only an exact, verified session may hold this barrier; dead/reused PIDs
+    must release it, including a wrapper killed with Hotkey + Start.
+    """
+    state_file = Path(state_file)
+    try:
+        lines = state_file.read_text().splitlines()
+    except FileNotFoundError:
+        lines = []  # Owner may already be releasing its last mounts.
+    if not token or (lines and (len(lines) < 7 or lines[5] != str(pid) or lines[6] != token)):
+        raise ValueError('unverified return-copy owner')
+    while process_token(pid) == token:
+        # Removing the mapping precedes mount release and runtime cleanup.
+        # Wait for the verified process to end, including the zombie case.
+        time.sleep(0.05)
+    print('runtime_wait_complete=owner-ended', flush=True)
 
 
 def mounted(path):
@@ -318,7 +343,7 @@ class PrefixStore:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('begin', 'running', 'finish', 'collect', 'report', 'check-idle', 'direct-save', 'checkpoint'))
+    parser.add_argument('action', choices=('begin', 'running', 'finish', 'collect', 'report', 'check-idle', 'direct-save', 'checkpoint', 'token', 'wait-owner'))
     parser.add_argument('prefix', nargs='?', type=Path)
     parser.add_argument('--source', default='')
     parser.add_argument('--pid', type=int, default=os.getppid())
@@ -334,8 +359,16 @@ if __name__ == '__main__':
     parser.add_argument('--save-path', default='')
     parser.add_argument('--save-source', default='')
     parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--state-file', type=Path)
+    parser.add_argument('--owner-token', default='')
     args = parser.parse_args()
     try:
+        if args.action == 'token':
+            print(process_token(args.pid))
+            raise SystemExit(0)
+        if args.action == 'wait-owner':
+            wait_owner(args.state_file, args.pid, args.owner_token)
+            raise SystemExit(0)
         store = PrefixStore()
         if args.action == 'begin':
             reused = store.begin(args.prefix, args.source, args.pid, args.game_dir, args.runner, args.log,
