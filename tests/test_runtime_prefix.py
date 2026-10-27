@@ -1,4 +1,5 @@
 import importlib.util
+import errno
 import json
 import os
 from pathlib import Path
@@ -158,6 +159,61 @@ class RuntimePrefixTests(unittest.TestCase):
         self.store.finish(self.prefix, self.pid, True)
         self.assertFalse(self.prefix.exists())
 
+    def retained_complete(self, **settings):
+        self.store.begin(self.prefix, self.source, self.pid, 'Game', 'Runner', **settings)
+        (self.prefix / 'drive_c').mkdir()
+        (self.prefix / 'system.reg').write_text('registry')
+        (self.prefix / 'user.reg').write_text('unsynchronized progress')
+        self.store.finish(self.prefix, self.pid, False)
+
+    def test_changed_wine_source_or_mode_keeps_old_changes_separate_and_starts_fresh(self):
+        for change in ('registry', 'mode', 'runner'):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as folder:
+                self.store = runtime.PrefixStore(Path(folder))
+                self.prefix = self.store.root / 'Test-123'
+                self.retained_complete()
+                if change == 'registry':
+                    (self.source / 'user.reg').write_text('source changed outside UMU')
+                reused = self.store.begin(self.prefix, self.source, self.pid, 'Game',
+                    'OtherRunner' if change == 'runner' else 'Runner', mode='1' if change == 'mode' else '0')
+                self.assertFalse(reused)
+                self.assertFalse((self.prefix / 'user.reg').exists())
+                old, = self.store.root.glob('.retained-*')
+                self.assertEqual((old / 'user.reg').read_text(), 'unsynchronized progress')
+                self.assertEqual(self.store.read(old)['reason'], 'source-changed')
+
+    def test_replaced_archive_at_same_path_does_not_resume_previous_generation(self):
+        archive = self.base / 'Forza Horizon 2.wsquashfs'
+        archive.write_bytes(b'old archive')
+        def identity(*args):
+            return json.dumps(runtime.file_identity(archive))
+        with patch.object(runtime, 'source_identity', side_effect=identity):
+            self.retained_complete()
+            replacement = archive.with_suffix('.new')
+            replacement.write_bytes(b'older game version')
+            replacement.replace(archive)
+            self.assertFalse(self.store.begin(self.prefix, self.source, self.pid, 'Game', 'Runner'))
+        old, = self.store.root.glob('.retained-*')
+        self.assertEqual((old / 'user.reg').read_text(), 'unsynchronized progress')
+
+    def test_old_journal_without_generation_is_preserved_but_never_resumed(self):
+        self.retained_complete()
+        data = self.store.read(self.prefix)
+        data.pop('source_identity')
+        self.store.write(self.prefix, data)
+        self.assertFalse(self.store.begin(self.prefix, self.source, self.pid, 'Game', 'Runner'))
+        old, = self.store.root.glob('.retained-*')
+        self.assertEqual(self.store.read(old)['reason'], 'unverified-source')
+
+    def test_direct_save_descriptor_is_journaled_before_mutation_and_verified_on_resume(self):
+        self.retained_complete()
+        self.assertTrue(self.store.begin(self.prefix, self.source, self.pid, 'Game', 'Runner'))
+        self.store.direct_save(self.prefix, self.pid, '/game/data/saves', '/saves/Forza')
+        self.assertEqual(self.store.read(self.prefix)['phase'], 'running')
+        self.store.direct_save(self.prefix, self.pid, '/game/data/saves', '/saves/Forza', resume=True)
+        with self.assertRaisesRegex(ValueError, 'unverified interrupted'):
+            self.store.direct_save(self.prefix, self.pid, '/game/data/saves', '/saves/Other', resume=True)
+
     def test_recovery_for_another_source_or_game_directory_is_never_reused(self):
         self.store.begin(self.prefix, self.source, self.pid, 'Game')
         (self.prefix / 'drive_c').mkdir()
@@ -224,7 +280,7 @@ class LifecycleOrderTests(unittest.TestCase):
         self.assertLess(WRAPPER.index('        persist_split_wine_prefix', launch), WRAPPER.index('RUNTIME_SAFE_TO_REMOVE=1', launch))
         cleanup = WRAPPER[WRAPPER.index('cleanup_runtime_mounts() {'):WRAPPER.index('trap cleanup_runtime_mounts')]
         self.assertLess(cleanup.index('umount "$PFX_MOUNT"'), cleanup.index('"$RUNTIME_HELPER" finish'))
-        self.assertIn('restore_direct_save_link || RUNTIME_SAFE_TO_REMOVE=0', cleanup)
+        self.assertIn('if ! restore_direct_save_link;', cleanup)
 
 
 class CompressedPersistenceTests(unittest.TestCase):
@@ -300,6 +356,24 @@ class ProcessIdentityTests(unittest.TestCase):
 
 
 class MountNamespaceTests(unittest.TestCase):
+    def test_gone_or_invalid_mount_namespace_is_handled_without_skipping_a_live_namespace(self):
+        prefix = Path('/userdata/system/umu/materialized-prefixes/Game-123')
+        with tempfile.TemporaryDirectory() as folder:
+            process = Path(folder) / '123'
+            (process / 'ns').mkdir(parents=True)
+            (process / 'ns/mnt').touch()
+            for number in (errno.EINVAL, errno.EACCES):
+                with self.subTest(errno=number), patch.object(Path, 'glob', return_value=[process]), \
+                        patch.object(Path, 'read_text', side_effect=OSError(number, 'unreadable')):
+                    self.assertTrue(runtime.mounted(prefix))
+            # Namespace vanished during mountinfo reading: another process in
+            # the same namespace must still get checked (not marked seen early).
+            with patch.object(Path, 'glob', return_value=[process, process]), \
+                    patch.object(Path, 'read_text', side_effect=[FileNotFoundError(),
+                        '10 1 8:1 /system/umu/materialized-prefixes/Game-123 /pfx rw - ext4 /dev/sda rw']), \
+                    patch.object(Path, 'exists', return_value=False):
+                self.assertTrue(runtime.mounted(prefix))
+
     def test_bind_root_in_another_namespace_prevents_deletion_with_spaces(self):
         prefix = Path('/userdata/system/umu/materialized-prefixes/Game with spaces-123')
         with tempfile.TemporaryDirectory() as folder:
@@ -315,3 +389,27 @@ class MountNamespaceTests(unittest.TestCase):
                     (process / 'mountinfo').write_text(f'10 1 8:1 {mountroot} {target} rw - ext4 /dev/sda rw\n')
                     with patch.object(Path, 'glob', return_value=[process]):
                         self.assertEqual(runtime.mounted(prefix), expected)
+
+
+class SourceIdentityTests(unittest.TestCase):
+    def test_archive_identity_uses_loop_backing_file_not_overlay_mount_inode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = Path(folder) / 'Forza Horizon 2.wsquashfs'
+            archive.write_bytes(b'archive v1')
+            prefix = Path(folder) / 'merged.wsquashfs'
+            prefix.mkdir()
+            original = Path.read_text
+            def read(path, *args, **kwargs):
+                if str(path) == '/sys/class/block/loop7/loop/backing_file':
+                    return str(archive).replace(' ', r'\040')
+                return original(path, *args, **kwargs)
+            with patch.object(runtime.subprocess, 'check_output', return_value='/dev/loop7\n'), \
+                    patch.object(Path, 'read_text', read):
+                first = runtime.source_identity(prefix, lowerdir='/mount/lower')
+                self.assertIsNotNone(first)
+                self.assertEqual(first, runtime.source_identity(prefix, lowerdir='/mount/lower'))
+                archive.write_bytes(b'archive v2')
+                self.assertNotEqual(first, runtime.source_identity(prefix, lowerdir='/mount/lower'))
+            self.assertIsNone(runtime.source_identity(prefix))
+            with patch.object(runtime.subprocess, 'check_output', return_value='/dev/sda1\n'):
+                self.assertIsNone(runtime.source_identity(prefix, lowerdir='/mount/lower'))

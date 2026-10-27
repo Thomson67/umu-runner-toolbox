@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-TOOLBOX_VERSION="0.13.13"
-INTEGRATION_VERSION="3.10.10"
+TOOLBOX_VERSION="0.13.14-test1"
+INTEGRATION_VERSION="3.10.11"
 ROOT="/userdata/system/umu/toolbox"
 OVERLAY="$ROOT/overlay"
 CUSTOM_DIR="/userdata/system/wine/custom"
@@ -2452,7 +2452,7 @@ runtime_recovery_notice() (
 )
 
 runtime_recovery_menu() {
-    local helper="$ROOT/helpers/runtime-recovery.py" entries identity label choice detail_text description reason summary index
+    local helper="$ROOT/helpers/runtime-recovery.py" entries identity label choice detail_text description reason summary index action_error
     local -a options details identities
     while true; do
         entries="$(python3 "$helper" list 2>>"$LOG")" || {
@@ -2481,6 +2481,8 @@ runtime_recovery_menu() {
         case "${details[6]}" in
             persistence-failed:*) reason="$(i18n runtime_recovery_reason_failed "${details[6]#*:}")" ;;
             legacy-untracked) reason="$(i18n runtime_recovery_reason_legacy)" ;;
+            source-changed|unverified-source) reason="$(i18n runtime_recovery_reason_changed)" ;;
+            direct-save-sync-failed) reason="$(i18n runtime_recovery_reason_direct)" ;;
             interrupted-or-unsynchronized) reason="$(i18n runtime_recovery_reason_interrupted)" ;;
             *) reason="$(i18n runtime_recovery_reason_unknown)" ;;
         esac
@@ -2500,10 +2502,11 @@ runtime_recovery_menu() {
                fi ;;
             3) if yesno "$(i18n runtime_recovery_discard)" \
                    "$(i18n runtime_recovery_confirm "${details[0]}" "${details[3]}" "${details[2]}")"; then
-                   if python3 "$helper" discard "$identity" >>"$LOG" 2>&1; then
+                   if action_error="$(python3 "$helper" discard "$identity" 2>&1)"; then
                        msg "$(i18n runtime_recovery_title)" "$(i18n runtime_recovery_removed)"
                    else
-                       msg "$(i18n error)" "$(i18n runtime_recovery_failed)"
+                       log "$action_error"
+                       msg "$(i18n error)" "$(i18n runtime_recovery_failed)\n\n$action_error"
                    fi
                fi ;;
         esac

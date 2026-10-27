@@ -1,19 +1,23 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.13 — intégration runner 3.10.10 (inchangée)**
+**UMU Runner Toolbox v0.13.14-test1 — intégration 3.10.11 (test)**
 
-- **Manettes Sony (DualSense / DualShock 4) :** recommandation d'utiliser **GE-Proton 11-8 ou plus récent** pour profiter du mode XInput automatique intégré.
-- Le conseil apparaît dans **Paramètres → Conseil : manettes Sony** et lors du choix d'une version GE-Proton.
-- **Aucune variable imposée** : GE-Proton conserve son fonctionnement natif. Les réglages propres aux jeux dans `autorun.cmd` restent prioritaires.
-- Confirmation sous Batocera avec GE-Proton 11-11 via UMU : une DualSense est reconnue sans variable Sony sur l'ancienne version d'Azimuth ; avec `PROTON_SONY_AUTO_XINPUT=0`, elle ne l'est plus. Cette observation valide le rôle du mode automatique pour ce jeu.
-- **Aucune modification du lanceur UMU ni des runners installés** : intégration 3.10.10 conservée. Aucun nouveau réglage manuel à configurer.
+- Suppression explicite des copies locales sans journal depuis Maintenance, après confirmation et vérification des fichiers, sessions et montages.
+- Affichage de la cause réelle d’un refus ; gestion des processus disparus pendant l’examen de leurs montages.
+- Une archive remplacée au même emplacement ou une source non vérifiable ne réutilise plus silencieusement une ancienne copie UMU. L’ancienne copie reste disponible à l’examen.
+- Prise en compte de Hotkey + Start / SIGKILL : aucune dépendance au nettoyage de sortie pour repérer une session interrompue.
+- Mode direct : journal des chemins de sauvegardes avant remplacement du lien, reprise des sauvegardes locales récentes pour une même version vérifiée et nettoyage après synchronisation réussie.
+- Une reprise non vérifiable ou un retour partiellement effectué conserve les données et demande un examen manuel. Abandonner le préfixe ne supprime pas les sauvegardes directes restées dans le jeu. La copie de secours `.umu-direct-previous` reste limitée à une génération.
+- Tests locaux incluant SIGKILL d’un groupe de processus. Validation réelle Forza Horizon 2 sur Batocera encore requise.
 
 ## English
 
-**UMU Runner Toolbox v0.13.13 — runner integration 3.10.10 (unchanged)**
+**UMU Runner Toolbox v0.13.14-test1 — integration 3.10.11 (test)**
 
-- **Sony controllers (DualSense / DualShock 4):** recommend **GE-Proton 11-8 or newer** for built-in automatic XInput compatibility.
-- The tip is available in **Settings → Sony controller advice** and in the GE-Proton version picker.
-- **No forced environment variables:** GE-Proton uses its native defaults. Existing per-game `autorun.cmd` overrides continue to apply.
-- Confirmed on Batocera with GE-Proton 11-11 through UMU: a DualSense works without Sony variables on an older Azimuth build, and stops being detected with `PROTON_SONY_AUTO_XINPUT=0`. This demonstrates the automatic mode's impact for that game.
-- **No runner or launcher changes**; integration 3.10.10 stays intact. No new per-game manual setting is required.
+- Explicitly discard local copies without a valid regular journal after confirmation and fresh content/activity/mount checks.
+- Display the actual discard error and handle processes disappearing during mount inspection.
+- Do not silently reuse interrupted prefixes after archive replacement at the same path or when the source generation cannot be verified; retain previous changes separately.
+- Account for Hotkey + Start / SIGKILL without relying on EXIT cleanup.
+- Direct mode journals save paths before replacing the link and resumes newer game-side saves only for the same verified source. Successful synchronization removes the working prefix.
+- Unverifiable or partially returned direct saves remain for manual review. Discarding the prefix does not delete game-side save leftovers. One `.umu-direct-previous` generation remains.
+- Local regression tests include killing an entire process group. Actual Forza Horizon 2 validation on Batocera is still required.

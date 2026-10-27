@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.10 ====="
+log "===== Batocera UMU runner v3.10.11 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -470,7 +470,26 @@ prepare_direct_save_copy() {
     case "$parent/" in "$game_root/"*) ;; *) return 0 ;; esac
     path="$parent/$(basename "$path")"
     if [ -e "$path.umu-direct-link" ] || [ -L "$path.umu-direct-link" ]; then
-        log "ERROR: direct_save_backup_exists=$path.umu-direct-link"; return 1
+        # HK+Start can kill this wrapper before EXIT. The game-side real saves
+        # survive in the bottle; do not overwrite them from older external saves.
+        if [ "${RUNTIME_REUSED:-0}" -eq 1 ] && [ -L "$path.umu-direct-link" ] \
+                && [ -d "$path" ] && [ ! -L "$path" ] \
+                && [ ! -e "$path.umu-direct-local" ] && [ ! -L "$path.umu-direct-local" ]; then
+            source="$(readlink -f "$path.umu-direct-link")" || return 1
+            case "$source" in /userdata/saves/windows/*) ;; *) return 1 ;; esac
+            [ -d "$source" ] || return 1
+            if python3 "$RUNTIME_HELPER" direct-save "$MATERIALIZED_PREFIX" --pid "$$" \
+                    --save-path "$path" --save-source "$source" --resume >>"$LOG" 2>&1; then
+                DIRECT_SAVE_PATH="$path"
+                DIRECT_SAVE_BACKUP="$path.umu-direct-link"
+                DIRECT_SAVE_SOURCE="$source"
+                DIRECT_SAVE_MOVED=1
+                RUNTIME_SAFE_TO_REMOVE=0
+                log "direct_save_reused_after_interruption=$path"
+                return 0
+            fi
+        fi
+        log "ERROR: direct_save_backup_exists=$path.umu-direct-link; manual recovery required"; return 1
     fi
     [ -L "$path" ] || return 0
     source="$(readlink -f "$path")" || return 1
@@ -499,6 +518,15 @@ prepare_direct_save_copy() {
     DIRECT_SAVE_PATH="$path"
     DIRECT_SAVE_BACKUP="$path.umu-direct-link"
     DIRECT_SAVE_SOURCE="$source"
+    if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
+        # Journal before changing either save path. This is recovery data even
+        # when a forced termination happens before UMU itself starts.
+        if ! python3 "$RUNTIME_HELPER" direct-save "$MATERIALIZED_PREFIX" --pid "$$" \
+                --save-path "$path" --save-source "$source" >>"$LOG" 2>&1; then
+            rm -rf -- "$work"; return 1
+        fi
+        RUNTIME_SAFE_TO_REMOVE=0
+    fi
     if ! mv -- "$path" "$DIRECT_SAVE_BACKUP" 2>>"$LOG"; then
         rm -rf -- "$work"; return 1
     fi
@@ -583,7 +611,10 @@ cleanup_c_game_path() {
 cleanup_runtime_mounts() {
     # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
-    restore_direct_save_link || RUNTIME_SAFE_TO_REMOVE=0
+    if ! restore_direct_save_link; then
+        RUNTIME_SAFE_TO_REMOVE=0
+        RUNTIME_RECOVERY_REASON="direct-save-sync-failed"
+    fi
     cleanup_c_game_path || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
@@ -640,7 +671,8 @@ prepare_materialized_prefix() {
     flock -n 8 || { log "ERROR: another materialized-prefix session is active"; return 1; }
     python3 "$RUNTIME_HELPER" begin "$MATERIALIZED_PREFIX" \
         --source "$ORIGINAL_PREFIX_CANON" --game-dir "$GAME_DIR" --pid "$$" \
-        --runner "${RUNNER_DIR##*/}" --log "$LOG" >>"$LOG" 2>&1
+        --runner "${RUNNER_DIR##*/}" --log "$LOG" --runner-root "$RUNNER_DIR" \
+        --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" >>"$LOG" 2>&1
     begin_rc=$?
     case "$begin_rc" in
         0) RUNTIME_REUSED=0;;
@@ -1121,6 +1153,11 @@ persist_split_wine_prefix() {
     }
 
     log "wine_persistence_end=$(date -Is 2>/dev/null || date)"
+    if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
+        python3 "$RUNTIME_HELPER" checkpoint "$MATERIALIZED_PREFIX" --pid "$$" \
+            --source "$ORIGINAL_PREFIX_CANON" --runner-root "$RUNNER_DIR" \
+            --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" >>"$LOG" 2>&1 || return 13
+    fi
     log "wine_persistence_result=success"
     return 0
 }

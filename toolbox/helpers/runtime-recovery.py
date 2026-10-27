@@ -29,6 +29,18 @@ def human_size(size):
         size /= 1024
 
 
+def tree_revision(prefix):
+    """Bind explicit discard to the files reviewed, without following links."""
+    digest = hashlib.sha256()
+    for folder, dirs, files in os.walk(prefix, followlinks=False):
+        dirs.sort()
+        for path in [Path(folder)] + [Path(folder) / name for name in sorted(dirs + files)]:
+            s = path.lstat()
+            digest.update(json.dumps([str(path.relative_to(prefix)), s.st_dev, s.st_ino,
+                                     s.st_mode, s.st_size, s.st_mtime_ns, s.st_ctime_ns]).encode())
+    return digest.hexdigest()
+
+
 class RecoveryManager:
     def __init__(self, base=Path('/userdata/system/umu')):
         self.store = runtime.PrefixStore(base)
@@ -52,6 +64,12 @@ class RecoveryManager:
                 continue
             prefix = self.store.path(prefix)
             journal = self.store.record(prefix)
+            if journal.is_symlink():
+                journal_revision = 'redirected'
+            elif journal.exists():
+                journal_revision = hashlib.sha256(journal.read_bytes()).hexdigest()
+            else:
+                journal_revision = 'absent'
             try:
                 data = self.store.read(prefix)
                 known = True
@@ -65,6 +83,8 @@ class RecoveryManager:
             stamp = journal.stat().st_mtime if known else prefix.stat().st_mtime
             source = data.get('source', '')
             resumable = (known and data.get('phase') in ('running', 'recovery')
+                         and bool(data.get('source_identity'))
+                         and data.get('reason') not in ('source-changed', 'unverified-source')
                          and bool(data.get('game_dir')) and bool(source)
                          and (prefix / 'system.reg').is_file()
                          and (prefix / 'user.reg').is_file()
@@ -72,7 +92,7 @@ class RecoveryManager:
             # Bind selection to the reviewed journal and directory instance.
             # A session started while a confirmation dialog was open must not
             # let that old confirmation discard its newer recovery copy.
-            revision = json.dumps([prefix.name, prefix.stat().st_ino, data, stamp], sort_keys=True)
+            revision = json.dumps([prefix.name, tree_revision(prefix), data, stamp, journal_revision], sort_keys=True)
             result.append(dict(id=hashlib.sha256(revision.encode()).hexdigest(),
                                prefix=str(prefix), source=source,
                                game=Path(source).name if source else prefix.name,
@@ -98,10 +118,15 @@ class RecoveryManager:
             raise ValueError('UMU prefix still active or mounted')
         item = self.selected(identity)
         prefix = self.store.path(item['prefix'])
-        if not item['known']:
-            raise ValueError('unknown or invalid journal; manual review required')
+        # Explicit confirmation authorizes discarding an untracked local copy,
+        # never an external/redirected journal or an unchecked active mount.
+        journal = self.store.record(prefix)
+        if journal.is_symlink():
+            raise ValueError('redirected runtime journal; manual review required')
+        if runtime.mounted(prefix):
+            raise ValueError('UMU prefix still mounted')
         shutil.rmtree(prefix)
-        self.store.record(prefix).unlink()
+        journal.unlink(missing_ok=True)
 
 
 def main():
@@ -133,4 +158,4 @@ if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
-        raise SystemExit(f'Recovery action refused: {error}')
+        raise SystemExit(f'Recovery action refused: {clean(error)}')

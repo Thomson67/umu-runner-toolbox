@@ -28,7 +28,8 @@ class RecoveryTests(unittest.TestCase):
     def retained(self, name='Zelda.wsquashfs-123', reason='persistence-failed:6'):
         prefix = self.store.root / name
         source = '/run/wine/Zelda.wsquashfs'
-        self.store.begin(prefix, source, self.pid, 'game', 'GE-Proton10-25-UMU', '/logs/runner.log')
+        with patch.object(recovery.runtime, 'source_identity', return_value='verified-source'):
+            self.store.begin(prefix, source, self.pid, 'game', 'GE-Proton10-25-UMU', '/logs/runner.log')
         (prefix / 'drive_c').mkdir()
         (prefix / 'system.reg').write_text('system registry')
         (prefix / 'user.reg').write_text('user changes')
@@ -85,7 +86,7 @@ class RecoveryTests(unittest.TestCase):
         with self.manager.locked(): self.manager.discard(item['id'])
         self.assertFalse(prefix.exists())
 
-    def test_unknown_forged_or_redirected_records_cannot_authorize_deletion(self):
+    def test_explicit_discard_accepts_untracked_local_copy_but_refuses_redirected_journal(self):
         for kind in ('missing', 'invalid', 'foreign-prefix', 'symlink'):
             with self.subTest(kind=kind):
                 prefix = self.retained()
@@ -99,16 +100,41 @@ class RecoveryTests(unittest.TestCase):
                     record.unlink(); record.symlink_to(external)
                 item = self.manager.inventory()[0]
                 self.assertFalse(item['known'])
-                with self.manager.locked(), self.assertRaises(ValueError): self.manager.discard(item['id'])
-                self.assertTrue(prefix.exists())
-                record.unlink(missing_ok=True)
-                import shutil
-                shutil.rmtree(prefix)
+                if kind == 'symlink':
+                    with self.manager.locked(), self.assertRaises(ValueError): self.manager.discard(item['id'])
+                    self.assertTrue(prefix.exists())
+                    self.assertTrue(external.exists())
+                    record.unlink()
+                    import shutil
+                    shutil.rmtree(prefix)
+                else:
+                    with self.manager.locked(): self.manager.discard(item['id'])
+                    self.assertFalse(prefix.exists())
+                    self.assertFalse(record.exists())
 
     def test_stale_id_and_traversal_are_refused(self):
         self.retained()
         for identity in ('../outside', '0' * 64):
             with self.assertRaises(ValueError): self.manager.discard(identity)
+
+    def test_nested_file_changed_during_confirmation_invalidates_discard_for_untracked_copy(self):
+        prefix = self.retained()
+        self.store.record(prefix).unlink()
+        saves = prefix / 'drive_c/users/saves'
+        saves.mkdir(parents=True)
+        (saves / 'progress').write_text('first')
+        before = self.manager.inventory()[0]['id']
+        (saves / 'progress').write_text('later progress')
+        with self.manager.locked(), self.assertRaises(ValueError):
+            self.manager.discard(before)
+        self.assertEqual((saves / 'progress').read_text(), 'later progress')
+
+    def test_changed_generation_is_not_advertised_as_resumable(self):
+        prefix = self.retained()
+        data = self.store.read(prefix)
+        data['reason'] = 'source-changed'
+        self.store.write(prefix, data)
+        self.assertFalse(self.manager.inventory()[0]['resumable'])
 
     def test_repeated_failure_at_same_path_changes_notice_fingerprint_data(self):
         prefix = self.retained()
