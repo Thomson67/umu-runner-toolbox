@@ -52,3 +52,7 @@ Le journal FH2 en 3.10.12 montrait un alias OverlayFS encore valide, mais `refus
 ### Retour du contenu de dosdevices (3.10.14)
 
 L'essai FH2 en 3.10.13 a validé le retour par l'alias, mais échoué ensuite avec `phase=remove-root`, code 7 et `dosdevices: Directory not empty`. Les sauvegardes directes étaient encore synchronisées. La 3.10.14 conserve les dossiers communs et synchronise récursivement leurs entrées, sans supprimer la racine dosdevices. Les entrées obsolètes sont retirées et les fichiers remplacés individuellement, sans suivre les liens externes ni modifier les hardlinks vers les runners. Le jeu reste exclu. Un test impose le refus de suppression de dosdevices, puis vérifie le retour des mappings et sauvegardes ; les tests d'arrêt brutal et de préservation des backups UWT restent appliqués. Cette nouvelle étape reste à confirmer sur le montage réel Batocera.
+
+### Fichier temporaire voisin de la destination (3.10.15)
+
+Le ZIP FH2 test4 confirme le retour par l'alias et la synchronisation des sauvegardes directes, mais une erreur ENOENT lors du renommage de `.umu-prefix-sync-*/entry` vers `drive_c/openxr/wineopenxr64.json`. La test5 ne déplace plus de candidat depuis la racine : chaque remplacement utilise un nom temporaire unique dans le même dossier que sa destination. Les liens externes et hardlinks de runners restent protégés. Un test simule précisément ce refus de renommage entre dossiers ; il ne remplace pas l'essai sur le vrai OverlayFS. Un éventuel nouvel échec enregistre également la présence du parent et du candidat.
