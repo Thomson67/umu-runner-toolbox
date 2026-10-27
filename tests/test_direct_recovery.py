@@ -6,6 +6,7 @@ mocked findmnt; the same shell copy/sync/EXIT paths run for both formats.
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -180,6 +181,26 @@ DIRECT_SAVE_SOURCE=/nonexistent/invalid-save-target
         self.assertEqual((self.game / 'data/saves/progress').read_text(), 'newest local progress')
         self.assertEqual((self.saves / 'progress').read_text(), 'external previous progress')
         self.assertIn('notified', (self.root / 'launch.log').read_text())
+
+    def test_native_prelaunch_save_copy_and_link_restore_after_kill_are_recognized(self):
+        self.interrupt(compressed=1)
+        # Native saveFilesToUserdata runs before the UMU wrapper. Model its
+        # cp -r into external saves, removal of local saves, and ln -s.
+        local = self.game / 'data/saves'
+        shutil.copytree(local, self.saves, dirs_exist_ok=True, symlinks=True)
+        shutil.rmtree(local)
+        local.symlink_to(self.saves)
+        self.run_shell('''test "$RUNTIME_REUSED" = 1
+prepare_direct_save_copy
+test "$(cat "$DIRECT_SAVE_PATH/progress")" = 'newest local progress'
+persist_split_wine_prefix
+RUNTIME_SAFE_TO_REMOVE=1
+''', compressed=1)
+        self.assertEqual((self.saves / 'progress').read_text(), 'newest local progress')
+        self.assertTrue(local.is_symlink())
+        self.assertFalse((local.parent / 'saves.umu-direct-link').exists())
+        self.assertFalse(self.materialized.exists())
+        self.assertIn('direct_save_native_link_already_restored=', (self.root / 'launch.log').read_text())
 
 
 if __name__ == '__main__':
