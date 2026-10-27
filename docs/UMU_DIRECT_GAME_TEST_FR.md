@@ -56,3 +56,11 @@ L'essai FH2 en 3.10.13 a validé le retour par l'alias, mais échoué ensuite av
 ### Fichier temporaire voisin de la destination (3.10.15)
 
 Le ZIP FH2 test4 confirme le retour par l'alias et la synchronisation des sauvegardes directes, mais une erreur ENOENT lors du renommage de `.umu-prefix-sync-*/entry` vers `drive_c/openxr/wineopenxr64.json`. La test5 ne déplace plus de candidat depuis la racine : chaque remplacement utilise un nom temporaire unique dans le même dossier que sa destination. Les liens externes et hardlinks de runners restent protégés. Un test simule précisément ce refus de renommage entre dossiers ; il ne remplace pas l'essai sur le vrai OverlayFS. Un éventuel nouvel échec enregistre également la présence du parent et du candidat.
+
+### Attendre la fin du retour avant le nettoyage natif (3.10.16)
+
+Le ZIP test5 montre un échec dès la création d'un fichier dans openxr ; le renommage n'explique donc pas à lui seul le problème. Le code natif Batocera nettoie son WORKPOINT après `waitWineServer`, alors que le wrapper hôte UMU peut encore rapatrier ses données après l'arrêt réel de Wine. La test6 ajoute une attente de fin du wrapper pour les requêtes natives -w associées exactement à leur session. Le workdir doit rester disponible jusqu'au retour du préfixe, des sauvegardes directes et à la libération des montages. Un wrapper tué libère l'attente tout en conservant les copies non synchronisées.
+
+Le test de concurrence échoue avec l'ancien wineserver et passe avec la nouvelle attente. Il modélise le nettoyage du workdir par le parent natif, sans prétendre reproduire le noyau du build cOPu. À confirmer sur Batocera : `runtime_workdir` dans le journal de lancement, `runtime_wait_begin` puis `runtime_wait_end` dans wineserver-stop.log, retour réussi puis suppression du runtime. Si le workdir disparaît malgré l'attente, l'erreur explicite est `refused-workdir-missing`, code 14 ; conserver la copie et joindre les deux journaux.
+
+Références de l'analyse : script natif package/batocera/wine/batocera-wine/batocera-wine (waitWineServer, play_squashfs, cleanAndExit) dans batocera-linux/batocera.linux ; documentation noyau OverlayFS, section Changes to underlying filesystems. Le nettoyage natif effectue rm -rf sur WORKPOINT ; une vue bind survivante ne protège pas ce dossier contre cette suppression.
