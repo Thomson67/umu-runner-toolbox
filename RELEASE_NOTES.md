@@ -1,7 +1,8 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.14-test3 — intégration 3.10.13 (test)**
+**UMU Runner Toolbox v0.13.14-test4 — intégration 3.10.14 (test)**
 
+- Correction de `dosdevices: Directory not empty` au retour FH2 : dossiers synchronisés sur place, suppression des entrées obsolètes et remplacement privé des fichiers. Le jeu, les sauvegardes externes et les runners restent protégés.
 - Correction du faux refus `refused-alias-upperdir` pour les chemins contenant des espaces : lecture décodée des options findmnt et test avec le vrai formateur util-linux.
 - Correction du retour du préfixe si Batocera a déjà retiré le montage original : utilisation de l’alias encore monté, uniquement après validation des couches et de son accès en écriture. Les sauvegardes directes conservent leur traitement.
 - Suppression explicite des copies locales sans journal depuis Maintenance, après confirmation et vérification des fichiers, sessions et montages.
@@ -14,8 +15,9 @@
 
 ## English
 
-**UMU Runner Toolbox v0.13.14-test3 — integration 3.10.13 (test)**
+**UMU Runner Toolbox v0.13.14-test4 — integration 3.10.14 (test)**
 
+- Fix FH2 `dosdevices: Directory not empty` during return: synchronize existing directories in place, remove obsolete entries and replace files privately while preserving game data, external saves and runners.
 - Fix false `refused-alias-upperdir` errors for paths containing spaces by reading decoded findmnt options; regression tested with the real util-linux formatter.
 - Fix prefix return after Batocera has released the original mount: use the still-mounted owned alias only after verifying its layers and writable state. Direct-save handling is preserved.
 - Explicitly discard local copies without a valid regular journal after confirmation and fresh content/activity/mount checks.
