@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.11 ====="
+log "===== Batocera UMU runner v3.10.12 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -672,7 +672,8 @@ prepare_materialized_prefix() {
     python3 "$RUNTIME_HELPER" begin "$MATERIALIZED_PREFIX" \
         --source "$ORIGINAL_PREFIX_CANON" --game-dir "$GAME_DIR" --pid "$$" \
         --runner "${RUNNER_DIR##*/}" --log "$LOG" --runner-root "$RUNNER_DIR" \
-        --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" >>"$LOG" 2>&1
+        --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" \
+        --source-view "${ALIAS_MOUNT:-$ORIGINAL_PREFIX_CANON}" >>"$LOG" 2>&1
     begin_rc=$?
     case "$begin_rc" in
         0) RUNTIME_REUSED=0;;
@@ -1054,7 +1055,7 @@ fi
 persist_split_wine_prefix() {
     local source="${MATERIALIZED_PREFIX:-}"
     local target="${ORIGINAL_PREFIX_CANON:-}"
-    local item name
+    local item name target_fstype alias_fstype alias_options
 
     [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || [ "${COMPRESSED_OVERLAY:-0}" -eq 1 ] || return 0
     [ -n "$source" ] && [ -n "$target" ] && [ -n "${GAME_DIR:-}" ] || return 1
@@ -1068,7 +1069,32 @@ persist_split_wine_prefix() {
             /run/wine/*.wsquashfs|/run/wine/*.wtgz|/var/run/wine/*.wsquashfs|/var/run/wine/*.wtgz) ;;
             *) log "wine_persistence_result=refused-compressed-target target=$target"; return 3;;
         esac
-        [ "$(findmnt -n -o FSTYPE -T "$target" 2>/dev/null)" = overlay ] || return 3
+        target_fstype="$(findmnt -n -o FSTYPE -T "$target" 2>/dev/null || true)"
+        if [ "$target_fstype" != overlay ]; then
+            # Batocera can release its /run/wine mount before this wrapper's
+            # return copy. Our owned bind keeps the same writable overlay alive
+            # (direct saves also use it). Never fall back to a bare directory,
+            # the SquashFS lowerdir, or an unrelated/stale alias.
+            alias_fstype=""
+            alias_options=""
+            if [ "${ALIAS_BOUND:-0}" -eq 1 ] && [ -n "${ALIAS_MOUNT:-}" ]; then
+                alias_fstype="$(findmnt -rn -M "$ALIAS_MOUNT" -o FSTYPE 2>/dev/null || true)"
+                alias_options="$(findmnt -rn -M "$ALIAS_MOUNT" -o OPTIONS 2>/dev/null || true)"
+            fi
+            log "wine_persistence_original_fstype=${target_fstype:-missing} alias_fstype=${alias_fstype:-missing}"
+            if [ "$alias_fstype" != overlay ] || [ -z "${OVERLAY_UPPERDIR:-}" ] || [ -z "${OVERLAY_LOWERDIR:-}" ]; then
+                log "wine_persistence_result=refused-overlay target=$target alias=${ALIAS_MOUNT:-}"
+                return 3
+            fi
+            case ",$alias_options," in *,rw,*) ;; *)
+                log "wine_persistence_result=refused-readonly-alias"; return 3;; esac
+            case ",$alias_options," in *",upperdir=$OVERLAY_UPPERDIR,"*) ;; *)
+                log "wine_persistence_result=refused-alias-upperdir"; return 3;; esac
+            case ",$alias_options," in *",lowerdir=$OVERLAY_LOWERDIR,"*|*",lowerdir=$OVERLAY_LOWERDIR:"*) ;; *)
+                log "wine_persistence_result=refused-alias-lowerdir"; return 3;; esac
+            target="$ALIAS_MOUNT"
+            log "wine_persistence_overlay_alias_fallback=$target"
+        fi
     else
       case "$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')" in
         *.wine) ;;
@@ -1156,7 +1182,8 @@ persist_split_wine_prefix() {
     if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
         python3 "$RUNTIME_HELPER" checkpoint "$MATERIALIZED_PREFIX" --pid "$$" \
             --source "$ORIGINAL_PREFIX_CANON" --runner-root "$RUNNER_DIR" \
-            --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" >>"$LOG" 2>&1 || return 13
+            --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" \
+            --source-view "$target" >>"$LOG" 2>&1 || return 13
     fi
     log "wine_persistence_result=success"
     return 0
