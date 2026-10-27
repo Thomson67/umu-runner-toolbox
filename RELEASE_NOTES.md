@@ -1,7 +1,8 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.14-test1 — intégration 3.10.11 (test)**
+**UMU Runner Toolbox v0.13.14-test2 — intégration 3.10.12 (test)**
 
+- Correction du retour du préfixe si Batocera a déjà retiré le montage original : utilisation de l’alias encore monté, uniquement après validation des couches et de son accès en écriture. Les sauvegardes directes conservent leur traitement.
 - Suppression explicite des copies locales sans journal depuis Maintenance, après confirmation et vérification des fichiers, sessions et montages.
 - Affichage de la cause réelle d’un refus ; gestion des processus disparus pendant l’examen de leurs montages.
 - Une archive remplacée au même emplacement ou une source non vérifiable ne réutilise plus silencieusement une ancienne copie UMU. L’ancienne copie reste disponible à l’examen.
@@ -12,8 +13,9 @@
 
 ## English
 
-**UMU Runner Toolbox v0.13.14-test1 — integration 3.10.11 (test)**
+**UMU Runner Toolbox v0.13.14-test2 — integration 3.10.12 (test)**
 
+- Fix prefix return after Batocera has released the original mount: use the still-mounted owned alias only after verifying its layers and writable state. Direct-save handling is preserved.
 - Explicitly discard local copies without a valid regular journal after confirmation and fresh content/activity/mount checks.
 - Display the actual discard error and handle processes disappearing during mount inspection.
 - Do not silently reuse interrupted prefixes after archive replacement at the same path or when the source generation cannot be verified; retain previous changes separately.
