@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.15 ====="
+log "===== Batocera UMU runner v3.10.16 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -783,6 +783,7 @@ esac
 # overlay semantics while keeping Proton's PFX off OverlayFS.
 OVERLAY_UPPERDIR=""
 OVERLAY_LOWERDIR=""
+OVERLAY_WORKDIR=""
 MATERIALIZED_PREFIX=""
 GAMEVIEW=""
 if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
@@ -793,8 +794,12 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     case ",$OVERLAY_MOUNT_OPTS," in
         *,lowerdir=*) OVERLAY_LOWERDIR="${OVERLAY_MOUNT_OPTS#*lowerdir=}"; OVERLAY_LOWERDIR="${OVERLAY_LOWERDIR%%,*}"; OVERLAY_LOWERDIR="${OVERLAY_LOWERDIR%%:*}" ;;
     esac
+    case ",$OVERLAY_MOUNT_OPTS," in
+        *,workdir=*) OVERLAY_WORKDIR="${OVERLAY_MOUNT_OPTS#*workdir=}"; OVERLAY_WORKDIR="${OVERLAY_WORKDIR%%,*}" ;;
+    esac
     log "runtime_lowerdir=$OVERLAY_LOWERDIR"
     log "runtime_upperdir=$OVERLAY_UPPERDIR"
+    log "runtime_workdir=$OVERLAY_WORKDIR"
     [ -d "$OVERLAY_LOWERDIR" ] || { log "ERROR: compressed-prefix lowerdir missing: $OVERLAY_LOWERDIR"; exit 78; }
     [ -d "$OVERLAY_UPPERDIR" ] || { log "ERROR: compressed-prefix upperdir missing: $OVERLAY_UPPERDIR"; exit 78; }
 
@@ -1066,6 +1071,10 @@ persist_split_wine_prefix() {
         *) log "wine_persistence_result=refused-source source=$source"; return 2 ;;
     esac
     if [ "${COMPRESSED_OVERLAY:-0}" -eq 1 ]; then
+        if [ -n "${OVERLAY_WORKDIR:-}" ] && [ ! -d "$OVERLAY_WORKDIR/work" ]; then
+            log "wine_persistence_result=refused-workdir-missing workdir=$OVERLAY_WORKDIR"
+            return 14
+        fi
         case "$target" in
             /run/wine/*.wsquashfs|/run/wine/*.wtgz|/var/run/wine/*.wsquashfs|/var/run/wine/*.wtgz) ;;
             *) log "wine_persistence_result=refused-compressed-target target=$target"; return 3;;
@@ -1235,6 +1244,8 @@ if { [ -n "${MATERIALIZED_PREFIX:-}" ] && [ "$EFFECTIVE_WINEPREFIX" = "$MATERIAL
     ACTIVE_STATE_DIR="/run/umu-batocera"
     mkdir -p "$ACTIVE_STATE_DIR"
     ACTIVE_STATE_FILE="$ACTIVE_STATE_DIR/session-$$.state"
+    STOP_OWNER_TOKEN="$(python3 "$RUNTIME_HELPER" token --pid "$$")" || exit 98
+    [ -n "$STOP_OWNER_TOKEN" ] || { log "ERROR: cannot identify return-copy owner"; exit 98; }
     {
         printf '%s\n' "$ORIGINAL_WINEPREFIX"
         printf '%s\n' "$ORIGINAL_PREFIX_CANON"
@@ -1242,6 +1253,7 @@ if { [ -n "${MATERIALIZED_PREFIX:-}" ] && [ "$EFFECTIVE_WINEPREFIX" = "$MATERIAL
         printf '%s\n' "$EFFECTIVE_WINEPREFIX"
         printf '%s\n' "$RUNNER_DIR"
         printf '%s\n' "$$"
+        printf '%s\n' "$STOP_OWNER_TOKEN"
     } > "$ACTIVE_STATE_FILE"
     chmod 600 "$ACTIVE_STATE_FILE" 2>/dev/null || true
     log "runtime_active_state=$ACTIVE_STATE_FILE"
