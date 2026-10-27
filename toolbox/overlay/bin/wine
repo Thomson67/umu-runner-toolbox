@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.13 ====="
+log "===== Batocera UMU runner v3.10.14 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -690,7 +690,8 @@ check_materialized_space() {
     local -a items=()
     for item in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
         [ -e "$item" ] || [ -L "$item" ] || continue
-        [ "$(basename "$item")" = drive_c ] || items+=("$item")
+        case "$(basename "$item")" in drive_c|.umu-prefix-sync-*) continue ;; esac
+        items+=("$item")
     done
     for item in "$ORIGINAL_PREFIX_CANON/drive_c"/* "$ORIGINAL_PREFIX_CANON/drive_c"/.[!.]* "$ORIGINAL_PREFIX_CANON/drive_c"/..?*; do
         [ -e "$item" ] || [ -L "$item" ] || continue
@@ -821,7 +822,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     if [ "$RUNTIME_REUSED" -eq 0 ]; then
     for COPY_ITEM in "$ALIAS_MOUNT"/* "$ALIAS_MOUNT"/.[!.]* "$ALIAS_MOUNT"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
-        [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
+        case "$(basename "$COPY_ITEM")" in drive_c|.umu-prefix-sync-*) continue ;; esac
         cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/" 2>>"$LOG" || {
             log "ERROR: compressed-prefix prefix-root copy failed: $COPY_ITEM"; exit 80;
         }
@@ -987,7 +988,7 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     if [ "$RUNTIME_REUSED" -eq 0 ]; then
     for COPY_ITEM in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
-        [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
+        case "$(basename "$COPY_ITEM")" in drive_c|.umu-prefix-sync-*) continue ;; esac
         cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/" 2>>"$LOG" || {
             log "ERROR: wine split prefix-root copy failed: $COPY_ITEM"; exit 82;
         }
@@ -1126,55 +1127,77 @@ persist_split_wine_prefix() {
     [ -z "${UWT_GAME_BACKUP_NAME:-}" ] || log "wine_persistence_excluded_uwt_backup=drive_c/$UWT_GAME_BACKUP_NAME"
     log "wine_persistence_begin=$(date -Is 2>/dev/null || date)"
 
-    # Root of the prefix: make the original mirror the post-Proton materialized
-    # state, except for drive_c which needs the game-directory preservation rule.
-    for item in "$target"/* "$target"/.[!.]* "$target"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "drive_c" ] && continue
-        [ "${name,,}" = autorun.cmd ] && continue
-        rm -rf -- "$item" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=remove-root item=$item"
-            return 7
-        }
-    done
-    for item in "$source"/* "$source"/.[!.]* "$source"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "drive_c" ] && continue
-        [ "${name,,}" = autorun.cmd ] && continue
-        cp -a -- "$item" "$target/" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=copy-root item=$item"
-            return 8
-        }
-    done
+    # Mirror matching directories in place. Removing whole OverlayFS roots
+    # (notably dosdevices) can fail even though their entries are writable.
+    # Replace files privately so a destination hardlink never modifies a runner.
+    if ! python3 - "$source" "$target" "$GAME_DIR" "${UWT_GAME_BACKUP_NAME:-}" >>"$LOG" 2>&1 <<'PREFIX_RETURN_SYNC'
+from pathlib import Path
+import os
+import shutil
+import stat
+import sys
+import tempfile
 
-    mkdir -p -- "$target/drive_c" || return 9
+source, target = map(Path, sys.argv[1:3])
+game, backup = sys.argv[3:5]
+reserved = '.umu-prefix-sync-'
+for root in (source, target, source / 'drive_c', target / 'drive_c'):
+    if root.is_symlink() or not root.is_dir():
+        raise RuntimeError('missing or redirected prefix directory: ' + str(root))
+work = Path(tempfile.mkdtemp(prefix=reserved, dir=target))
 
-    # drive_c: preserve the real game and the validated UWT rollback directory.
-    # Everything else must
-    # reflect the materialized PFX so ProtonFixes/Winetricks registry/files and
-    # save changes outside the game directory survive the session.
-    for item in "$target/drive_c"/* "$target/drive_c"/.[!.]* "$target/drive_c"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "$GAME_DIR" ] && continue
-        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
-        rm -rf -- "$item" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=remove-drive-c item=$item"
-            return 10
-        }
-    done
-    for item in "$source/drive_c"/* "$source/drive_c"/.[!.]* "$source/drive_c"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "$GAME_DIR" ] && continue
-        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
-        cp -a -- "$item" "$target/drive_c/" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=copy-drive-c item=$item"
-            return 11
-        }
-    done
+def remove(path):
+    if path.is_symlink() or not path.is_dir():
+        path.unlink()
+    else:
+        shutil.rmtree(path)
+
+def excluded(relative, name):
+    if relative == Path('.'):
+        return name.lower() == 'autorun.cmd' or name.startswith(reserved)
+    return relative == Path('drive_c') and name in {game, backup} - {''}
+
+def mirror(src, dst, relative=Path('.')):
+    if src.is_symlink():
+        candidate = work / 'entry'
+        candidate.symlink_to(os.readlink(src))
+        if dst.exists() and dst.is_dir() and not dst.is_symlink():
+            remove(dst)
+        os.replace(candidate, dst)
+        return
+    mode = src.lstat().st_mode
+    if stat.S_ISDIR(mode):
+        if dst.is_symlink() or (dst.exists() and not dst.is_dir()):
+            remove(dst)
+        dst.mkdir(exist_ok=True)
+        children = {p.name: p for p in src.iterdir() if not excluded(relative, p.name)}
+        for old in list(dst.iterdir()):
+            # The current staging directory is private and never copied back.
+            if old == work or excluded(relative, old.name):
+                continue
+            if old.name not in children:
+                remove(old)
+        for name, child in children.items():
+            mirror(child, dst / name, relative / name)
+        shutil.copystat(src, dst, follow_symlinks=False)
+    elif stat.S_ISREG(mode):
+        candidate = work / 'entry'
+        shutil.copy2(src, candidate, follow_symlinks=False)
+        if dst.exists() and dst.is_dir() and not dst.is_symlink():
+            remove(dst)
+        os.replace(candidate, dst)
+    else:
+        raise RuntimeError('unsupported prefix entry retained for recovery: ' + str(src))
+
+try:
+    mirror(source, target)
+finally:
+    shutil.rmtree(work)
+PREFIX_RETURN_SYNC
+    then
+        log "wine_persistence_result=failed phase=sync-tree target=$target"
+        return 7
+    fi
 
     [ -d "$target/drive_c/$GAME_DIR" ] || {
         log "wine_persistence_result=failed phase=postcheck-game-dir"
