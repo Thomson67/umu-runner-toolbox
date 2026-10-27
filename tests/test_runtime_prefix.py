@@ -214,6 +214,20 @@ class RuntimePrefixTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unverified interrupted'):
             self.store.direct_save(self.prefix, self.pid, '/game/data/saves', '/saves/Other', resume=True)
 
+    def test_checkpoint_can_read_live_view_after_original_mount_has_disappeared(self):
+        original = self.base / 'unmounted.wsquashfs'
+        self.store.begin(self.prefix, original, self.pid, 'Game', 'Runner', source_view=str(self.source))
+        (self.prefix / 'drive_c').mkdir()
+        (self.prefix / 'system.reg').write_text('registry')
+        (self.prefix / 'user.reg').write_text('unsynchronized changes')
+        (self.source / 'user.reg').write_text('known returned changes')
+        self.store.checkpoint(self.prefix, self.pid, original, source_view=str(self.source))
+        self.store.finish(self.prefix, self.pid, False)
+        self.assertTrue(self.store.begin(self.prefix, original, self.pid, 'Game', 'Runner',
+                                         source_view=str(self.source)))
+        self.assertEqual(self.store.read(self.prefix)['source'], str(original))
+        self.assertFalse(original.exists())
+
     def test_recovery_for_another_source_or_game_directory_is_never_reused(self):
         self.store.begin(self.prefix, self.source, self.pid, 'Game')
         (self.prefix / 'drive_c').mkdir()
@@ -284,6 +298,57 @@ class LifecycleOrderTests(unittest.TestCase):
 
 
 class CompressedPersistenceTests(unittest.TestCase):
+    def test_return_uses_only_owned_matching_writable_alias_if_original_mount_is_gone(self):
+        for failure in ('', 'upper', 'lower', 'readonly', 'fstype', 'unowned'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                materialized = root / 'materialized-prefixes/Test'
+                alias = root / 'alias'
+                original = root / 'gone/Game.wsquashfs'
+                for directory in (materialized, alias):
+                    (directory / 'drive_c/Game').mkdir(parents=True)
+                    (directory / 'user.reg').write_text('initial registry')
+                    (directory / 'system.reg').write_text('registry')
+                (materialized / 'user.reg').write_text('updated registry')
+                (alias / 'drive_c/Game/azimuth.exe').write_bytes(b'unchanged game')
+                archive = root / 'Game.wsquashfs'
+                archive.write_bytes(b'unchanged archive')
+                upper = str(root / 'upper with spaces')
+                lower = str(root / 'lower with spaces')
+                options = f'rw,lowerdir={lower},upperdir={upper},workdir=/work'
+                if failure == 'upper': options = options.replace(upper, '/different/upper')
+                if failure == 'lower': options = options.replace(lower, '/different/lower')
+                if failure == 'readonly': options = options.replace('rw,', 'ro,')
+                block = WRAPPER[WRAPPER.index('persist_split_wine_prefix() {'):WRAPPER.index('# v3.9.2: every materialized-prefix session')]
+                block = block.replace('/userdata/system/umu/materialized-prefixes/', str(materialized.parent) + '/')
+                block = block.replace('/run/wine/*.wsquashfs', str(original.parent) + '/*.wsquashfs')
+                script = '''set -u
+log() { printf '%s\\n' "$*"; }
+is_prefix_root() { [ -f "$1/system.reg" ] && [ -f "$1/user.reg" ]; }
+findmnt() {
+    case "$*" in
+        *"$ORIGINAL_PREFIX_CANON"*) printf 'ext4\\n';;
+        *FSTYPE*) printf '%s\\n' "$ALIAS_FSTYPE";;
+        *OPTIONS*) printf '%s\\n' "$ALIAS_OPTS";;
+        *) return 1;;
+    esac
+}
+''' + block + '\npersist_split_wine_prefix\n'
+                result = subprocess.run(['bash', '-c', script], capture_output=True, text=True,
+                    env=dict(os.environ, MATERIALIZED_PREFIX=str(materialized), ORIGINAL_PREFIX_CANON=str(original),
+                        COMPRESSED_OVERLAY='1', WINE_SPLIT_PREFIX='0', GAME_DIR='Game', LOG='/dev/null',
+                        ALIAS_BOUND='0' if failure == 'unowned' else '1', ALIAS_MOUNT=str(alias),
+                        ALIAS_FSTYPE='ext4' if failure == 'fstype' else 'overlay', ALIAS_OPTS=options,
+                        OVERLAY_UPPERDIR=upper, OVERLAY_LOWERDIR=lower))
+                self.assertEqual(result.returncode, 3 if failure else 0, result.stdout + result.stderr)
+                self.assertEqual((alias / 'user.reg').read_text(), 'initial registry' if failure else 'updated registry')
+                self.assertFalse(original.exists())
+                self.assertEqual((alias / 'drive_c/Game/azimuth.exe').read_bytes(), b'unchanged game')
+                self.assertEqual(archive.read_bytes(), b'unchanged archive')
+                if not failure:
+                    self.assertIn('wine_persistence_overlay_alias_fallback=', result.stdout)
+                    self.assertIn('wine_persistence_result=success', result.stdout)
+
     def test_compressed_changes_return_to_bottle_and_game_and_archive_stay_intact(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -408,6 +473,9 @@ class SourceIdentityTests(unittest.TestCase):
                 first = runtime.source_identity(prefix, lowerdir='/mount/lower')
                 self.assertIsNotNone(first)
                 self.assertEqual(first, runtime.source_identity(prefix, lowerdir='/mount/lower'))
+                alias = Path(folder) / 'merged-alias-123'
+                alias.mkdir()
+                self.assertEqual(first, runtime.source_identity(alias, lowerdir='/mount/lower'))
                 archive.write_bytes(b'archive v2')
                 self.assertNotEqual(first, runtime.source_identity(prefix, lowerdir='/mount/lower'))
             self.assertIsNone(runtime.source_identity(prefix))
