@@ -3145,8 +3145,59 @@ startup_update_check() {
     fi
 }
 
+documentation_chapter() {
+    local guide="$1" chapter="$2" title="$3" tmp
+    tmp="$(mktemp)" || return 1
+    # Only the selected chapter is displayed; guide contents are never executed.
+    if ! awk -v chapter="$chapter" '
+        /^@@/ { split(substr($0, 3), header, "|"); active=(header[1] == chapter); next }
+        active { print }
+    ' "$guide" > "$tmp"; then
+        rm -f -- "$tmp"
+        return 1
+    fi
+    if command -v dialog >/dev/null 2>&1; then
+        dialog --exit-label "$(i18n back)" --title "$title" --scrollbar --textbox "$tmp" 26 96
+    elif command -v less >/dev/null 2>&1; then
+        less -- "$tmp"
+    else
+        cat -- "$tmp"
+        pause
+    fi
+    rm -f -- "$tmp"
+}
+
 documentation_about() {
-    msg "$(i18n documentation_title)" "$(i18n documentation_body "$TOOLBOX_VERSION" "$ROOT" "$LOG_DIR")"
+    local guide="$ROOT/docs/guide-$TOOLBOX_LANGUAGE.txt" line chapter title choice
+    local -a chapters=()
+    if [ ! -r "$guide" ]; then
+        msg "$(i18n documentation_title)" "$(i18n documentation_missing)"
+        return
+    fi
+    while IFS= read -r line; do
+        case "$line" in
+            @@*'|'*)
+                chapter="${line#@@}"; title="${chapter#*|}"; chapter="${chapter%%|*}"
+                chapters+=("$chapter" "$title") ;;
+        esac
+    done < "$guide"
+    chapters+=("about" "$(i18n documentation_about)" "0" "$(i18n back)")
+    while true; do
+        choice="$(menu_choice "$(i18n documentation_title)" --description "$(i18n documentation_intro)" "${chapters[@]}")" || return
+        case "$choice" in
+            0|"") return ;;
+            about) msg "$(i18n documentation_title)" "$(i18n documentation_body "$TOOLBOX_VERSION" "$ROOT" "$LOG_DIR")" ;;
+            *)
+                # Resolve against known menu entries; never use the choice as a path.
+                local i
+                for ((i=0; i<${#chapters[@]}-4; i+=2)); do
+                    if [ "$choice" = "${chapters[$i]}" ]; then
+                        documentation_chapter "$guide" "$choice" "${chapters[$((i+1))]}"
+                        break
+                    fi
+                done ;;
+        esac
+    done
 }
 
 main_menu() {
