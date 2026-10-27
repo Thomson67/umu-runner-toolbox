@@ -1,271 +1,463 @@
-# UMU Runner Toolbox pour Batocera
+# UMU Runner Toolbox — le guide pour débuter
 
-[README in English](../README.md)
+Un parcours simple pour installer un runner, jouer et entretenir son installation. Le même guide est disponible hors ligne dans **Documentation / À propos** de la Toolbox.
 
-**UMU Runner Toolbox** est un outil communautaire permettant d'installer, gérer, vérifier, mettre à jour et partager des runners **GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton via UMU** sous Batocera.
+[English guide](GUIDE_EN.md) · [Projet / détails techniques](../README.md)
 
-Version stable actuelle : **v0.13.13**
-Version de l'intégration runner : **v3.10.10**
+- [Bien démarrer : installer et lancer un jeu](#start)
+- [Wine, Proton, UMU : comprendre les mots](#basics)
+- [Les cinq familles : quel runner choisir ?](#runners)
+- [Les menus : à quoi sert chaque fonction ?](#menus)
+- [Compatibilité des jeux : GAMEID et correctifs](#compat)
+- [Manettes, affichage et caches graphiques](#controllers)
+- [Sauvegardes et copies de travail : que conserve UMU ?](#saves)
+- [Mode direct : pour certains jeux particuliers](#direct)
+- [Maintenance : vérifier, réparer, nettoyer](#maintenance)
+- [Mises à jour, export et partage](#sharing)
+- [Dépannage : les bons réflexes et les journaux](#help)
 
-## Manettes Sony : GE-Proton recommandé
+<a id="start"></a>
 
-Pour les manettes **DualShock 4 et DualSense**, utiliser de préférence **GE-Proton 11-8 ou supérieur** avec UMU. Depuis GE-Proton 11-8, le repli automatique vers XInput est normalement disponible sans ajouter `PROTON_SONY_HIDRAW_XINPUT=1` manuellement. La Toolbox ne force aucune de ces variables : le fonctionnement natif du runner et les exceptions définies dans `autorun.cmd` sont respectés. Les runners antérieurs restent disponibles. Le conseil apparaît dans **Paramètres > Manettes Sony** et lors du choix d'un GE-Proton.
+## Bien démarrer : installer et lancer un jeu
 
-L'intégration **3.10.9** exclut de la copie du préfixe `.wine` l'ancien dossier de jeu conservé par une mise à jour Ultimate Wine Toolbox en cours. L'état actif et son journal doivent correspondre exactement au préfixe et au dossier de secours. Ce dossier est également préservé pendant la synchronisation au retour du jeu. Les autres dossiers `.bak` et les lancements sans journal correspondant gardent leur comportement habituel. Installer cette intégration après la fin de la session UMU actuelle : elle ne modifie pas un wrapper déjà lancé.
+UMU RUNNER TOOLBOX — VOTRE PREMIER LANCEMENT
 
-L'intégration **3.10.10** répare aussi les liens vers un ancien runner disparu en utilisant le runner explicitement sélectionné. Les modules PE Wine, notamment DLL, exécutables, pilotes et thèmes, exigent le même nom de fichier et une architecture PE correspondante. Une copie privée remplace le lien dans le préfixe ; les runners restent protégés. Les liens de polices déjà cassés sous Windows/Fonts sont remplacés depuis le runner sélectionné si la police existe, ou retirés pour laisser Wine utiliser ses polices de remplacement. Les autres entrées non résolues sont toutes signalées avant modification. Le contrôle préalable tient lui aussi compte du runner choisi pour le jeu dans Batocera.
+Vous avez un jeu Windows dans Batocera ? La Toolbox prépare des runners
+Proton compatibles avec UMU. Vous lancez ensuite le jeu depuis EmulationStation,
+comme d'habitude. Il n'est pas nécessaire de garder la Toolbox ouverte.
 
-L'intégration **3.10.9** supprime automatiquement les préfixes matérialisés après synchronisation réussie et libération des montages. Les changements reviennent dans le `.wine` d'origine ou dans la bouteille Batocera accessible par l'OverlayFS du jeu compressé. L'archive et le dossier externe du jeu restent intacts. La synchronisation des sauvegardes du mode direct doit aussi réussir avant suppression. Avant copie, l'espace nécessaire est estimé sans le jeu ni son ancien dossier UWT identifié, avec une réserve de 256 Mio.
+1. Ouvrez Ports > UMU Runner Toolbox.
+2. Choisissez Installer un runner, puis une famille et une version.
+   Pour commencer, GE-Proton est un choix généraliste.
+3. Laissez le téléchargement et la préparation se terminer.
+4. Revenez à votre jeu Windows dans EmulationStation et ouvrez ses options
+   avancées. Sélectionnez le runner installé, dont le nom se termine par -UMU.
+5. Lancez le jeu. Au premier démarrage, la préparation peut être plus longue.
+6. Faites une sauvegarde en jeu, quittez puis relancez pour vérifier le résultat.
 
-Un verrou partagé avec le nettoyage manuel protège la session. Un journal suit le processus (démarrage et identité du boot), la préparation et la synchronisation. Les préparations interrompues peuvent être nettoyées au prochain lancement. Une session de jeu non synchronisée est conservée pour récupération. Au lancement suivant, une copie complète identifiée avec la même version source vérifiée, la même identité de runner, le même mode direct et le même dossier de jeu est reprise sans nouvelle copie, y compris après Hotkey + Start. Une identité différente ou invérifiable bloque la reprise et l’écrasement. Les anciennes copies sans journal sont conservées une fois sous `.legacy-*` lors de leur réutilisation : elles nécessitent une vérification. Le menu **Maintenance > Copies UMU conservées** affiche le jeu, l'espace occupé, la date du dernier état, le runner et le journal de lancement lorsqu'ils sont connus. Il explique comment reprendre une copie identifiée en relançant le même jeu depuis EmulationStation, ou permet d'abandonner une seule copie après confirmation. Une copie locale sans journal, ou avec un journal ordinaire invalide, peut etre abandonnee apres confirmation et verification des sessions et montages ; un journal redirige reste refuse. Le nettoyage global est bloqué tant que des récupérations restent conservées. Une copie modifiée depuis sa sélection invalide l'ancienne confirmation de suppression. Les nouveaux échecs de synchronisation enregistrent leur motif et demandent une notification ES ; les interruptions brutales sont signalées à la prochaine ouverture de la Toolbox. Le nettoyage automatique vise uniquement les copies identifiées comme supprimables, sans montage actif, y compris dans un conteneur encore vivant. Il ne purge pas automatiquement les compatdata, caches graphiques, runners ou sauvegardes persistantes.
+Installer un runner ne l'affecte pas automatiquement à tous vos jeux. Vous
+pouvez conserver plusieurs versions et choisir celle qui convient à chaque jeu.
 
-L'objectif est de simplifier l'utilisation de Proton via UMU depuis Batocera tout en isolant les runners UMU du reste de l'environnement Wine. Les runners standards Batocera, Wine-TKG et Kron4ek ne sont pas modifiés.
+À prévoir : une connexion Internet pour les téléchargements et suffisamment
+d'espace pour le runner, le runtime et les données de travail. La taille varie
+selon les versions et les jeux. Fermez les jeux avant installation ou maintenance.
 
-## Fonctionnalités principales
+Pour installer la Toolbox elle-même depuis un terminal Batocera :
+https://github.com/Thomson67/umu-runner-toolbox
+Le README du projet donne la commande d'installation de la version stable.
 
-- Installation et suppression contrôlée de runners GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU, Proton-EM-UMU et DW-Proton-UMU.
-- Installation et mise à jour de `umu-run` avec vérification SHA-512.
-- Téléchargement de GE-Proton avec contrôle du checksum SHA-512 upstream.
-- Téléchargement de GDK-Proton avec vérification des digests SHA-256 GitHub lorsqu'ils sont disponibles.
-- Installation des releases CachyOS Proton Steam Linux Runtime (SLR) prises en charge via le même système UMU géré.
-- Installation des releases officielles Proton-EM de BananaWorks07/Proton avec vérification SHA-256 upstream obligatoire. Les releases sans checksum restent visibles mais sont clairement indiquées comme non installables.
-- Installation des releases DW-Proton x86_64 de dawn-winery/dwproton-mirror avec vérification SHA-512 upstream obligatoire.
-- Vérification de l'intégrité des runners gérés grâce à un manifest.
-- Protection automatique en lecture seule des runners `*-UMU` pendant un lancement UMU.
-- Export d'un runner ou création d'un package autonome partageable.
-- Diagnostic UMU et nettoyage sécurisé des données temporaires.
-- Résolution automatique de `GAMEID` et `STORE` depuis le gamelist Windows de Batocera pour ProtonFixes.
-- Mise à jour de la Toolbox depuis GitHub Releases avec contrôle SHA-256 et sauvegarde préalable.
-- Support Pad2Key pour piloter la Toolbox directement depuis Ports.
-- Conservation du mode Sony HIDRAW natif, de la détection PlayStation et des fonctions DualSense prises en charge ; respect des options explicites et des correctifs par jeu de Proton.
-- Compatibilité Batocera 41 avec les adaptations nécessaires à Steam Runtime / pressure-vessel.
+<a id="basics"></a>
 
-> **v0.13.2 :** ajoute de courtes descriptions dans les menus et des explications sur les familles de runners. L'analyse GAMEID charge ses sources une seule fois, et les propositions donnent la priorité au titre principal plutôt qu'aux mentions d'édition, en distinguant les numéros de suites. Lors d'un test utilisateur sur 1 265 jeux, l'analyse a pris environ 50 secondes contre plus de deux minutes auparavant ; le temps dépend du matériel et des sources de correspondances disponibles.
+## Wine, Proton, UMU : comprendre les mots
 
-## Installation rapide
+LE PETIT LEXIQUE
 
-Depuis un terminal Batocera ou une connexion SSH, en `root` :
+Wine : permet à des programmes Windows de fonctionner sous Linux.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Thomson67/umu-runner-toolbox/main/install.sh | bash
-```
+Proton : s'appuie sur Wine et d'autres composants destinés aux jeux, notamment
+pour traduire leurs appels graphiques. Ce n'est pas une installation de Windows.
 
-L'installateur détecte la dernière release stable, télécharge le package et son SHA-256, vérifie son intégrité puis lance l'installateur contenu dans la release.
+Runner : la version de Wine/Proton choisie pour lancer votre jeu. Deux runners
+peuvent donner des résultats différents sur un même jeu.
 
-La Toolbox est ensuite disponible dans :
+UMU : lance Proton hors de Steam avec l'environnement Linux prévu pour lui.
+La Toolbox installe et relie ces éléments à Batocera.
 
-```text
-Ports -> UMU Runner Toolbox
-```
+Runtime Steam : ensemble de bibliothèques Linux utilisé par Proton via UMU.
+Il ne s'agit pas du client Steam ; vous n'avez pas à ouvrir Steam pour jouer.
 
-Fichiers de la Toolbox :
+Préfixe Wine : petit environnement Windows propre au jeu : registre, disque C:,
+composants et paramètres. Il peut aussi contenir des sauvegardes.
 
-```text
-/userdata/system/umu/toolbox
-```
+Bouteille : espace de modifications utilisé par Batocera, notamment pour les
+jeux compressés. L'archive reste compressée, les changements sont stockés à côté.
 
-Exports :
+Shader/cache graphique : données préparées pour afficher le jeu. Les conserver
+peut éviter de répéter une partie de la compilation aux lancements suivants.
 
-```text
-/userdata/system/umu/exports
-```
+La UMU Runner Toolbox gère les runners et leur intégration. Pour préparer,
+modifier ou recompresser vos jeux, Ultimate Wine Toolbox est un outil distinct.
 
-## Installation locale
+<a id="runners"></a>
 
-Après téléchargement et extraction d'une release :
+## Les cinq familles : quel runner choisir ?
 
-```bash
-chmod +x install.sh
-./install.sh
-```
+CHOISIR SANS SE PERDRE
 
-L'installation doit être lancée en `root`.
+GE-Proton
+Le point de départ généraliste du menu : correctifs de compatibilité et de
+lecture vidéo. Si vous découvrez UMU, commencez par cette famille.
 
-## Installer un runner Proton-UMU
+GDK-Proton
+Une variante orientée WineGDK et les jeux utilisant Microsoft GDK. À essayer
+pour ce besoin particulier. Cela ne garantit pas le fonctionnement du Microsoft
+Store, des abonnements ou des services de connexion Microsoft.
 
-Le menu d’installation propose cinq familles : **GE-Proton**, **GDK-Proton**, **CachyOS Proton**, **Proton-EM** et **DW-Proton**. Chaque version est installée dans son propre dossier `*-UMU` et n’écrase jamais un runner existant.
+Proton-CachyOS
+Une autre famille avec ses propres changements et options. La Toolbox propose
+les versions Steam Linux Runtime prises en charge. À comparer pour un jeu
+précis ; le nom ne garantit pas de meilleures performances sur votre machine.
 
-Lancer **UMU Runner Toolbox** depuis Ports puis choisir la famille et la version du runner souhaité. La Toolbox télécharge la version sélectionnée, applique les contrôles disponibles, ajoute l'intégration Batocera/UMU et crée son manifest d'intégrité.
+Proton-EM
+Une variante proposant ses propres adaptations, notamment autour de l'affichage
+selon la version. Les possibilités Wayland/HDR dépendent aussi de Batocera,
+des pilotes et de votre écran. Choisir ce runner n'active pas tout à lui seul.
 
-Le runner obtenu peut ensuite être sélectionné dans les options avancées d'un jeu Windows dans EmulationStation.
+DW-Proton
+Une alternative communautaire avec ses propres modifications. À tester si
+vous cherchez une autre combinaison pour un jeu difficile.
 
-## GAMEID, STORE et ProtonFixes
+LA BONNE MÉTHODE
 
-UMU peut transmettre à ProtonFixes l'identité du jeu grâce aux variables `GAMEID` et `STORE`. La Toolbox automatise leur résolution pour les jeux Windows Batocera.
+- Gardez le runner avec lequel votre jeu fonctionne déjà.
+- Testez une autre version si vous avez un problème concret.
+- Changez un seul réglage à la fois et notez le résultat.
+- Conservez l'ancien runner tant que le nouveau n'est pas validé.
 
-Lors d'un lancement, le résolveur :
+Une version plus récente peut corriger un jeu et en perturber un autre.
+Les numéros ne se comparent pas directement entre familles. Changer de runner
+peut modifier le préfixe du jeu : pour un jeu important, sauvegardez d'abord
+ses données persistantes. Revenir à l'ancien runner ne restaure pas ces données.
 
-1. recherche le jeu dans `/userdata/roms/windows/gamelist.xml` ;
-2. récupère son titre Batocera ;
-3. recherche ce titre dans la base UMU fournie avec la Toolbox ;
-4. détermine le `GAMEID` et le `STORE` correspondants ;
-5. si plusieurs stores correspondent, examine les gamefixes ProtonFixes disponibles pour choisir le store pertinent lorsque cela est possible.
+Projets sources et notes de versions :
+GE-Proton : https://github.com/GloriousEggroll/proton-ge-custom
+GDK-Proton : https://github.com/Weather-OS/GDK-Proton
+CachyOS : https://github.com/CachyOS/proton-cachyos
+Proton-EM : https://github.com/BananaWorks07/Proton
+DW-Proton : https://github.com/dawn-winery/dwproton-mirror
 
-Si aucune correspondance suffisamment fiable n'est trouvée, il utilise :
+<a id="menus"></a>
 
-```text
-GAMEID=umu-default
-```
+## Les menus : à quoi sert chaque fonction ?
 
-Le jeu peut donc toujours être lancé, mais sans identification spécifique exploitable par ProtonFixes. Les formats `.pc`, `.wine` et `.wsquashfs` sont pris en charge par le resolver pour retrouver le jeu Batocera et appliquer les informations GAMEID/STORE.
+LE TOUR DE LA TOOLBOX
 
-Dans la majorité des cas, aucune configuration manuelle de `GAMEID` ou `STORE` n'est nécessaire.
+Installer un runner
+Choisissez une famille, puis une version. La Toolbox télécharge les composants,
+contrôle les fichiers et prépare l'intégration. Les versions sont séparées ;
+une nouvelle version n'écrase pas automatiquement l'ancienne.
 
-## Résolution automatique via les ProtonFixes Steam
+Supprimer un runner
+Libère la place occupée par ce runner. Vos jeux et leurs sauvegardes ne sont
+pas supprimés. Les jeux qui l'utilisaient doivent recevoir un autre runner.
 
-Lorsqu'un titre est absent de la base UMU, le resolver peut désormais examiner les `gamefixes-steam/*.py` de ProtonFixes installés localement. Il lit uniquement la docstring du module, sans exécuter le fix pendant la détection, puis n'accepte automatiquement un AppID Steam que si **un seul** titre de ProtonFix correspond exactement après normalisation au titre Batocera. En cas d'absence ou d'ambiguïté, aucun AppID n'est forcé. Une détection sûre est journalisée sous `AUTO_STEAM_MATCH`.
+Exporter / partager
+Crée une archive du runner ou un package avec son environnement et installateur.
+Le chapitre Partager explique lequel choisir.
 
-## Associations manuelles GAMEID / STORE
+Compatibilité des jeux
+Permet de vérifier ou corriger l'identité d'un jeu pour ses correctifs ProtonFixes.
+Ce n'est pas une liste garantissant que les jeux vont fonctionner.
 
-Le menu principal **Compatibilité des jeux** permet d'analyser les correspondances ambiguës, de choisir un jeu depuis `gamelist.xml`, puis de sélectionner une proposition classée issue de la base UMU ou des ProtonFixes Steam installés. Le `GAMEID` et le `STORE` peuvent également être renseignés manuellement. Le GAMEID peut être un identifiant `umu-*` ou un **AppID Steam numérique** ; un identifiant numérique permet à ProtonFixes de rechercher directement un fix dans `gamefixes-steam`.
+Maintenance et diagnostic
+Vérifie l'installation, répare l'intégration, examine les copies conservées,
+nettoie les données temporaires, les journaux ou les protections orphelines.
 
-L'association manuelle est prioritaire sur la détection automatique. Elle peut être supprimée à tout moment pour revenir au fonctionnement automatique. Les associations sont conservées dans `config/gameid-overrides.csv`, dossier déjà préservé lors des mises à jour de la Toolbox.
+Mettre à jour la Toolbox
+Recherche une release publiée. La mise à jour conserve la configuration locale
+et sauvegarde l'ancienne Toolbox. Elle ne remplace pas vos jeux.
 
-L'interface prend en compte les entrées `.wsquashfs`, `.wine`, `.pc` et `.wtgz`. Les entrées `.exe` sont ignorées pour éviter les exécutables techniques de Wine. L'analyse lit `gamelist.xml` sans parcourir récursivement le contenu des préfixes `.wine` ni les dossiers de médias. Les sources de correspondances sont chargées une seule fois par analyse.
+Documentation / À propos
+Le guide que vous lisez : choisissez un chapitre et faites défiler son texte.
 
-Le classement privilégie le titre principal. Les mentions « Definitive Edition », « Deluxe » ou « Remastered » permettent de départager des variantes d'un même jeu, sans rendre probable un jeu sans rapport. Les numéros de suites différents sont pénalisés ; les chiffres romains et arabes en fin de titre sont rapprochés. Les sous-titres restent pris en compte. Si l'édition exacte est absente, une proposition pour le jeu de base reste à vérifier manuellement.
+Paramètres
+Choix de la langue, taille de police et affichage de la Toolbox, partage des
+caches graphiques et conseils pour les manettes Sony. La langue et la police
+concernent la Toolbox, pas les jeux. Certains changements d'affichage prennent
+leur effet à la prochaine ouverture du terminal.
 
-Le bilan compte aussi les jeux sans correspondance, mais la liste de contrôle global présente uniquement les cas ambigus. Après une association, elle reste ouverte pour traiter plusieurs jeux à la suite. Cette analyse ne crée aucune association automatiquement et ne modifie pas les associations déjà enregistrées.
+<a id="compat"></a>
 
-Le menu de maintenance permet également de nettoyer séparément les logs UMU Runner et Toolbox, avec affichage de l'espace occupé et conservation du log Toolbox de la session en cours.
+## Compatibilité des jeux : GAMEID et correctifs
 
-## Intégrité et protection des runners
+IDENTIFIER LE BON JEU
 
-Les runners préparés par la Toolbox disposent d'un **manifest d'intégrité**. Il permet de vérifier que les fichiers gérés du runner n'ont pas été modifiés.
+ProtonFixes peut appliquer des adaptations prévues pour un jeu : composants,
+options ou réglages de compatibilité. Pour choisir les bons correctifs, UMU
+utilise une identité appelée GAMEID et parfois la boutique d'origine, STORE.
+Cela ne télécharge pas le jeu et ne donne pas accès à une boutique.
 
-Ces contrôles sont notamment utilisés avant certaines opérations de maintenance, de migration ou d'export. Un runner modifié n'est pas silencieusement considéré comme sain.
+Le fonctionnement normal est automatique. Le résolveur utilise le titre dans
+la liste de jeux Windows de Batocera, la base UMU et, lorsque la correspondance
+est sûre, les correctifs Steam installés localement. Soignez le titre du jeu
+dans EmulationStation ; un nom erroné peut empêcher une bonne identification.
 
-Pendant un lancement UMU, les runners `*-UMU` gérés sont automatiquement protégés en lecture seule. **Le préfixe Wine du jeu reste modifiable normalement.**
+Si aucun jeu n'est identifié, umu-default permet quand même de tenter le
+lancement, sans identification spécifique pour les correctifs.
 
-Cette protection permet notamment de tester plusieurs runners Proton-UMU sur un même préfixe sans qu'un lancement puisse modifier accidentellement un autre runner.
+QUAND UTILISER LE MENU COMPATIBILITÉ ?
 
-## Mises à jour
+1. Analysez les correspondances pour repérer les cas ambigus.
+2. Choisissez un jeu et vérifiez les propositions : titre, suite, édition,
+   boutique. Ne validez pas un autre jeu simplement parce que le nom ressemble.
+3. Enregistrez l'association adaptée. Elle passe avant la détection automatique.
+4. Relancez le jeu pour tester.
 
-### Toolbox
+Un utilisateur averti peut saisir un GAMEID umu-* ou un AppID Steam numérique.
+Si vous ne connaissez pas l'identifiant, utilisez les propositions vérifiées.
+L'analyse seule n'enregistre aucune association. Vous pouvez consulter ou
+supprimer une association pour revenir à la détection automatique.
 
-La Toolbox peut se mettre à jour depuis GitHub Releases. Le package et son SHA-256 sont vérifiés avant remplacement. La version actuelle est sauvegardée et le dossier local `config/` est conservé.
+Un correctif peut améliorer la compatibilité, sans garantir qu'un jeu ou ses
+services en ligne fonctionnent. N'associez pas toute votre bibliothèque au
+hasard : un jeu qui fonctionne ne demande généralement aucune intervention.
 
-### UMU
+<a id="controllers"></a>
 
-`umu-run` peut être mis à jour indépendamment depuis la Toolbox, avec vérification SHA-512 lorsque le checksum upstream est disponible.
+## Manettes, affichage et caches graphiques
 
-### Intégration des runners
+MANETTES
 
-Les mises à niveau de l'intégration sont appliquées aux runners gérés qui passent les contrôles d'intégrité requis. Les runners non gérés ou modifiés sont ignorés afin d'éviter d'écraser une installation personnalisée.
+Commencez avec les réglages habituels du jeu. Pour une DualShock 4 ou DualSense
+mal reconnue, essayez HIDRAW dans les options avancées du jeu puis relancez.
+Le menu Paramètres > Manettes Sony conseille GE-Proton 11-8 ou supérieur.
 
-## Compatibilité
+La Toolbox respecte le comportement du runner et les variables explicites de
+l'autorun. Certains jeux prennent directement en charge les manettes Sony,
+d'autres attendent une manette Xbox/XInput. Les fonctions haptiques et les
+icônes affichées dépendent aussi du jeu, du runner et du mode de connexion.
+Il n'est pas nécessaire d'ajouter systématiquement des variables Sony.
 
-La Toolbox est prévue pour les principaux formats Windows utilisés sous Batocera :
+AFFICHAGE
 
-- `.pc` ;
-- `.wine` ;
-- `.wsquashfs` ;
-- Wine bottles.
+La taille de police et le plein écran de Paramètres servent à rendre la Toolbox
+plus lisible. Pour la résolution, le plein écran ou les performances d'un jeu,
+utilisez ses options et celles de Batocera. Le runner peut aussi influencer
+le résultat ; changer plusieurs réglages en même temps complique le diagnostic.
 
-### Batocera 41
+CACHES GRAPHIQUES
 
-Batocera 41 nécessite des adaptations supplémentaires pour Steam Runtime / pressure-vessel, notamment autour du module Python `_lzma` absent dans l'environnement concerné et du cache `ldconfig`. La Toolbox fournit ce contournement tout en conservant le chemin UMU natif sur les versions plus récentes qui disposent déjà des composants nécessaires.
+Le partage des caches rend les dossiers configurés par Batocera accessibles à
+l'environnement UMU. Laissez-le activé pour l'usage normal. Le premier lancement
+peut compiler des shaders ; les suivants peuvent profiter des données conservées.
 
-La base de compatibilité introduite avec la v0.6.5 a été testée avec succès sous Batocera 41 avec `GE-Proton10-25-UMU` et `GE-Proton11-5-UMU`.
+Le réglage de partage permet une comparaison de performances. Il s'applique
+au prochain lancement et ne supprime aucun cache. Ce n'est pas un interrupteur
+qui désactive tous les caches de Proton ou de Mesa.
 
-La compatibilité peut naturellement varier selon le jeu, la version de Proton, les pilotes graphiques et la version de Batocera.
+Le nettoyage des caches Mesa/RADV est proposé séparément dans Maintenance.
+Ils peuvent se reconstruire, avec un coût en temps de préparation et parfois
+des saccades temporaires. Ce n'est pas un entretien nécessaire après chaque jeu.
 
-## DualShock / DualSense et HIDRAW
+<a id="saves"></a>
 
-Certains jeux utilisant une manette Sony peuvent nécessiter HIDRAW. Si une DualShock ou DualSense n'est pas reconnue correctement, activer **HIDRAW** dans les paramètres avancés du jeu puis relancer celui-ci.
+## Sauvegardes et copies de travail : que conserve UMU ?
 
-L'intégration ne force plus `PROTON_SONY_HIDRAW_XINPUT=1` lorsque HIDRAW est activé. Laisser cette option absente pour la prise en charge Sony native. Utiliser `ENV=PROTON_SONY_HIDRAW_XINPUT=1` dans l'autorun du jeu uniquement si une compatibilité XInput est nécessaire, ou `0` pour un test explicite du mode natif. Proton peut toujours appliquer ses propres correctifs par jeu. Il n'est pas utile d'activer HIDRAW systématiquement si le jeu fonctionne déjà correctement.
+COMPRENDRE OÙ VONT LES CHANGEMENTS
 
-## Maintenance et diagnostic
+La Toolbox prend notamment en charge les jeux .pc, .wine et .wsquashfs intégrés
+au lancement Wine de Batocera. Le détail du stockage dépend du format et de
+la configuration du jeu.
 
-Le menu **Maintenance et diagnostic** regroupe notamment le contrôle d'intégrité, l'état de la protection, la réparation/mise à niveau de l'intégration, le diagnostic UMU complet et le nettoyage sécurisé de certaines données temporaires.
+Pour les préfixes .wine et les jeux compressés, l'intégration peut préparer
+une copie de travail du petit environnement Windows. Le dossier du jeu est
+présenté séparément : il n'est pas recopié intégralement à chaque lancement.
 
-Le nettoyage n'est effectué que lorsqu'aucun lancement UMU n'est actif. Les caches Mesa/RADV sont proposés séparément et restent facultatifs. Cette opération ne supprime pas `umu-run`, Steam Runtime UMU, ProtonFixes, les runners, les sauvegardes UMU ni les données des jeux Batocera.
+À la fermeture, les modifications du préfixe reviennent dans le .wine d'origine
+ou la bouteille du jeu compressé. Quand les retours nécessaires ont réussi
+et les montages ont été libérés, la copie temporaire est supprimée.
+Une sauvegarde externe configurée par Batocera reste distincte de cette copie.
 
-## Logs
+POURQUOI UNE COPIE RESTE-T-ELLE PARFOIS ?
 
-En cas de problème, le **Diagnostic UMU complet** constitue un bon point de départ.
+Une coupure, un arrêt brutal ou un échec de synchronisation peut laisser des
+changements uniquement dans la copie. Elle est conservée pour éviter de les
+perdre. Une copie conservée n'est donc pas une simple poubelle à vider.
 
-```text
-Wrapper runner : /userdata/system/logs/umu-runner/
-Toolbox        : /userdata/system/logs/umu-toolbox/
-```
+Dans Maintenance > Copies UMU conservées, examinez le jeu, le runner, la date,
+la place occupée et le journal. Pour reprendre une session récupérable, relancez
+le même jeu avec la même version source et le même runner. L'intégration vérifie
+que les données correspondent avant de les réutiliser.
 
-## Exporter ou partager un runner
+Si vous avez remplacé le WSquashFS, changé de runner ou réinstallé l'intégration,
+une ancienne copie peut rester séparée. Son avertissement ne prouve pas que
+la nouvelle session a échoué. Vérifiez la progression et le dernier journal.
 
-Deux méthodes sont proposées :
+Abandonner une copie supprime ses modifications non rapatriées. Faites-le
+seulement après avoir vérifié ce que vous souhaitez conserver. Une copie active
+ou encore montée ne peut pas être supprimée par ce menu. Ne forcez pas son
+retrait à la main pour contourner un refus : consultez le diagnostic.
 
-**Package autonome / partageable**  
-Recommandé pour une installation Batocera qui ne dispose pas encore de l'infrastructure UMU. Le package contient le runner, ses informations d'intégrité, un installateur et les contrôles nécessaires.
+HOTKEY + START
 
-**Archive du runner uniquement**  
-Destinée plutôt à une sauvegarde ou au transfert vers une installation Batocera déjà préparée pour UMU.
+Ce raccourci peut interrompre les processus avant leur nettoyage. L'intégration
+coordonne la fermeture avec Batocera lorsque le chemin normal est disponible ;
+un arrêt forcé peut malgré tout laisser une récupération. Pour vérifier un jeu,
+sauvegardez, quittez normalement si possible, puis contrôlez après relancement.
 
-Un runner modifié qui échoue au contrôle d'intégrité n'est pas considéré comme fiable pour un export géré normal.
+Ces copies ne remplacent pas une sauvegarde personnelle de vos jeux et données.
 
-## Suppression et désinstallation
+<a id="direct"></a>
 
-La suppression d'un runner depuis la Toolbox ne supprime pas les jeux ni leurs sauvegardes.
+## Mode direct : pour certains jeux particuliers
 
-Le script `uninstall.sh` retire uniquement la Toolbox : son dossier, son lanceur Ports et une éventuelle ancienne installation pré-v0.5.2b. Il conserve volontairement les runners Proton-UMU gérés déjà installés, UMU, les jeux, les Wine bottles et les sauvegardes.
+À ACTIVER SEULEMENT SI LE JEU EN A BESOIN
 
-## À retenir
+Certains jeux supportent mal les chemins de lancement redirigés ou les liens
+symboliques de sauvegardes. Le mode direct est un réglage de compatibilité par
+jeu, utilisé notamment dans notre essai Forza Horizon 2 / Azimuth.
 
-La Toolbox automatise volontairement l'essentiel de l'intégration UMU : installation, contrôles d'intégrité, protection des runners, résolution `GAMEID` / `STORE`, mises à jour et diagnostics.
+Dans autorun.cmd, ajoutez UMU_DIRECT_GAME=1 à la ligne ENV= existante.
+Si elle n'existe pas, créez une ligne :
 
-Pour une utilisation normale, il n'est pas nécessaire de modifier manuellement les fichiers des runners ou les variables UMU.
+ENV=UMU_DIRECT_GAME=1
 
-## Documentation complémentaire
+S'il y a déjà des variables, conservez-les sur cette même ligne ENV= et ajoutez
+la nouvelle, séparée par un espace. Ne créez pas plusieurs lignes concurrentes.
+Pour revenir au fonctionnement normal, retirez uniquement UMU_DIRECT_GAME=1.
+Fermez le jeu avant de modifier ce fichier.
 
-### Chemin du jeu conservé sur C:
+Le mode direct conserve UMU et son environnement. Quand un SAVEDIR pris en charge
+se trouve dans le dossier du jeu, il peut remplacer temporairement le lien de
+sauvegarde par un vrai dossier, puis rapatrier son contenu et restaurer le lien.
+Cela prend de l'espace et un peu de temps selon la taille des sauvegardes.
 
-L’intégration 3.10.7 monte temporairement le dossier réel du jeu sous drive_c dans le préfixe Proton actif. Avec un dossier d’origine drive_c/game, le jeu et ses sélecteurs de fichiers retrouvent C:\game. Un autre nom d’origine reste conservé. Les formats .wine et .wsquashfs utilisent cette vue, sans copier les données du jeu dans le préfixe matérialisé ; pour une archive, la source reste la vue fusionnée de Batocera.
+Une génération précédente peut être gardée dans .umu-direct-previous, dans le
+dossier de sauvegardes externe. Elle est distincte des copies de préfixe.
+Après une interruption, la reprise dépend des vérifications de la même source
+et de l'état enregistré ; les situations incertaines sont conservées pour examen.
 
-Le lancement normal utilise aussi cette vue pour l’exécutable et son répertoire courant. Le mode UMU_DIRECT_GAME=1 garde ses chemins de lancement actuels, avec l’accès C: disponible en complément. La vue est démontée avant la synchronisation du préfixe et avant son montage parent. Les fichiers du jeu restent exclus de la copie du préfixe.
+Le test FH2 de cette intégration a validé une course, une sauvegarde et un
+relancement avec progression conservée, sans avertissement de synchronisation.
+Cela ne constitue pas une validation de tous les jeux ni de tous les arrêts.
 
-Sélectionner une fois C:\game dans l’application si elle avait enregistré un chemin S:\... ; aucun réglage applicatif n’est réécrit automatiquement. Pour comparer avec l’ancien fonctionnement, ajouter UMU_C_GAME_PATH=0 à la ligne ENV= de l’autorun. Le journal indique runtime_c_game_source, runtime_c_game_target, runtime_c_game_windows et le nettoyage runtime_c_game_unmounted. Cette version demande encore une validation réelle sur Batocera, notamment en .wsquashfs.
+L'accès au dossier du jeu sur C: est également proposé par l'intégration pour
+les formats concernés. Voir C:\game n'impose pas à lui seul le mode direct.
 
-### Comparaison du partage des caches graphiques
+<a id="maintenance"></a>
 
-Avec l’intégration 3.10.6, **Paramètres → Partage des caches graphiques (test performances)** permet de désactiver puis réactiver le partage automatique des dossiers de cache Batocera avec le conteneur UMU. Activé par défaut, ce choix s’applique aux prochains lancements et reste conservé après mise à jour.
+## Maintenance : vérifier, réparer, nettoyer
 
-Pour un seul jeu, ajouter `UMU_GRAPHICS_CACHE_SHARING=0` à sa ligne `ENV=` d’autorun ; `1` force l’activation. Ce réglage par jeu est prioritaire sur le choix global. Le journal du runner indique `graphics_cache_sharing=0` ou `1`.
+LE BON ORDRE EN CAS DE DOUTE
 
-Aucun cache n’est supprimé. Désactiver retrouve le comportement de partage antérieur au correctif : les autres caches de Proton/Mesa et les partages explicitement configurés restent possibles. La compilation peut reprendre si un chemin de cache Batocera redevient invisible. Comparer séparément le premier lancement et les suivants. Fermer le jeu entre chaque changement.
+1. Fermez les jeux UMU.
+2. Lancez Maintenance > Diagnostic UMU complet.
+3. Si le problème concerne l'intégration, utilisez Réparer / mettre à niveau
+   l'intégration UMU, puis consultez le résultat.
+4. Testez le jeu avant de supprimer des données.
 
-L'ancien guide détaillé d'installation et de partage reste disponible dans [GUIDE_PARTAGE_ET_INSTALLATION.txt](GUIDE_PARTAGE_ET_INSTALLATION.txt).
+INTÉGRITÉ ET PROTECTION
 
-## Crédits
+Les runners gérés possèdent une liste de contrôle de leurs fichiers importants.
+Le diagnostic peut détecter une modification ou un fichier manquant. Pendant
+les jeux, les runners sont protégés en lecture seule pour qu'un préfixe ne
+modifie pas accidentellement leurs composants partagés.
 
-UMU Runner Toolbox est un projet communautaire destiné à intégrer l'écosystème UMU et les runners GE-Proton, GDK-Proton, CachyOS Proton, Proton-EM et DW-Proton à Batocera. Il s'appuie notamment sur **UMU Launcher**, **GE-Proton**, **GDK-Proton**, **CachyOS Proton**, **Proton-EM**, **DW-Proton**, **ProtonFixes**, **Steam Runtime** et **Batocera**. Les marques et noms de projets appartiennent à leurs propriétaires respectifs.
+Le préfixe du jeu reste modifiable. Une alerte d'intégrité n'indique pas à elle
+seule un virus. Elle signifie que le runner ne correspond plus à l'état attendu.
+La réparation de l'intégration n'est pas une restauration universelle de fichiers
+altérés : un runner modifié peut être ignoré et nécessiter une réinstallation.
 
-## Licence
+NETTOYAGE DES DONNÉES UMU
 
-Le projet est distribué sous licence **GNU General Public License v3.0 (GPL-3.0)**. Voir [LICENSE](../LICENSE).
+L'outil annonce les catégories et leur taille avant confirmation. Il peut
+supprimer des données de travail, comme compatdata, les vues de préfixe et les
+copies supprimables. Une nouvelle préparation peut être nécessaire au lancement.
+Il conserve notamment les runners, UMU, son runtime et les données de jeu Batocera.
+Le nettoyage global est bloqué tant que des copies de récupération restent à
+examiner. Les caches graphiques facultatifs sont proposés à part.
 
+NETTOYAGE DES JOURNAUX
 
-## Compatibilité par jeu : mode direct
+Libère les anciens comptes rendus techniques. Exportez ceux d'un problème en
+cours avant de les effacer. La Toolbox applique déjà une rotation des journaux.
 
-Ajouter `UMU_DIRECT_GAME=1` à l’unique ligne `ENV=` de `autorun.cmd` pour les jeux refusant les chemins redirigés ou les liens de sauvegardes. Les autres jeux conservent leur mode de lancement. L’intégration 3.10.4 conserve Steam Runtime et les protections des runners. Les sauvegardes `SAVEDIR` situées dans le répertoire du jeu sont copiées dans un vrai dossier au lancement, synchronisées à la fermeture, puis le lien Batocera est restauré. Une seule copie de secours est conservée dans le dossier de sauvegardes du jeu sous `.umu-direct-previous`, et exclue des copies suivantes. Fermer normalement le jeu ; une interruption forcée peut nécessiter une récupération. Les copies demandent de l’espace libre et un délai proportionnel à la taille des sauvegardes.
+PROTECTIONS RO ORPHELINES
 
-## Correctif des copies de travail (version de test)
+Retire des protections en lecture seule restées sans session active. Utilisez
+cette fonction lorsqu'une protection empêche une opération après un arrêt anormal.
+Elle ne sert pas à désactiver durablement la protection des runners.
 
-Toolbox **0.13.14-test6**, intégration **3.10.16** : la reprise vérifie la génération réelle de l'archive (fichier associé au périphérique loop, inode, taille et dates précises), les registres/autorun du préfixe, le runner et le mode direct. Le remplacement d'un WSquashFS au même emplacement, un retour à une ancienne version ou une origine non vérifiable déclenche une nouvelle copie ; les anciennes modifications sont conservées séparément, sans être injectées dans le nouveau jeu. Aucun hachage complet des grosses archives. Un montage d'archive non identifiable désactive la reprise automatique.
+DÉSINSTALLATION
 
-**Hotkey + Start** peut tuer le wrapper et ses enfants sans exécuter le nettoyage de sortie. La copie non synchronisée reste alors conservée. Avec `UMU_DIRECT_GAME=1`, le chemin des sauvegardes et leur cible externe sont journalisés avant remplacement du lien. Au prochain lancement de la même version vérifiée, les sauvegardes récentes restées dans le dossier du jeu sont reprises sans recopier les anciennes sauvegardes externes. Une version modifiée, un historique absent ou un retour des sauvegardes partiellement effectué bloque la reprise automatique et conserve les fichiers pour examen manuel. Après synchronisation réussie du préfixe et des sauvegardes directes, puis libération des montages, la copie de travail est supprimée. La génération de secours `.umu-direct-previous` reste distincte de ce préfixe temporaire.
+Les choix ont des portées différentes : Toolbox seule, UMU et ses runners,
+ou ensemble complet. Lisez la liste affichée : les deux derniers choix retirent
+aussi des données UMU, exports et récupérations. Ne les confondez pas avec la
+simple suppression d'un runner. Sauvegardez les données utiles avant validation.
 
-Le menu Maintenance permet d'abandonner explicitement une copie locale sans journal. Il vérifie à nouveau les fichiers imbriqués, le journal, les sessions et les montages avant suppression, et affiche la cause précise d'un refus. Cette suppression ne nettoie pas les sauvegardes directes restées dans le dossier du jeu.
+<a id="sharing"></a>
 
-Les tests locaux tuent réellement un groupe de processus avec SIGKILL et couvrent l'arrêt normal, la reprise directe, une interruption entre retour du préfixe et retour des sauvegardes, le changement de version et l'échec de synchronisation. Ils modélisent les montages compressés ; le comportement de Forza Horizon 2 reste à confirmer sur Batocera avec ce correctif. Fermer les jeux avant installation ; l'installateur migre les runners gérés sains vers l'intégration 3.10.16.
+## Mises à jour, export et partage
 
-L'intégration **3.10.12** traite aussi le retrait du montage original `/run/wine` avant le retour du préfixe. Si ce chemin n'est plus un OverlayFS, le retour peut utiliser l'alias encore monté par le wrapper, uniquement s'il est inscriptible et correspond aux mêmes upperdir/lowerdir enregistrés. Aucun retour direct dans le SquashFS ni dans un dossier de montage vide. L'identité de la source est vérifiée à travers cette vue encore vivante, tout en gardant le chemin source original dans le journal. Les refus précisent les types de systèmes de fichiers et le contrôle en échec. Une copie de récupération antérieure peut rester conservée séparément après cette mise à niveau ; l'examiner ou l'abandonner dans Maintenance après validation du jeu.
+TROIS CHOSES DIFFÉRENTES À METTRE À JOUR
 
-L'intégration **3.10.13** corrige un faux refus `refused-alias-upperdir` pour les chemins contenant des espaces : les options de l'alias sont lues sans l'échappement hexadécimal du mode raw de findmnt, comme lors de la détection initiale. L'option `--notruncate` conserve les valeurs complètes. Le test utilise le vrai findmnt util-linux, une table mountinfo isolée et le chemin FH2. Les contrôles de correspondance upperdir/lowerdir restent obligatoires.
+La Toolbox : les menus et outils de gestion, via la fonction de mise à jour.
+L'intégration : les scripts qui relient les runners à Batocera, via la réparation
+ou la migration des runners gérés sains lors d'une installation.
+Le runner : une nouvelle version de Proton, à installer séparément puis à choisir
+pour le jeu. Actualiser la Toolbox ne choisit pas un nouveau Proton pour vos jeux.
 
-L'intégration **3.10.14** synchronise le contenu des dossiers du préfixe sur place, au lieu de supprimer puis recréer leurs racines. Cela évite le refus FH2 `dosdevices: Directory not empty`, tout en retirant les entrées obsolètes et en préservant l'autorun courant, le dossier du jeu et le backup UWT validé. Chaque fichier est copié dans un espace temporaire du système de fichiers cible, puis remplacé individuellement : aucun fichier de runner lié au préfixe n'est modifié par écriture à travers un lien. Les dossiers communs conservent leur inode. Le retour complet n'est pas atomique ; un échec ou une interruption conserve toujours le préfixe de récupération. Les espaces réservés `.umu-prefix-sync-*` ne sont pas recopiés dans les préfixes de travail ; l'espace de la session courante est retiré à la fin normale du retour.
+UMU et son runtime sont aussi des composants distincts, préparés selon les besoins
+de l'installation. Une première préparation peut nécessiter des téléchargements.
+Installez les mises à jour avec les jeux fermés : un wrapper déjà lancé n'est
+pas remplacé au milieu d'une session.
 
-L'intégration **3.10.15** prépare chaque fichier/lien temporaire à côté de sa destination, au lieu de déplacer une entrée depuis un espace temporaire à la racine vers les sous-dossiers fusionnés. Cette adaptation suit le retour FH2 en ENOENT sur `drive_c/openxr/wineopenxr64.json`. Les remplacements restent privés et atomiques par entrée ; les racines de dossiers restent en place. Les candidats temporaires sont exclus du retour à tous les niveaux et retirés lors du retour normal ou d'une erreur gérée. Le diagnostic précise source, destination et présence du parent/candidat. Le test modélise le refus des déplacements entre dossiers ; une validation réelle Batocera reste nécessaire.
+EXPORTER UN RUNNER SEUL
 
-L'intégration **3.10.16** ajoute une attente à la fermeture native. Pour une session identifiée exactement par son préfixe d'origine, `bin/wineserver -w` attend Wine, puis la fin du wrapper hôte et de son nettoyage. Les attentes internes Proton et les associations par runner seul ne bloquent pas leur parent. Le journal de session contient l'identité de démarrage du processus ; un processus mort, zombie ou un PID réutilisé libère l'attente. Un arrêt forcé conserve toujours les données non rapatriées et le code d'erreur natif est préservé.
+Archive destinée à une sauvegarde ou un autre Batocera déjà préparé pour UMU.
+Elle ne contient pas tout l'environnement nécessaire à une machine vierge.
 
-Cette correction traite la course de fermeture suggérée par le journal FH2 : Batocera supprime son workdir OverlayFS après l'attente wineserver, qui ne couvrait pas le retour du wrapper UMU. Le chemin `runtime_workdir` est journalisé ; s'il a déjà perdu son dossier interne `work`, le retour est refusé avec le code 14. Les tests modélisent le nettoyage natif après -w et vérifient qu'il attend le retour du préfixe, des sauvegardes directes et la fin du nettoyage du wrapper. L'essai sur le build Batocera de l'utilisateur reste nécessaire. Les marqueurs `runtime_wait_begin` et `runtime_wait_end` apparaissent dans wineserver-stop.log. Les anciennes sessions sans identité de processus gardent leur comportement antérieur. Installer uniquement avec les jeux fermés.
+CRÉER UN PACKAGE AUTONOME / PARTAGEABLE
+
+Inclut le runner, UMU, le runtime requis, un installateur et les contrôles prévus
+pour préparer un autre Batocera, y compris hors ligne. La création peut être
+longue : le téléchargement et la compression demandent du temps et de l'espace.
+
+Le destinataire extrait le package puis lance son installateur sur Batocera.
+Il sélectionne ensuite le runner pour son jeu dans EmulationStation.
+
+Aucun des deux exports n'inclut vos jeux ni leurs sauvegardes. Un export de
+runner n'est pas une sauvegarde complète de votre configuration Batocera.
+Les fichiers du runner sont contrôlés avant un export géré.
+
+<a id="help"></a>
+
+## Dépannage : les bons réflexes et les journaux
+
+LE JEU NE DÉMARRE PAS
+
+Vérifiez qu'il utilise bien le runner -UMU voulu. Lancez le diagnostic, puis
+comparez avec un runner déjà connu pour fonctionner. Notez le format du jeu,
+la version Batocera et le runner exact. Une nouvelle version de jeu peut aussi
+être à l'origine du changement de comportement.
+
+LE PREMIER LANCEMENT EST LONG
+
+Une préparation du runtime, du préfixe ou des shaders peut prendre du temps.
+Consultez le journal pour voir si l'opération avance. N'effacez pas les caches
+à chaque essai : cela peut justement provoquer de nouvelles compilations.
+
+LES DONNÉES NE SONT PAS SYNCHRONISÉES
+
+Gardez la copie de récupération. Vérifiez le journal du dernier lancement du
+jeu avant de supprimer quoi que ce soit. En mode direct, le retour des sauvegardes
+et le retour du préfixe sont deux opérations : l'une peut réussir et l'autre
+échouer. Vérifiez votre progression après relancement si le jeu peut être repris.
+
+QUELS FICHIERS FOURNIR POUR OBTENIR DE L'AIDE ?
+
+- Le nom du jeu, son format et les étapes pour reproduire le problème.
+- La version Batocera, celle de la Toolbox et le nom complet du runner.
+- Le dernier journal du jeu et le journal Toolbox concerné.
+- Pour un problème de fermeture : wineserver-stop.log, s'il existe.
+
+Journaux des jeux : /userdata/system/logs/umu-runner/
+Journaux Toolbox : /userdata/system/logs/umu-toolbox/
+Le journal d'une partie s'appelle runner-AAAAMMJJ-HHMMSS-PID.log.
+runner-guard.log sert à la protection : ce n'est pas le journal de votre partie.
+
+Depuis un PC Windows, ouvrez le partage réseau Batocera puis system/logs.
+Lisez les fichiers avant de les partager : ils peuvent contenir vos chemins
+et des informations sur votre installation.
+
+LES REPÈRES UTILES
+
+Toolbox : /userdata/system/umu/toolbox
+Runners : /userdata/system/wine/custom
+Exports : /userdata/system/umu/exports
+Copies de travail : /userdata/system/umu/materialized-prefixes
+Sauvegardes Windows externalisées : /userdata/saves/windows
+L'emplacement réel des sauvegardes dépend de la configuration de chaque jeu.
+
+Projet et signalements : https://github.com/Thomson67/umu-runner-toolbox
+Cet outil communautaire s'appuie sur Batocera, UMU et les projets de runners.
