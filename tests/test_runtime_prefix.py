@@ -298,6 +298,45 @@ class LifecycleOrderTests(unittest.TestCase):
 
 
 class CompressedPersistenceTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('findmnt'), 'util-linux findmnt required')
+    def test_real_findmnt_space_encoding_does_not_reject_matching_fh2_layers(self):
+        # Exercise util-linux's actual formatter against an isolated mountinfo
+        # table. Raw output hex-escapes spaces; normal output decodes them.
+        start = WRAPPER.index('        target_fstype=', WRAPPER.index('persist_split_wine_prefix() {'))
+        guard = WRAPPER[start:WRAPPER.index('\n    else\n      case', start)]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            alias = root / 'alias'
+            alias.mkdir()
+            original = root / 'gone/FH2.wsquashfs'
+            game = 'Forza Horizon 2[GE-Proton11-7-UMU].wsquashfs'
+            upper = str(root / 'wine-bottles' / (game + '.wine'))
+            lower = str(root / 'squashfs' / game)
+            table = root / 'mountinfo'
+            def escape(value):
+                return value.replace('\\', r'\134').replace(' ', r'\040')
+            table.write_text(f'100 1 0:99 / {alias} rw,relatime - overlay overlay '
+                             f'rw,lowerdir={escape(lower)},upperdir={escape(upper)},workdir=/work\n')
+            raw = subprocess.check_output(['findmnt', '-k', '-F', str(table), '-rn', '-M', str(alias),
+                                           '-o', 'OPTIONS'], text=True)
+            self.assertIn(r'Forza\x20Horizon\x202', raw)
+            script = '''set -u
+log() { printf '%s\\n' "$*"; }
+findmnt() { command findmnt -k -F "$TABLE" "$@"; }
+check_guard() {
+    local target="$ORIGINAL_PREFIX_CANON" target_fstype alias_fstype alias_options
+''' + guard + '''
+    printf 'verified_target=%s\\n' "$target"
+}
+check_guard
+'''
+            result = subprocess.run(['bash', '-c', script], capture_output=True, text=True,
+                env=dict(os.environ, TABLE=str(table), ORIGINAL_PREFIX_CANON=str(original),
+                         ALIAS_BOUND='1', ALIAS_MOUNT=str(alias), OVERLAY_UPPERDIR=upper,
+                         OVERLAY_LOWERDIR=lower))
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('verified_target=' + str(alias), result.stdout)
+
     def test_return_uses_only_owned_matching_writable_alias_if_original_mount_is_gone(self):
         for failure in ('', 'upper', 'lower', 'readonly', 'fstype', 'unowned'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as folder:
