@@ -452,6 +452,11 @@ rc=0
 
 
 class ProcessIdentityTests(unittest.TestCase):
+    def test_zombie_owner_is_not_considered_alive_for_cleanup_waiting(self):
+        fields = ['Z'] + ['0'] * 18 + ['123456']
+        with patch.object(Path, 'read_text', return_value='42 (wine) ' + ' '.join(fields)):
+            self.assertEqual(runtime.process_token(42), '')
+
     def test_start_time_parsing_includes_boot_id_and_handles_parentheses_in_name(self):
         fields = ['S'] + ['0'] * 18 + ['123456'] + ['0'] * 10
         stat = '42 (wine (game)) ' + ' '.join(fields)
