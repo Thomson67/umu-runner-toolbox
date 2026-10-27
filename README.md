@@ -1,6 +1,8 @@
 # UMU Runner Toolbox for Batocera
 
-[Documentation française](docs/README_FR.md)
+[Guide utilisateur français](docs/README_FR.md) · [English user guide](docs/GUIDE_EN.md)
+
+New to UMU? Start with the user guide, also available offline in the Toolbox’s **Documentation / About** menu.
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
