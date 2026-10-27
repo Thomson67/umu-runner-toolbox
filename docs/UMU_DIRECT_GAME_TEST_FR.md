@@ -66,3 +66,7 @@ Le test de concurrence échoue avec l'ancien wineserver et passe avec la nouvell
 Références de l'analyse : script natif package/batocera/wine/batocera-wine/batocera-wine (waitWineServer, play_squashfs, cleanAndExit) dans batocera-linux/batocera.linux ; documentation noyau OverlayFS, section Changes to underlying filesystems. Le nettoyage natif effectue rm -rf sur WORKPOINT ; une vue bind survivante ne protège pas ce dossier contre cette suppression.
 
 Le relancement natif après kill est également couvert : saveFilesToUserdata peut avoir déjà copié les sauvegardes locales vers leur cible externe et restauré le lien actif avant UMU. Si le lien actif et le lien de secours `.umu-direct-link` désignent exactement le même dossier externe existant, sans `.umu-direct-local` en attente, seul le lien de secours redondant est retiré avant la préparation normale. Un vrai dossier local, une cible différente ou une transaction partielle restent protégés. Le test modèle le cp/rm/ln natif après SIGKILL puis vérifie la progression, le lien et le nettoyage après retour réussi.
+
+## Validation utilisateur — version 0.13.14
+
+Le correctif de fermeture de l’intégration 3.10.16 a été validé sur FH2/Azimuth : une course, une sauvegarde et un relancement ont conservé la progression, sans avertissement de synchronisation. Ce résultat valide ce scénario ; les interruptions forcées restent traitées par la récupération lorsque le retour ne peut pas être terminé. La version stable inclut aussi le guide utilisateur hors ligne dans Documentation / À propos.
