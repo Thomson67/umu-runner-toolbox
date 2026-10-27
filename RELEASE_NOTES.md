@@ -1,35 +1,51 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.14-test6 — intégration 3.10.16 (test)**
+**UMU Runner Toolbox v0.13.14 — intégration 3.10.16**
 
-- Mode direct après kill : reconnaissance du lien déjà restauré par la préparation native et retrait du seul lien de secours redondant, sans supprimer les sauvegardes.
-- Ajout d’une attente de fin du wrapper dans le wineserver -w natif : le nettoyage Batocera attend le retour des données et la libération des montages. Identification du processus, libération après kill/zombie et conservation des copies non synchronisées. Le workdir est journalisé et un workdir disparu bloque le retour avec un motif explicite. Validation réelle encore requise.
-- Adaptation du retour après ENOENT sur le manifeste OpenXR : fichiers temporaires placés à côté de leur destination et diagnostic détaillé en cas de nouvel échec. Test de simulation réussi ; validation Batocera encore requise.
-- Correction de `dosdevices: Directory not empty` au retour FH2 : dossiers synchronisés sur place, suppression des entrées obsolètes et remplacement privé des fichiers. Le jeu, les sauvegardes externes et les runners restent protégés.
-- Correction du faux refus `refused-alias-upperdir` pour les chemins contenant des espaces : lecture décodée des options findmnt et test avec le vrai formateur util-linux.
-- Correction du retour du préfixe si Batocera a déjà retiré le montage original : utilisation de l’alias encore monté, uniquement après validation des couches et de son accès en écriture. Les sauvegardes directes conservent leur traitement.
-- Suppression explicite des copies locales sans journal depuis Maintenance, après confirmation et vérification des fichiers, sessions et montages.
-- Affichage de la cause réelle d’un refus ; gestion des processus disparus pendant l’examen de leurs montages.
-- Une archive remplacée au même emplacement ou une source non vérifiable ne réutilise plus silencieusement une ancienne copie UMU. L’ancienne copie reste disponible à l’examen.
-- Prise en compte de Hotkey + Start / SIGKILL : aucune dépendance au nettoyage de sortie pour repérer une session interrompue.
-- Mode direct : journal des chemins de sauvegardes avant remplacement du lien, reprise des sauvegardes locales récentes pour une même version vérifiée et nettoyage après synchronisation réussie.
-- Une reprise non vérifiable ou un retour partiellement effectué conserve les données et demande un examen manuel. Abandonner le préfixe ne supprime pas les sauvegardes directes restées dans le jeu. La copie de secours `.umu-direct-previous` reste limitée à une génération.
-- Tests locaux incluant SIGKILL d’un groupe de processus. Validation réelle Forza Horizon 2 sur Batocera encore requise.
+### Synchronisation et copies de travail
+
+- Correction de l’ordre de fermeture : le nettoyage natif Batocera attend la fin du wrapper UMU, le retour du préfixe et des sauvegardes directes, puis la libération des montages.
+- Correction du retour des préfixes compressés : gestion du montage original déjà retiré via un alias vérifié, chemins avec espaces et synchronisation des dossiers sur place sans supprimer leur racine.
+- Les copies de travail sont supprimées après synchronisation réussie et libération des montages. Un échec ou un arrêt brutal conserve les changements non rapatriés pour récupération.
+- La reprise vérifie la version source, le runner et le mode de lancement. Remplacer un WSquashFS au même emplacement ou revenir à une ancienne version ne réinjecte plus silencieusement les données d’une autre version.
+- En mode direct, les chemins de sauvegardes sont journalisés avant modification. Les sauvegardes locales récentes d’une session interrompue sont reprises uniquement lorsque l’identité de la source et l’état le permettent. Le lien déjà restauré par Batocera est reconnu.
+- Maintenance permet d’abandonner explicitement une copie locale sans journal valide, après confirmation et contrôles d’activité/montage ; le motif d’un refus est affiché.
+
+### Documentation intégrée
+
+- Nouveau guide pour débutants dans **Documentation / À propos**, disponible hors ligne en français et en anglais.
+- Sommaire de 11 chapitres : premiers pas, vocabulaire, cinq familles de runners, menus, compatibilité GAMEID, manettes et caches, sauvegardes et récupération, mode direct, maintenance, mises à jour et partage, dépannage.
+- Lecture par chapitre avec défilement ; guides du dépôt actualisés.
+
+### Validation et installation
+
+- 124 tests de régression, incluant SIGKILL d’un groupe de processus et coordination du nettoyage natif.
+- Test réel FH2/Azimuth sous Batocera : course, sauvegarde et relancement avec progression conservée, sans avertissement de synchronisation.
+- Fermer les jeux et la Toolbox avant installation. Les runners gérés sains sont migrés vers l’intégration 3.10.16.
+- Les anciennes copies de récupération restent à examiner séparément dans Maintenance ; la mise à jour ne les supprime pas automatiquement.
 
 ## English
 
-**UMU Runner Toolbox v0.13.14-test6 — integration 3.10.16 (test)**
+**UMU Runner Toolbox v0.13.14 — integration 3.10.16**
 
-- Direct mode after kill: recognize a link already restored by native preparation and retire only the redundant backup symlink, preserving saves.
-- Add a verified host-wrapper completion barrier to native wineserver -w before Batocera cleanup; release on dead/zombie owners without discarding unsynchronized copies. Log and guard the OverlayFS workdir. Actual Batocera validation is still required.
-- Adapt return after OpenXR manifest ENOENT: stage each file beside its destination and report detailed failure context. Simulated regression test passes; Batocera validation is still required.
-- Fix FH2 `dosdevices: Directory not empty` during return: synchronize existing directories in place, remove obsolete entries and replace files privately while preserving game data, external saves and runners.
-- Fix false `refused-alias-upperdir` errors for paths containing spaces by reading decoded findmnt options; regression tested with the real util-linux formatter.
-- Fix prefix return after Batocera has released the original mount: use the still-mounted owned alias only after verifying its layers and writable state. Direct-save handling is preserved.
-- Explicitly discard local copies without a valid regular journal after confirmation and fresh content/activity/mount checks.
-- Display the actual discard error and handle processes disappearing during mount inspection.
-- Do not silently reuse interrupted prefixes after archive replacement at the same path or when the source generation cannot be verified; retain previous changes separately.
-- Account for Hotkey + Start / SIGKILL without relying on EXIT cleanup.
-- Direct mode journals save paths before replacing the link and resumes newer game-side saves only for the same verified source. Successful synchronization removes the working prefix.
-- Unverifiable or partially returned direct saves remain for manual review. Discarding the prefix does not delete game-side save leftovers. One `.umu-direct-previous` generation remains.
-- Local regression tests include killing an entire process group. Actual Forza Horizon 2 validation on Batocera is still required.
+### Synchronization and working copies
+
+- Coordinate native Batocera shutdown with UMU wrapper completion, prefix/direct-save return and mount cleanup.
+- Fix compressed-prefix return through a verified surviving alias, paths containing spaces and in-place directory synchronization.
+- Remove working copies after successful synchronization and mount release. Failed or abruptly interrupted sessions retain unreturned changes for recovery.
+- Verify source generation, runner and launch mode before reuse. Archive replacement or rollback no longer silently reuses changes from another source version.
+- Journal direct-save paths before modification and resume newer local saves only for verified matching state. Recognize save links already restored by native Batocera preparation.
+- Allow explicit discard of local copies without a valid journal after confirmation and activity/mount checks; report the actual refusal reason.
+
+### Built-in documentation
+
+- New offline beginner guide under **Documentation / About**, in French and English.
+- Eleven scrollable chapters covering setup, terminology, runner families, menus, game identification, controllers/caches, saves/recovery, direct mode, maintenance, updates/sharing and troubleshooting.
+- Updated repository reading guides.
+
+### Validation and installation
+
+- 124 regression tests, including process-group SIGKILL and native cleanup coordination.
+- Real FH2/Azimuth validation on Batocera: race, save and relaunch with progress retained and no synchronization warning.
+- Close games and the Toolbox before installing. Healthy managed runners migrate to integration 3.10.16.
+- Existing recovery copies remain available for separate review in Maintenance; upgrading does not automatically discard them.
