@@ -31,7 +31,7 @@ class PrefixReturnTests(unittest.TestCase):
         self.outside.mkdir()
         (self.outside / 'save').write_text('external save remains')
 
-    def persist(self, block_directory_removal=False, reject_cross_directory_manifest=False):
+    def persist(self, block_directory_removal=False, reject_cross_directory_manifest=False, missing_workdir=False):
         function = WRAPPER[WRAPPER.index('persist_split_wine_prefix() {'):
                            WRAPPER.index('# v3.9.2: every materialized-prefix session')]
         function = function.replace('/userdata/system/umu/materialized-prefixes/', str(self.source.parent) + '/')
@@ -61,7 +61,8 @@ rm() {
 ''' + function + '\npersist_split_wine_prefix\n'
         return subprocess.run(['bash', '-c', script], capture_output=True, text=True,
             env=dict(os.environ, MATERIALIZED_PREFIX=str(self.source), ORIGINAL_PREFIX_CANON=str(self.target),
-                     GAME_DIR='game', WINE_SPLIT_PREFIX='1', COMPRESSED_OVERLAY='0',
+                     GAME_DIR='game', WINE_SPLIT_PREFIX='1', COMPRESSED_OVERLAY='1' if missing_workdir else '0',
+                     OVERLAY_WORKDIR=str(self.root / 'removed-workdir') if missing_workdir else '',
                      BLOCK_ROOT='1' if block_directory_removal else '0', LOG='/dev/stderr'))
 
     def test_dosdevices_root_is_kept_and_mapping_changes_are_mirrored(self):
@@ -123,6 +124,13 @@ rm() {
         self.assertEqual((self.source / 'user.reg').read_text(), 'new registry')
         self.assertEqual((self.target / 'drive_c/game/azimuth.exe').read_bytes(), b'game remains')
         self.assertEqual(list(self.target.glob('.umu-prefix-sync-*')), [])
+
+    def test_removed_overlay_workdir_refuses_return_before_touching_the_bottle(self):
+        result = self.persist(missing_workdir=True)
+        self.assertEqual(result.returncode, 14, result.stdout + result.stderr)
+        self.assertIn('refused-workdir-missing', result.stdout)
+        self.assertEqual((self.target / 'user.reg').read_text(), 'old registry')
+        self.assertEqual((self.source / 'user.reg').read_text(), 'new registry')
 
 
 if __name__ == '__main__':
