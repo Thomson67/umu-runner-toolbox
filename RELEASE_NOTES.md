@@ -1,7 +1,8 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.14-test2 — intégration 3.10.12 (test)**
+**UMU Runner Toolbox v0.13.14-test3 — intégration 3.10.13 (test)**
 
+- Correction du faux refus `refused-alias-upperdir` pour les chemins contenant des espaces : lecture décodée des options findmnt et test avec le vrai formateur util-linux.
 - Correction du retour du préfixe si Batocera a déjà retiré le montage original : utilisation de l’alias encore monté, uniquement après validation des couches et de son accès en écriture. Les sauvegardes directes conservent leur traitement.
 - Suppression explicite des copies locales sans journal depuis Maintenance, après confirmation et vérification des fichiers, sessions et montages.
 - Affichage de la cause réelle d’un refus ; gestion des processus disparus pendant l’examen de leurs montages.
@@ -13,8 +14,9 @@
 
 ## English
 
-**UMU Runner Toolbox v0.13.14-test2 — integration 3.10.12 (test)**
+**UMU Runner Toolbox v0.13.14-test3 — integration 3.10.13 (test)**
 
+- Fix false `refused-alias-upperdir` errors for paths containing spaces by reading decoded findmnt options; regression tested with the real util-linux formatter.
 - Fix prefix return after Batocera has released the original mount: use the still-mounted owned alias only after verifying its layers and writable state. Direct-save handling is preserved.
 - Explicitly discard local copies without a valid regular journal after confirmation and fresh content/activity/mount checks.
 - Display the actual discard error and handle processes disappearing during mount inspection.
