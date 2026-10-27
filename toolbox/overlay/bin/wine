@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.14 ====="
+log "===== Batocera UMU runner v3.10.15 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -1137,6 +1137,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import uuid
 
 source, target = map(Path, sys.argv[1:3])
 game, backup = sys.argv[3:5]
@@ -1144,8 +1145,6 @@ reserved = '.umu-prefix-sync-'
 for root in (source, target, source / 'drive_c', target / 'drive_c'):
     if root.is_symlink() or not root.is_dir():
         raise RuntimeError('missing or redirected prefix directory: ' + str(root))
-work = Path(tempfile.mkdtemp(prefix=reserved, dir=target))
-
 def remove(path):
     if path.is_symlink() or not path.is_dir():
         path.unlink()
@@ -1153,17 +1152,24 @@ def remove(path):
         shutil.rmtree(path)
 
 def excluded(relative, name):
+    if name.startswith(reserved):
+        return True
     if relative == Path('.'):
-        return name.lower() == 'autorun.cmd' or name.startswith(reserved)
+        return name.lower() == 'autorun.cmd'
     return relative == Path('drive_c') and name in {game, backup} - {''}
 
 def mirror(src, dst, relative=Path('.')):
     if src.is_symlink():
-        candidate = work / 'entry'
+        # Keep both directory entries in the same parent. A root staging
+        # directory can fail to rename into a merged OverlayFS subdirectory.
+        candidate = dst.with_name(reserved + uuid.uuid4().hex)
         candidate.symlink_to(os.readlink(src))
-        if dst.exists() and dst.is_dir() and not dst.is_symlink():
-            remove(dst)
-        os.replace(candidate, dst)
+        try:
+            if dst.exists() and dst.is_dir() and not dst.is_symlink():
+                remove(dst)
+            os.replace(candidate, dst)
+        finally:
+            candidate.unlink(missing_ok=True)
         return
     mode = src.lstat().st_mode
     if stat.S_ISDIR(mode):
@@ -1172,8 +1178,7 @@ def mirror(src, dst, relative=Path('.')):
         dst.mkdir(exist_ok=True)
         children = {p.name: p for p in src.iterdir() if not excluded(relative, p.name)}
         for old in list(dst.iterdir()):
-            # The current staging directory is private and never copied back.
-            if old == work or excluded(relative, old.name):
+            if excluded(relative, old.name):
                 continue
             if old.name not in children:
                 remove(old)
@@ -1181,18 +1186,24 @@ def mirror(src, dst, relative=Path('.')):
             mirror(child, dst / name, relative / name)
         shutil.copystat(src, dst, follow_symlinks=False)
     elif stat.S_ISREG(mode):
-        candidate = work / 'entry'
-        shutil.copy2(src, candidate, follow_symlinks=False)
-        if dst.exists() and dst.is_dir() and not dst.is_symlink():
-            remove(dst)
-        os.replace(candidate, dst)
+        fd, temporary = tempfile.mkstemp(prefix=reserved, dir=dst.parent)
+        os.close(fd)
+        candidate = Path(temporary)
+        try:
+            shutil.copy2(src, candidate, follow_symlinks=False)
+            if dst.exists() and dst.is_dir() and not dst.is_symlink():
+                remove(dst)
+            os.replace(candidate, dst)
+        except OSError as error:
+            raise RuntimeError(f'prefix file return failed: source={src} target={dst} '
+                               f'parent_exists={dst.parent.is_dir()} '
+                               f'candidate_exists={candidate.exists()}: {error}') from error
+        finally:
+            candidate.unlink(missing_ok=True)
     else:
         raise RuntimeError('unsupported prefix entry retained for recovery: ' + str(src))
 
-try:
-    mirror(source, target)
-finally:
-    shutil.rmtree(work)
+mirror(source, target)
 PREFIX_RETURN_SYNC
     then
         log "wine_persistence_result=failed phase=sync-tree target=$target"
