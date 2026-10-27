@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.10 ====="
+log "===== Batocera UMU runner v3.10.16 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -470,7 +470,38 @@ prepare_direct_save_copy() {
     case "$parent/" in "$game_root/"*) ;; *) return 0 ;; esac
     path="$parent/$(basename "$path")"
     if [ -e "$path.umu-direct-link" ] || [ -L "$path.umu-direct-link" ]; then
-        log "ERROR: direct_save_backup_exists=$path.umu-direct-link"; return 1
+        # Native saveFilesToUserdata may have already copied the real directory
+        # back and restored the active link before this wrapper starts again.
+        if [ -L "$path" ] && [ -L "$path.umu-direct-link" ] \
+                && [ ! -e "$path.umu-direct-local" ] && [ ! -L "$path.umu-direct-local" ] \
+                && [ "$(readlink -f "$path")" = "$(readlink -f "$path.umu-direct-link")" ]; then
+            source="$(readlink -f "$path")" || return 1
+            case "$source" in /userdata/saves/windows/*) ;; *) return 1 ;; esac
+            [ -d "$source" ] || return 1
+            rm -- "$path.umu-direct-link" 2>>"$LOG" || return 1
+            log "direct_save_native_link_already_restored=$path"
+        # HK+Start can kill this wrapper before EXIT. The game-side real saves
+        # survive in the bottle; do not overwrite them from older external saves.
+        elif [ "${RUNTIME_REUSED:-0}" -eq 1 ] && [ -L "$path.umu-direct-link" ] \
+                && [ -d "$path" ] && [ ! -L "$path" ] \
+                && [ ! -e "$path.umu-direct-local" ] && [ ! -L "$path.umu-direct-local" ]; then
+            source="$(readlink -f "$path.umu-direct-link")" || return 1
+            case "$source" in /userdata/saves/windows/*) ;; *) return 1 ;; esac
+            [ -d "$source" ] || return 1
+            if python3 "$RUNTIME_HELPER" direct-save "$MATERIALIZED_PREFIX" --pid "$$" \
+                    --save-path "$path" --save-source "$source" --resume >>"$LOG" 2>&1; then
+                DIRECT_SAVE_PATH="$path"
+                DIRECT_SAVE_BACKUP="$path.umu-direct-link"
+                DIRECT_SAVE_SOURCE="$source"
+                DIRECT_SAVE_MOVED=1
+                RUNTIME_SAFE_TO_REMOVE=0
+                log "direct_save_reused_after_interruption=$path"
+                return 0
+            fi
+            log "ERROR: unverified interrupted direct saves=$path"; return 1
+        else
+            log "ERROR: direct_save_backup_exists=$path.umu-direct-link; manual recovery required"; return 1
+        fi
     fi
     [ -L "$path" ] || return 0
     source="$(readlink -f "$path")" || return 1
@@ -499,6 +530,15 @@ prepare_direct_save_copy() {
     DIRECT_SAVE_PATH="$path"
     DIRECT_SAVE_BACKUP="$path.umu-direct-link"
     DIRECT_SAVE_SOURCE="$source"
+    if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
+        # Journal before changing either save path. This is recovery data even
+        # when a forced termination happens before UMU itself starts.
+        if ! python3 "$RUNTIME_HELPER" direct-save "$MATERIALIZED_PREFIX" --pid "$$" \
+                --save-path "$path" --save-source "$source" >>"$LOG" 2>&1; then
+            rm -rf -- "$work"; return 1
+        fi
+        RUNTIME_SAFE_TO_REMOVE=0
+    fi
     if ! mv -- "$path" "$DIRECT_SAVE_BACKUP" 2>>"$LOG"; then
         rm -rf -- "$work"; return 1
     fi
@@ -583,7 +623,10 @@ cleanup_c_game_path() {
 cleanup_runtime_mounts() {
     # Never keep a runtime bind busy because this wrapper shell is still cwd inside it.
     cd /userdata 2>>"$LOG" || cd / 2>>"$LOG" || true
-    restore_direct_save_link || RUNTIME_SAFE_TO_REMOVE=0
+    if ! restore_direct_save_link; then
+        RUNTIME_SAFE_TO_REMOVE=0
+        RUNTIME_RECOVERY_REASON="direct-save-sync-failed"
+    fi
     cleanup_c_game_path || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
@@ -640,7 +683,9 @@ prepare_materialized_prefix() {
     flock -n 8 || { log "ERROR: another materialized-prefix session is active"; return 1; }
     python3 "$RUNTIME_HELPER" begin "$MATERIALIZED_PREFIX" \
         --source "$ORIGINAL_PREFIX_CANON" --game-dir "$GAME_DIR" --pid "$$" \
-        --runner "${RUNNER_DIR##*/}" --log "$LOG" >>"$LOG" 2>&1
+        --runner "${RUNNER_DIR##*/}" --log "$LOG" --runner-root "$RUNNER_DIR" \
+        --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" \
+        --source-view "${ALIAS_MOUNT:-$ORIGINAL_PREFIX_CANON}" >>"$LOG" 2>&1
     begin_rc=$?
     case "$begin_rc" in
         0) RUNTIME_REUSED=0;;
@@ -657,7 +702,8 @@ check_materialized_space() {
     local -a items=()
     for item in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
         [ -e "$item" ] || [ -L "$item" ] || continue
-        [ "$(basename "$item")" = drive_c ] || items+=("$item")
+        case "$(basename "$item")" in drive_c|.umu-prefix-sync-*) continue ;; esac
+        items+=("$item")
     done
     for item in "$ORIGINAL_PREFIX_CANON/drive_c"/* "$ORIGINAL_PREFIX_CANON/drive_c"/.[!.]* "$ORIGINAL_PREFIX_CANON/drive_c"/..?*; do
         [ -e "$item" ] || [ -L "$item" ] || continue
@@ -749,6 +795,7 @@ esac
 # overlay semantics while keeping Proton's PFX off OverlayFS.
 OVERLAY_UPPERDIR=""
 OVERLAY_LOWERDIR=""
+OVERLAY_WORKDIR=""
 MATERIALIZED_PREFIX=""
 GAMEVIEW=""
 if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
@@ -759,8 +806,12 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     case ",$OVERLAY_MOUNT_OPTS," in
         *,lowerdir=*) OVERLAY_LOWERDIR="${OVERLAY_MOUNT_OPTS#*lowerdir=}"; OVERLAY_LOWERDIR="${OVERLAY_LOWERDIR%%,*}"; OVERLAY_LOWERDIR="${OVERLAY_LOWERDIR%%:*}" ;;
     esac
+    case ",$OVERLAY_MOUNT_OPTS," in
+        *,workdir=*) OVERLAY_WORKDIR="${OVERLAY_MOUNT_OPTS#*workdir=}"; OVERLAY_WORKDIR="${OVERLAY_WORKDIR%%,*}" ;;
+    esac
     log "runtime_lowerdir=$OVERLAY_LOWERDIR"
     log "runtime_upperdir=$OVERLAY_UPPERDIR"
+    log "runtime_workdir=$OVERLAY_WORKDIR"
     [ -d "$OVERLAY_LOWERDIR" ] || { log "ERROR: compressed-prefix lowerdir missing: $OVERLAY_LOWERDIR"; exit 78; }
     [ -d "$OVERLAY_UPPERDIR" ] || { log "ERROR: compressed-prefix upperdir missing: $OVERLAY_UPPERDIR"; exit 78; }
 
@@ -788,7 +839,7 @@ if [ "$COMPRESSED_OVERLAY" -eq 1 ]; then
     if [ "$RUNTIME_REUSED" -eq 0 ]; then
     for COPY_ITEM in "$ALIAS_MOUNT"/* "$ALIAS_MOUNT"/.[!.]* "$ALIAS_MOUNT"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
-        [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
+        case "$(basename "$COPY_ITEM")" in drive_c|.umu-prefix-sync-*) continue ;; esac
         cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/" 2>>"$LOG" || {
             log "ERROR: compressed-prefix prefix-root copy failed: $COPY_ITEM"; exit 80;
         }
@@ -954,7 +1005,7 @@ if [ "$WINE_SPLIT_PREFIX" -eq 1 ]; then
     if [ "$RUNTIME_REUSED" -eq 0 ]; then
     for COPY_ITEM in "$ORIGINAL_PREFIX_CANON"/* "$ORIGINAL_PREFIX_CANON"/.[!.]* "$ORIGINAL_PREFIX_CANON"/..?*; do
         [ -e "$COPY_ITEM" ] || [ -L "$COPY_ITEM" ] || continue
-        [ "$(basename "$COPY_ITEM")" = "drive_c" ] && continue
+        case "$(basename "$COPY_ITEM")" in drive_c|.umu-prefix-sync-*) continue ;; esac
         cp -a "$COPY_ITEM" "$MATERIALIZED_PREFIX/" 2>>"$LOG" || {
             log "ERROR: wine split prefix-root copy failed: $COPY_ITEM"; exit 82;
         }
@@ -1022,7 +1073,7 @@ fi
 persist_split_wine_prefix() {
     local source="${MATERIALIZED_PREFIX:-}"
     local target="${ORIGINAL_PREFIX_CANON:-}"
-    local item name
+    local item name target_fstype alias_fstype alias_options
 
     [ "${WINE_SPLIT_PREFIX:-0}" -eq 1 ] || [ "${COMPRESSED_OVERLAY:-0}" -eq 1 ] || return 0
     [ -n "$source" ] && [ -n "$target" ] && [ -n "${GAME_DIR:-}" ] || return 1
@@ -1032,11 +1083,43 @@ persist_split_wine_prefix() {
         *) log "wine_persistence_result=refused-source source=$source"; return 2 ;;
     esac
     if [ "${COMPRESSED_OVERLAY:-0}" -eq 1 ]; then
+        if [ -n "${OVERLAY_WORKDIR:-}" ] && [ ! -d "$OVERLAY_WORKDIR/work" ]; then
+            log "wine_persistence_result=refused-workdir-missing workdir=$OVERLAY_WORKDIR"
+            return 14
+        fi
         case "$target" in
             /run/wine/*.wsquashfs|/run/wine/*.wtgz|/var/run/wine/*.wsquashfs|/var/run/wine/*.wtgz) ;;
             *) log "wine_persistence_result=refused-compressed-target target=$target"; return 3;;
         esac
-        [ "$(findmnt -n -o FSTYPE -T "$target" 2>/dev/null)" = overlay ] || return 3
+        target_fstype="$(findmnt -n -o FSTYPE -T "$target" 2>/dev/null || true)"
+        if [ "$target_fstype" != overlay ]; then
+            # Batocera can release its /run/wine mount before this wrapper's
+            # return copy. Our owned bind keeps the same writable overlay alive
+            # (direct saves also use it). Never fall back to a bare directory,
+            # the SquashFS lowerdir, or an unrelated/stale alias.
+            alias_fstype=""
+            alias_options=""
+            if [ "${ALIAS_BOUND:-0}" -eq 1 ] && [ -n "${ALIAS_MOUNT:-}" ]; then
+                alias_fstype="$(findmnt -rn -M "$ALIAS_MOUNT" -o FSTYPE 2>/dev/null || true)"
+                # Match the decoded OPTIONS used during initial discovery.
+                # --raw hex-escapes spaces (FH2 -> Forza\x20Horizon\x202),
+                # falsely rejecting the very same upperdir/lowerdir.
+                alias_options="$(findmnt -n -u -M "$ALIAS_MOUNT" -o OPTIONS 2>/dev/null || true)"
+            fi
+            log "wine_persistence_original_fstype=${target_fstype:-missing} alias_fstype=${alias_fstype:-missing}"
+            if [ "$alias_fstype" != overlay ] || [ -z "${OVERLAY_UPPERDIR:-}" ] || [ -z "${OVERLAY_LOWERDIR:-}" ]; then
+                log "wine_persistence_result=refused-overlay target=$target alias=${ALIAS_MOUNT:-}"
+                return 3
+            fi
+            case ",$alias_options," in *,rw,*) ;; *)
+                log "wine_persistence_result=refused-readonly-alias"; return 3;; esac
+            case ",$alias_options," in *",upperdir=$OVERLAY_UPPERDIR,"*) ;; *)
+                log "wine_persistence_result=refused-alias-upperdir"; return 3;; esac
+            case ",$alias_options," in *",lowerdir=$OVERLAY_LOWERDIR,"*|*",lowerdir=$OVERLAY_LOWERDIR:"*) ;; *)
+                log "wine_persistence_result=refused-alias-lowerdir"; return 3;; esac
+            target="$ALIAS_MOUNT"
+            log "wine_persistence_overlay_alias_fallback=$target"
+        fi
     else
       case "$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')" in
         *.wine) ;;
@@ -1065,55 +1148,88 @@ persist_split_wine_prefix() {
     [ -z "${UWT_GAME_BACKUP_NAME:-}" ] || log "wine_persistence_excluded_uwt_backup=drive_c/$UWT_GAME_BACKUP_NAME"
     log "wine_persistence_begin=$(date -Is 2>/dev/null || date)"
 
-    # Root of the prefix: make the original mirror the post-Proton materialized
-    # state, except for drive_c which needs the game-directory preservation rule.
-    for item in "$target"/* "$target"/.[!.]* "$target"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "drive_c" ] && continue
-        [ "${name,,}" = autorun.cmd ] && continue
-        rm -rf -- "$item" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=remove-root item=$item"
-            return 7
-        }
-    done
-    for item in "$source"/* "$source"/.[!.]* "$source"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "drive_c" ] && continue
-        [ "${name,,}" = autorun.cmd ] && continue
-        cp -a -- "$item" "$target/" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=copy-root item=$item"
-            return 8
-        }
-    done
+    # Mirror matching directories in place. Removing whole OverlayFS roots
+    # (notably dosdevices) can fail even though their entries are writable.
+    # Replace files privately so a destination hardlink never modifies a runner.
+    if ! python3 - "$source" "$target" "$GAME_DIR" "${UWT_GAME_BACKUP_NAME:-}" >>"$LOG" 2>&1 <<'PREFIX_RETURN_SYNC'
+from pathlib import Path
+import os
+import shutil
+import stat
+import sys
+import tempfile
+import uuid
 
-    mkdir -p -- "$target/drive_c" || return 9
+source, target = map(Path, sys.argv[1:3])
+game, backup = sys.argv[3:5]
+reserved = '.umu-prefix-sync-'
+for root in (source, target, source / 'drive_c', target / 'drive_c'):
+    if root.is_symlink() or not root.is_dir():
+        raise RuntimeError('missing or redirected prefix directory: ' + str(root))
+def remove(path):
+    if path.is_symlink() or not path.is_dir():
+        path.unlink()
+    else:
+        shutil.rmtree(path)
 
-    # drive_c: preserve the real game and the validated UWT rollback directory.
-    # Everything else must
-    # reflect the materialized PFX so ProtonFixes/Winetricks registry/files and
-    # save changes outside the game directory survive the session.
-    for item in "$target/drive_c"/* "$target/drive_c"/.[!.]* "$target/drive_c"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "$GAME_DIR" ] && continue
-        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
-        rm -rf -- "$item" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=remove-drive-c item=$item"
-            return 10
-        }
-    done
-    for item in "$source/drive_c"/* "$source/drive_c"/.[!.]* "$source/drive_c"/..?*; do
-        [ -e "$item" ] || [ -L "$item" ] || continue
-        name="$(basename "$item")"
-        [ "$name" = "$GAME_DIR" ] && continue
-        [ -n "${UWT_GAME_BACKUP_NAME:-}" ] && [ "$name" = "$UWT_GAME_BACKUP_NAME" ] && continue
-        cp -a -- "$item" "$target/drive_c/" 2>>"$LOG" || {
-            log "wine_persistence_result=failed phase=copy-drive-c item=$item"
-            return 11
-        }
-    done
+def excluded(relative, name):
+    if name.startswith(reserved):
+        return True
+    if relative == Path('.'):
+        return name.lower() == 'autorun.cmd'
+    return relative == Path('drive_c') and name in {game, backup} - {''}
+
+def mirror(src, dst, relative=Path('.')):
+    if src.is_symlink():
+        # Keep both directory entries in the same parent. A root staging
+        # directory can fail to rename into a merged OverlayFS subdirectory.
+        candidate = dst.with_name(reserved + uuid.uuid4().hex)
+        candidate.symlink_to(os.readlink(src))
+        try:
+            if dst.exists() and dst.is_dir() and not dst.is_symlink():
+                remove(dst)
+            os.replace(candidate, dst)
+        finally:
+            candidate.unlink(missing_ok=True)
+        return
+    mode = src.lstat().st_mode
+    if stat.S_ISDIR(mode):
+        if dst.is_symlink() or (dst.exists() and not dst.is_dir()):
+            remove(dst)
+        dst.mkdir(exist_ok=True)
+        children = {p.name: p for p in src.iterdir() if not excluded(relative, p.name)}
+        for old in list(dst.iterdir()):
+            if excluded(relative, old.name):
+                continue
+            if old.name not in children:
+                remove(old)
+        for name, child in children.items():
+            mirror(child, dst / name, relative / name)
+        shutil.copystat(src, dst, follow_symlinks=False)
+    elif stat.S_ISREG(mode):
+        fd, temporary = tempfile.mkstemp(prefix=reserved, dir=dst.parent)
+        os.close(fd)
+        candidate = Path(temporary)
+        try:
+            shutil.copy2(src, candidate, follow_symlinks=False)
+            if dst.exists() and dst.is_dir() and not dst.is_symlink():
+                remove(dst)
+            os.replace(candidate, dst)
+        except OSError as error:
+            raise RuntimeError(f'prefix file return failed: source={src} target={dst} '
+                               f'parent_exists={dst.parent.is_dir()} '
+                               f'candidate_exists={candidate.exists()}: {error}') from error
+        finally:
+            candidate.unlink(missing_ok=True)
+    else:
+        raise RuntimeError('unsupported prefix entry retained for recovery: ' + str(src))
+
+mirror(source, target)
+PREFIX_RETURN_SYNC
+    then
+        log "wine_persistence_result=failed phase=sync-tree target=$target"
+        return 7
+    fi
 
     [ -d "$target/drive_c/$GAME_DIR" ] || {
         log "wine_persistence_result=failed phase=postcheck-game-dir"
@@ -1121,6 +1237,12 @@ persist_split_wine_prefix() {
     }
 
     log "wine_persistence_end=$(date -Is 2>/dev/null || date)"
+    if [ "${RUNTIME_TRACKED:-0}" -eq 1 ]; then
+        python3 "$RUNTIME_HELPER" checkpoint "$MATERIALIZED_PREFIX" --pid "$$" \
+            --source "$ORIGINAL_PREFIX_CANON" --runner-root "$RUNNER_DIR" \
+            --mode "$UMU_DIRECT_GAME_ENABLED" --lowerdir "${OVERLAY_LOWERDIR:-}" \
+            --source-view "$target" >>"$LOG" 2>&1 || return 13
+    fi
     log "wine_persistence_result=success"
     return 0
 }
@@ -1134,6 +1256,8 @@ if { [ -n "${MATERIALIZED_PREFIX:-}" ] && [ "$EFFECTIVE_WINEPREFIX" = "$MATERIAL
     ACTIVE_STATE_DIR="/run/umu-batocera"
     mkdir -p "$ACTIVE_STATE_DIR"
     ACTIVE_STATE_FILE="$ACTIVE_STATE_DIR/session-$$.state"
+    STOP_OWNER_TOKEN="$(python3 "$RUNTIME_HELPER" token --pid "$$")" || exit 98
+    [ -n "$STOP_OWNER_TOKEN" ] || { log "ERROR: cannot identify return-copy owner"; exit 98; }
     {
         printf '%s\n' "$ORIGINAL_WINEPREFIX"
         printf '%s\n' "$ORIGINAL_PREFIX_CANON"
@@ -1141,6 +1265,7 @@ if { [ -n "${MATERIALIZED_PREFIX:-}" ] && [ "$EFFECTIVE_WINEPREFIX" = "$MATERIAL
         printf '%s\n' "$EFFECTIVE_WINEPREFIX"
         printf '%s\n' "$RUNNER_DIR"
         printf '%s\n' "$$"
+        printf '%s\n' "$STOP_OWNER_TOKEN"
     } > "$ACTIVE_STATE_FILE"
     chmod 600 "$ACTIVE_STATE_FILE" 2>/dev/null || true
     log "runtime_active_state=$ACTIVE_STATE_FILE"

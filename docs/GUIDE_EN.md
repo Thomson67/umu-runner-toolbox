@@ -1,0 +1,398 @@
+# UMU Runner Toolbox — getting started
+
+Install a runner, play and maintain your setup. The same guide is available offline in **Documentation / About** in the Toolbox.
+
+[Guide français](README_FR.md) · [Project / technical details](../README.md)
+
+- [Getting started: install a runner and play](#start)
+- [Wine, Proton and UMU: the vocabulary](#basics)
+- [Five runner families: which one should I choose?](#runners)
+- [A tour of the menus](#menus)
+- [Game compatibility: GAMEID and fixes](#compat)
+- [Controllers, display and graphics caches](#controllers)
+- [Saves and working copies: what does UMU keep?](#saves)
+- [Direct mode: an option for particular games](#direct)
+- [Maintenance: check, repair and clean](#maintenance)
+- [Updates, export and sharing](#sharing)
+- [Troubleshooting and useful logs](#help)
+
+<a id="start"></a>
+
+## Getting started: install a runner and play
+
+YOUR FIRST LAUNCH
+
+The Toolbox prepares Proton runners for UMU on Batocera. Afterwards, start
+your Windows game from EmulationStation as usual. The Toolbox can be closed.
+
+1. Open Ports > UMU Runner Toolbox.
+2. Choose Install a runner, a family and a version. GE-Proton is the general
+   starting point offered by the menu.
+3. Wait for download and preparation to finish.
+4. Open your Windows game's advanced options in EmulationStation and select
+   the installed runner, whose name ends in -UMU.
+5. Launch the game. First-time preparation can take longer.
+6. Save in the game, quit and relaunch to check that progress is retained.
+
+Installing a runner does not assign it to every game. Keep several versions
+and choose one for each game. Downloads require Internet access and free space
+for the runner, runtime and working data. Close games before maintenance.
+
+To install the Toolbox itself, see the stable installation command in:
+https://github.com/Thomson67/umu-runner-toolbox
+
+<a id="basics"></a>
+
+## Wine, Proton and UMU: the vocabulary
+
+WHAT DO THESE WORDS MEAN?
+
+Wine lets Windows programs run on Linux.
+Proton combines Wine with gaming components, including graphics translation.
+It is not an installation of Windows.
+A runner is the Wine/Proton version selected to launch a game.
+UMU runs Proton outside Steam with its intended Linux environment.
+The Steam Runtime supplies Linux libraries; it is not the Steam client.
+You do not need to open Steam to launch your Batocera game through UMU.
+
+A Wine prefix is a game's Windows environment: registry, C: drive, components
+and settings. It can also contain saves.
+A bottle stores changes, notably for compressed games: the archive stays
+compressed while changes are stored separately.
+Graphics/shader caches contain prepared rendering data. Keeping them can
+reduce repeated compilation on subsequent launches.
+
+UMU Runner Toolbox manages runners and their integration. Ultimate Wine
+Toolbox is a separate project for preparing, modifying and compressing games.
+
+<a id="runners"></a>
+
+## Five runner families: which one should I choose?
+
+CHOOSING A RUNNER
+
+GE-Proton: the menu's general-purpose starting point, with compatibility
+and video playback fixes.
+
+GDK-Proton: a WineGDK-oriented variant for games using Microsoft GDK. It does
+not guarantee Microsoft Store, subscription or sign-in service compatibility.
+
+Proton-CachyOS: another family with its own changes and options. The Toolbox
+installs supported Steam Linux Runtime builds. Compare it for a particular
+game; its name alone does not promise better performance on your machine.
+
+Proton-EM: a variant with its own adaptations, including display-related
+features depending on the release. Wayland/HDR also depend on Batocera,
+your drivers and display. Selecting a runner does not enable everything.
+
+DW-Proton: a community alternative with its own changes, useful when testing
+another combination for a difficult game.
+
+A practical approach:
+- Keep a runner that already works.
+- Test alternatives to address a specific problem.
+- Change one setting at a time and record the result.
+- Keep the old runner until the new one is validated.
+
+Newer is not always better for every game. Version numbers cannot be compared
+directly across families. Changing runners can change a game's prefix:
+back up important persistent data first. Switching back does not restore it.
+
+Project sources and release notes:
+https://github.com/GloriousEggroll/proton-ge-custom
+https://github.com/Weather-OS/GDK-Proton
+https://github.com/CachyOS/proton-cachyos
+https://github.com/BananaWorks07/Proton
+https://github.com/dawn-winery/dwproton-mirror
+
+<a id="menus"></a>
+
+## A tour of the menus
+
+WHAT EACH MENU DOES
+
+Install a runner: choose a family and version. The Toolbox downloads,
+checks and prepares it. Versions are installed separately.
+
+Delete a runner: frees its space without deleting games or their saves.
+Assign a different runner to games that were using the removed one.
+
+Export / share: creates a runner archive or a package with its environment
+and installer. See the Sharing chapter.
+
+Game compatibility: checks or overrides game identification for ProtonFixes.
+It is not a database guaranteeing that a game will work.
+
+Maintenance and diagnostics: checks installation, repairs integration,
+examines retained copies and cleans working data, logs or orphan protections.
+
+Update Toolbox: looks for a published release, preserves local configuration
+and backs up the old Toolbox. It does not replace your games.
+
+Documentation / About: select a chapter and scroll through its text.
+
+Settings: language, font size, Toolbox display mode, graphics cache sharing
+and Sony controller advice. Language/font settings affect the Toolbox, not
+the games. Some display changes take effect when its terminal next opens.
+
+<a id="compat"></a>
+
+## Game compatibility: GAMEID and fixes
+
+IDENTIFYING THE RIGHT GAME
+
+ProtonFixes can apply game-specific components or settings. UMU uses GAMEID
+and sometimes STORE to identify the game and its original store. This does
+not download games or give access to a store.
+
+Identification normally happens automatically using the Batocera Windows
+gamelist title, the UMU database and, for safe matches, locally installed
+Steam fixes. Give the game its proper title in EmulationStation.
+Without a safe identification, umu-default still allows a launch attempt.
+
+Use Game compatibility when identification needs checking:
+1. Scan for ambiguous matches.
+2. Select a game and check title, sequel, edition and store carefully.
+3. Save the correct association. It takes priority over automatic detection.
+4. Relaunch to test.
+
+Advanced users can enter an umu-* GAMEID or numeric Steam AppID. If you do
+not know it, use verified suggestions. A scan alone does not save associations.
+View or remove an association to return to automatic identification.
+
+A fix is not a guarantee that the game or online services work. A game that
+already works generally does not need a manual association.
+
+<a id="controllers"></a>
+
+## Controllers, display and graphics caches
+
+CONTROLLERS
+
+Start with the game's normal settings. For a poorly recognized DualShock 4
+or DualSense, try HIDRAW in the game's advanced options and relaunch.
+Settings > Sony controller advice points to GE-Proton 11-8 or newer.
+
+The Toolbox respects the runner's defaults and explicit autorun variables.
+Some games support Sony input; others expect Xbox/XInput. Haptics and button
+icons also depend on the game, runner and connection. Do not add Sony
+variables systematically to every game.
+
+DISPLAY
+
+Font and fullscreen settings improve Toolbox readability. Game resolution,
+fullscreen and performance are configured in the game and Batocera.
+Change one setting at a time when investigating a problem.
+
+GRAPHICS CACHES
+
+Sharing makes Batocera's configured cache folders visible inside UMU.
+Leave it enabled for normal use. First launches can compile shaders;
+later launches can benefit from retained data.
+The sharing toggle applies to the next launch and deletes no cache.
+It does not disable every Proton or Mesa cache.
+
+Maintenance separately offers optional Mesa/RADV cache deletion. These
+caches rebuild, potentially causing preparation delays and temporary stutter.
+There is no need to clear them after every game.
+
+<a id="saves"></a>
+
+## Saves and working copies: what does UMU keep?
+
+WHERE CHANGES GO
+
+Supported Batocera Wine launches include .pc, .wine and .wsquashfs games.
+Storage details depend on the game's format and configuration.
+
+For .wine prefixes and compressed games, integration can prepare a working
+copy of the Windows environment. The game directory is exposed separately,
+so the entire game is not copied every launch.
+
+On exit, prefix changes return to the original .wine or compressed game's
+bottle. After all required synchronization and mount cleanup succeed, the
+working copy is deleted. Batocera's external saves remain separate data.
+
+WHY IS A COPY RETAINED?
+
+Power loss, forced termination or synchronization failure can leave changes
+only in that copy. Retention protects them; it is not just disposable clutter.
+
+In Maintenance > Retained UMU copies, inspect the game, runner, date, size
+and log. To resume a recoverable session, relaunch the same game with the
+same verified source version and runner. Identity is checked before reuse.
+
+Replacing the WSquashFS, changing runners or reinstalling integration can
+leave an older copy separate. Its warning does not prove that the newest
+session failed. Check progress and the latest launch log.
+
+Discarding a copy deletes its unreturned changes. Check what you need first.
+The menu refuses active or mounted copies. Use diagnostics instead of
+manually bypassing a refusal.
+
+Hotkey + Start can interrupt processes before cleanup. Integration coordinates
+normal native shutdown, but forced termination can still leave recovery data.
+For validation, save, quit normally when possible and check after relaunch.
+Working copies do not replace personal backups of games and saves.
+
+<a id="direct"></a>
+
+## Direct mode: an option for particular games
+
+ENABLE ONLY WHEN NEEDED
+
+Some games dislike redirected launch paths or save symlinks. Direct mode
+is a per-game compatibility option, used in our Forza Horizon 2/Azimuth test.
+
+Close the game. In autorun.cmd, add UMU_DIRECT_GAME=1 to the existing ENV=
+line. If none exists, create:
+
+ENV=UMU_DIRECT_GAME=1
+
+Keep existing variables on the same ENV= line, separated by spaces. Do not
+create competing ENV= lines. Remove only this variable to return to normal.
+
+Direct mode still uses UMU. For supported SAVEDIR locations inside the game
+directory, it can temporarily replace the save link with a real directory,
+copy changes back on exit and restore the link. This needs time and space.
+
+One previous save generation may remain in .umu-direct-previous under the
+external save folder. It is separate from temporary prefix copies.
+After interruption, recovery depends on verified source identity and state;
+uncertain situations are retained for inspection.
+
+The FH2 test for this integration validated a race, save and relaunch with
+progress retained and no synchronization warning. This does not validate
+every game or every forced exit.
+
+The integration also exposes the game's original C: directory for supported
+formats. Seeing C:\game does not by itself require enabling direct mode.
+
+<a id="maintenance"></a>
+
+## Maintenance: check, repair and clean
+
+WHEN SOMETHING LOOKS WRONG
+
+1. Close UMU games.
+2. Run Maintenance > Full UMU diagnostics.
+3. For integration problems, use Repair / upgrade UMU integration and read
+   the result.
+4. Test before deleting data.
+
+INTEGRITY AND PROTECTION
+
+Managed runners have a manifest of important files. Diagnostics can detect
+missing or changed files. During play, managed runners are protected read-only
+so a game's prefix cannot accidentally modify their shared components.
+The game's prefix remains writable.
+
+An integrity alert is not proof of malware. It means the runner differs from
+the expected state. Integration repair is not a universal file restore:
+a modified runner can be skipped and may need reinstalling.
+
+CLEANING UMU DATA
+
+The tool shows categories and size before confirmation. Cleanup can remove
+working data such as compatdata, prefix views and disposable copies; the
+next launch can require preparation again. It preserves runners, UMU, its
+runtime and Batocera game data. Bulk cleanup stops while recovery copies
+remain to be reviewed. Optional graphics caches are offered separately.
+
+LOGS
+
+Clearing logs frees diagnostic history. Save logs for an open issue before
+removing them. The Toolbox already rotates its logs automatically.
+
+ORPHAN READ-ONLY PROTECTIONS
+
+Removes protections left without an active session after abnormal shutdown.
+It is not intended to permanently disable runner protection.
+
+UNINSTALL
+
+The choices differ: Toolbox only, UMU and its runners, or everything.
+Read the displayed scope: the latter choices also remove UMU data, exports
+and recovery copies. They are broader than deleting a single runner.
+Back up needed data before confirming.
+
+<a id="sharing"></a>
+
+## Updates, export and sharing
+
+DISTINCT UPDATE TARGETS
+
+Toolbox: management menus/tools, through the update function.
+Integration: scripts connecting runners to Batocera, through repair or
+installation-time migration of healthy managed runners.
+Runner: install another Proton version separately, then select it for a game.
+Updating the Toolbox does not select a different Proton for your games.
+
+UMU and its runtime are separate components prepared as installation needs
+require. Initial preparation may download data. Close games before updating:
+a running wrapper does not gain new code midway through a session.
+
+RUNNER-ONLY EXPORT
+
+Useful for backup or transfer to Batocera already prepared for UMU.
+It does not include every component needed on an unprepared machine.
+
+SELF-CONTAINED / SHAREABLE PACKAGE
+
+Includes the runner, UMU, required runtime, installer and checks for another
+Batocera installation, including offline use. Downloading and compression
+can take time and substantial free space.
+The recipient extracts the package, runs its installer on Batocera, then
+selects the runner for their game in EmulationStation.
+
+Neither export includes games or saves. A runner export is not a full backup
+of your Batocera configuration. Managed exports check the runner files first.
+
+<a id="help"></a>
+
+## Troubleshooting and useful logs
+
+THE GAME DOES NOT START
+
+Check the selected -UMU runner, run diagnostics and compare with a runner
+known to work. Record game format, Batocera version and exact runner.
+A game update itself may also explain changed behavior.
+
+THE FIRST LAUNCH TAKES TIME
+
+Runtime, prefix or shader preparation can take time. Check the log for
+progress. Repeated cache deletion can cause repeated compilation.
+
+DATA WAS NOT SYNCHRONIZED
+
+Keep the recovery copy and examine the latest game log before deleting
+anything. In direct mode, save synchronization and prefix synchronization
+are separate: one can succeed while the other fails. Check progress after
+relaunch if the session can be resumed.
+
+WHEN REQUESTING HELP, INCLUDE:
+
+- Game name, format and reproduction steps.
+- Batocera version, Toolbox version and full runner name.
+- Latest game log and relevant Toolbox log.
+- For shutdown problems, wineserver-stop.log when present.
+
+Game logs: /userdata/system/logs/umu-runner/
+Toolbox logs: /userdata/system/logs/umu-toolbox/
+A launch log is named runner-YYYYMMDD-HHMMSS-PID.log.
+runner-guard.log concerns protection; it is not the game's launch log.
+
+From Windows, open Batocera's network share and then system/logs.
+Review logs before sharing: they can contain local paths and installation data.
+
+USEFUL LOCATIONS
+
+Toolbox: /userdata/system/umu/toolbox
+Runners: /userdata/system/wine/custom
+Exports: /userdata/system/umu/exports
+Working copies: /userdata/system/umu/materialized-prefixes
+External Windows saves: /userdata/saves/windows
+Actual save locations depend on the game's configuration.
+
+Project: https://github.com/Thomson67/umu-runner-toolbox
+A community tool built on Batocera, UMU and the runner projects.

@@ -69,4 +69,28 @@ case " ${*:-} " in
         fi
         ;;
 esac
+# Waiting only for Wine lets Batocera remove its OverlayFS workdir while the
+# host wrapper is still persisting the prefix. Hold native -w until that host
+# session has completed its return. Internal Proton waits and uncertain
+# runner-only matches must not wait for their own parent launch wrapper.
+case " ${*:-} " in
+    *" -w "*)
+        if [ -n "${state:-}" ] && { [ "${match_kind:-}" = raw ] || [ "${match_kind:-}" = canonical ]; } \
+                && [ "${WINEPREFIX:-}" = "${mapped_prefix:-}" ]; then
+            state_pid="$(sed -n '6p' "$state" 2>/dev/null)"
+            state_token="$(sed -n '7p' "$state" 2>/dev/null)"
+            if [ -n "$state_token" ]; then
+                "$REAL_WINESERVER" "$@"
+                server_rc=$?
+                wlog "runtime_wait_begin owner=$state_pid state=$state"
+                python3 "$RUNNER_DIR/umu-batocera/runtime-prefix.py" wait-owner \
+                    --state-file "$state" --pid "$state_pid" --owner-token "$state_token" >>"$STOP_LOG" 2>&1 || {
+                    wlog "runtime_wait_failed owner=$state_pid"; exit 1;
+                }
+                wlog "runtime_wait_end owner=$state_pid"
+                exit "$server_rc"
+            fi
+        fi
+        ;;
+esac
 exec "$REAL_WINESERVER" "$@"
