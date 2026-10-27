@@ -470,9 +470,19 @@ prepare_direct_save_copy() {
     case "$parent/" in "$game_root/"*) ;; *) return 0 ;; esac
     path="$parent/$(basename "$path")"
     if [ -e "$path.umu-direct-link" ] || [ -L "$path.umu-direct-link" ]; then
+        # Native saveFilesToUserdata may have already copied the real directory
+        # back and restored the active link before this wrapper starts again.
+        if [ -L "$path" ] && [ -L "$path.umu-direct-link" ] \
+                && [ ! -e "$path.umu-direct-local" ] && [ ! -L "$path.umu-direct-local" ] \
+                && [ "$(readlink -f "$path")" = "$(readlink -f "$path.umu-direct-link")" ]; then
+            source="$(readlink -f "$path")" || return 1
+            case "$source" in /userdata/saves/windows/*) ;; *) return 1 ;; esac
+            [ -d "$source" ] || return 1
+            rm -- "$path.umu-direct-link" 2>>"$LOG" || return 1
+            log "direct_save_native_link_already_restored=$path"
         # HK+Start can kill this wrapper before EXIT. The game-side real saves
         # survive in the bottle; do not overwrite them from older external saves.
-        if [ "${RUNTIME_REUSED:-0}" -eq 1 ] && [ -L "$path.umu-direct-link" ] \
+        elif [ "${RUNTIME_REUSED:-0}" -eq 1 ] && [ -L "$path.umu-direct-link" ] \
                 && [ -d "$path" ] && [ ! -L "$path" ] \
                 && [ ! -e "$path.umu-direct-local" ] && [ ! -L "$path.umu-direct-local" ]; then
             source="$(readlink -f "$path.umu-direct-link")" || return 1
@@ -488,8 +498,10 @@ prepare_direct_save_copy() {
                 log "direct_save_reused_after_interruption=$path"
                 return 0
             fi
+            log "ERROR: unverified interrupted direct saves=$path"; return 1
+        else
+            log "ERROR: direct_save_backup_exists=$path.umu-direct-link; manual recovery required"; return 1
         fi
-        log "ERROR: direct_save_backup_exists=$path.umu-direct-link; manual recovery required"; return 1
     fi
     [ -L "$path" ] || return 0
     source="$(readlink -f "$path")" || return 1
