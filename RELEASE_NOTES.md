@@ -2,6 +2,7 @@
 
 **UMU Runner Toolbox v0.13.14-test6 — intégration 3.10.16 (test)**
 
+- Mode direct après kill : reconnaissance du lien déjà restauré par la préparation native et retrait du seul lien de secours redondant, sans supprimer les sauvegardes.
 - Ajout d’une attente de fin du wrapper dans le wineserver -w natif : le nettoyage Batocera attend le retour des données et la libération des montages. Identification du processus, libération après kill/zombie et conservation des copies non synchronisées. Le workdir est journalisé et un workdir disparu bloque le retour avec un motif explicite. Validation réelle encore requise.
 - Adaptation du retour après ENOENT sur le manifeste OpenXR : fichiers temporaires placés à côté de leur destination et diagnostic détaillé en cas de nouvel échec. Test de simulation réussi ; validation Batocera encore requise.
 - Correction de `dosdevices: Directory not empty` au retour FH2 : dossiers synchronisés sur place, suppression des entrées obsolètes et remplacement privé des fichiers. Le jeu, les sauvegardes externes et les runners restent protégés.
@@ -19,6 +20,7 @@
 
 **UMU Runner Toolbox v0.13.14-test6 — integration 3.10.16 (test)**
 
+- Direct mode after kill: recognize a link already restored by native preparation and retire only the redundant backup symlink, preserving saves.
 - Add a verified host-wrapper completion barrier to native wineserver -w before Batocera cleanup; release on dead/zombie owners without discarding unsynchronized copies. Log and guard the OverlayFS workdir. Actual Batocera validation is still required.
 - Adapt return after OpenXR manifest ENOENT: stage each file beside its destination and report detailed failure context. Simulated regression test passes; Batocera validation is still required.
 - Fix FH2 `dosdevices: Directory not empty` during return: synchronize existing directories in place, remove obsolete entries and replace files privately while preserving game data, external saves and runners.
