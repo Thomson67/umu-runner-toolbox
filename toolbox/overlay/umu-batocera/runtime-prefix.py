@@ -72,7 +72,7 @@ def source_identity(source, runner='', mode='0', lowerdir=''):
     """
     source = Path(source)
     try:
-        compressed = source.suffix.lower() in ('.wsquashfs', '.wtgz')
+        compressed = bool(lowerdir) or source.suffix.lower() in ('.wsquashfs', '.wtgz')
         if compressed:
             if not lowerdir:
                 return None
@@ -175,12 +175,12 @@ class PrefixStore:
                 # Unknown/invalid journals never authorize recursive deletion.
                 continue
 
-    def begin(self, prefix, source, pid, game_dir='', runner='', log='', runner_root='', mode='0', lowerdir=''):
+    def begin(self, prefix, source, pid, game_dir='', runner='', log='', runner_root='', mode='0', lowerdir='', source_view=''):
         prefix = self.path(prefix)
         self.collect()
         if mounted(prefix):
             raise ValueError(f'runtime still mounted: {prefix}')
-        identity = source_identity(source, runner_root, mode, lowerdir)
+        identity = source_identity(source_view or source, runner_root, mode, lowerdir)
         if self.record(prefix).exists():
             data = self.read(prefix)
             old_pid = int(data.get('pid', 0))
@@ -249,7 +249,7 @@ class PrefixStore:
             data.update(direct_save=descriptor, phase='running')
             self.write(prefix, data)
 
-    def checkpoint(self, prefix, pid, source, runner_root='', mode='0', lowerdir=''):
+    def checkpoint(self, prefix, pid, source, runner_root='', mode='0', lowerdir='', source_view=''):
         # Return persistence itself changes the original prefix. If HK+Start
         # lands between prefix sync and direct-save sync, those known writes
         # must not masquerade as a source replaced by the user.
@@ -259,7 +259,7 @@ class PrefixStore:
             raise ValueError('runtime owner mismatch')
         if data.get('source') != str(source):
             raise ValueError('runtime source mismatch')
-        data['source_identity'] = source_identity(source, runner_root, mode, lowerdir)
+        data['source_identity'] = source_identity(source_view or source, runner_root, mode, lowerdir)
         self.write(prefix, data)
 
     def phase(self, prefix, pid, phase):
@@ -330,6 +330,7 @@ if __name__ == '__main__':
     parser.add_argument('--runner-root', default='')
     parser.add_argument('--mode', default='0')
     parser.add_argument('--lowerdir', default='')
+    parser.add_argument('--source-view', default='')
     parser.add_argument('--save-path', default='')
     parser.add_argument('--save-source', default='')
     parser.add_argument('--resume', action='store_true')
@@ -338,12 +339,12 @@ if __name__ == '__main__':
         store = PrefixStore()
         if args.action == 'begin':
             reused = store.begin(args.prefix, args.source, args.pid, args.game_dir, args.runner, args.log,
-                                 args.runner_root, args.mode, args.lowerdir)
+                                 args.runner_root, args.mode, args.lowerdir, args.source_view)
             raise SystemExit(10 if reused else 0)
         elif args.action == 'direct-save':
             store.direct_save(args.prefix, args.pid, args.save_path, args.save_source, args.resume)
         elif args.action == 'checkpoint':
-            store.checkpoint(args.prefix, args.pid, args.source, args.runner_root, args.mode, args.lowerdir)
+            store.checkpoint(args.prefix, args.pid, args.source, args.runner_root, args.mode, args.lowerdir, args.source_view)
         elif args.action == 'running': store.phase(args.prefix, args.pid, 'running')
         elif args.action == 'finish': store.finish(args.prefix, args.pid, args.safe, args.reason)
         elif args.action == 'collect': store.collect()
