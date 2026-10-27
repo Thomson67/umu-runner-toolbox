@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.12 ====="
+log "===== Batocera UMU runner v3.10.13 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -1079,7 +1079,10 @@ persist_split_wine_prefix() {
             alias_options=""
             if [ "${ALIAS_BOUND:-0}" -eq 1 ] && [ -n "${ALIAS_MOUNT:-}" ]; then
                 alias_fstype="$(findmnt -rn -M "$ALIAS_MOUNT" -o FSTYPE 2>/dev/null || true)"
-                alias_options="$(findmnt -rn -M "$ALIAS_MOUNT" -o OPTIONS 2>/dev/null || true)"
+                # Match the decoded OPTIONS used during initial discovery.
+                # --raw hex-escapes spaces (FH2 -> Forza\x20Horizon\x202),
+                # falsely rejecting the very same upperdir/lowerdir.
+                alias_options="$(findmnt -n -u -M "$ALIAS_MOUNT" -o OPTIONS 2>/dev/null || true)"
             fi
             log "wine_persistence_original_fstype=${target_fstype:-missing} alias_fstype=${alias_fstype:-missing}"
             if [ "$alias_fstype" != overlay ] || [ -z "${OVERLAY_UPPERDIR:-}" ] || [ -z "${OVERLAY_LOWERDIR:-}" ]; then
