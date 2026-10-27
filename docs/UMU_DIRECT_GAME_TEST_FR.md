@@ -48,3 +48,7 @@ Un essai FH2 avec intégration 3.10.11 a montré `wine_persistence_rc=3` avant c
 ### Chemins contenant des espaces (3.10.13)
 
 Le journal FH2 en 3.10.12 montrait un alias OverlayFS encore valide, mais `refused-alias-upperdir`. La commande findmnt avec `--raw` encodait les espaces en `\x20`, contrairement aux valeurs décodées enregistrées au lancement. La 3.10.13 lit OPTIONS sans `--raw`, sans troncature, puis conserve les mêmes contrôles stricts. Un test avec le vrai formateur findmnt reproduit exactement le refus avant correction. Les sauvegardes directes étaient déjà synchronisées dans cet essai ; la correction concerne le retour du préfixe et son nettoyage.
+
+### Retour du contenu de dosdevices (3.10.14)
+
+L'essai FH2 en 3.10.13 a validé le retour par l'alias, mais échoué ensuite avec `phase=remove-root`, code 7 et `dosdevices: Directory not empty`. Les sauvegardes directes étaient encore synchronisées. La 3.10.14 conserve les dossiers communs et synchronise récursivement leurs entrées, sans supprimer la racine dosdevices. Les entrées obsolètes sont retirées et les fichiers remplacés individuellement, sans suivre les liens externes ni modifier les hardlinks vers les runners. Le jeu reste exclu. Un test impose le refus de suppression de dosdevices, puis vérifie le retour des mappings et sauvegardes ; les tests d'arrêt brutal et de préservation des backups UWT restent appliqués. Cette nouvelle étape reste à confirmer sur le montage réel Batocera.
