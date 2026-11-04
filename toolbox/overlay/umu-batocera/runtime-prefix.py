@@ -51,10 +51,10 @@ def wait_owner(state_file, pid, token):
     print('runtime_wait_complete=owner-ended', flush=True)
 
 
-def mounted(path):
-    """Check all visible mount namespaces, including a surviving container."""
+def mount_table():
+    """Read every visible namespace; unreadable evidence must stop recovery."""
     seen = set()
-    suffix = '/umu/materialized-prefixes/' + path.name
+    entries = []
     for process in Path('/proc').glob('[0-9]*'):
         try:
             namespace = (process / 'ns/mnt').stat().st_ino
@@ -66,19 +66,31 @@ def mounted(path):
         except OSError as error:
             if error.errno == errno.EINVAL and not (process / 'ns/mnt').exists():
                 continue
-            return True  # Cannot prove that deleting it is safe.
+            raise ValueError(f'unreadable mount namespace: {process}') from error
         seen.add(namespace)
         for line in lines:
             fields = line.split()
-            if len(fields) < 5:
-                return True
+            if len(fields) < 10 or '-' not in fields[6:]:
+                raise ValueError('invalid mountinfo record')
             root, target = (re.sub(r'\\([0-7]{3})', lambda m: chr(int(m[1], 8)), x)
                             for x in fields[3:5])
-            if (target == str(path) or target.startswith(str(path) + '/')
-                    or root == str(path) or root.startswith(str(path) + '/')
-                    or root.endswith(suffix) or suffix + '/' in root):
-                return True
-    return False
+            entries.append((namespace, root, target))
+    return entries
+
+
+def references_prefix(path, root, target):
+    suffix = '/umu/materialized-prefixes/' + path.name
+    return (target == str(path) or target.startswith(str(path) + '/')
+            or root == str(path) or root.startswith(str(path) + '/')
+            or root.endswith(suffix) or suffix + '/' in root)
+
+
+def mounted(path):
+    """Check all visible mount namespaces, including a surviving container."""
+    try:
+        return any(references_prefix(path, root, target) for _, root, target in mount_table())
+    except (OSError, ValueError):
+        return True  # Cannot prove that deleting it is safe.
 
 
 def file_identity(path):
@@ -202,6 +214,8 @@ class PrefixStore:
 
     def begin(self, prefix, source, pid, game_dir='', runner='', log='', runner_root='', mode='0', lowerdir='', source_view=''):
         prefix = self.path(prefix)
+        if mounted(prefix):
+            self.recover_adapter_mounts(prefix)
         self.collect()
         if mounted(prefix):
             raise ValueError(f'runtime still mounted: {prefix}')
@@ -250,6 +264,42 @@ class PrefixStore:
         self.write(prefix, data)
         prefix.mkdir()
         return False
+
+    def recover_adapter_mounts(self, prefix):
+        """Release only abandoned host compatdata/pfx binds of this runtime.
+
+        Called under the wrapper's session-wide inherited lock. Never use a
+        lazy/forced unmount: busy mounts and surviving container namespaces
+        keep the original refusal and all unsynchronized runtime data.
+        """
+        data = self.read(prefix)  # Untracked/invalid journals authorize nothing.
+        owner = int(data.get('pid', 0))
+        if owner and process_token(owner) == data.get('process_token'):
+            raise ValueError(f'runtime owner still active: {prefix}')
+        entries = mount_table()
+        namespace = Path('/proc/self/ns/mnt').stat().st_ino
+        references = [(ns, root, Path(target)) for ns, root, target in entries
+                      if references_prefix(prefix, root, target)]
+        targets = []
+        for ns, root, target in references:
+            compat = self.base / 'compatdata'
+            if (ns != namespace or target.name != 'pfx'
+                    or target.parent.parent != compat
+                    or target.resolve() != target
+                    or not target.samefile(prefix)
+                    or sum(t == str(target) for n, _, t in entries if n == ns) != 1
+                    or any(t.startswith(str(target) + '/') for n, _, t in entries if n == ns)):
+                raise ValueError(f'runtime mount requires recovery: {target} namespace={ns} root={root}')
+            targets.append(target)
+        # Validate the whole set before touching anything. A bind whose root
+        # merely contains the runtime, or a different namespace, is not ours.
+        for target in targets:
+            result = subprocess.run(['umount', '--', str(target)], capture_output=True, text=True)
+            if result.returncode:
+                raise ValueError(f'runtime adapter unmount failed: {target}: {result.stderr.strip()}')
+            print(f'runtime_stale_adapter_unmounted={target} prefix={prefix}', flush=True)
+        if mounted(prefix):
+            raise ValueError(f'runtime still mounted after adapter recovery: {prefix}')
 
     def retain_separately(self, prefix, data, reason):
         retained = prefix.with_name('.retained-' + hashlib.sha256(prefix.name.encode()).hexdigest()[:16]

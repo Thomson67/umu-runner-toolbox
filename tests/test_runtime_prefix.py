@@ -259,6 +259,120 @@ class RuntimePrefixTests(unittest.TestCase):
             self.assertFalse(self.store.idle())
 
 
+class StaleAdapterTests(unittest.TestCase):
+    # Use the real mounted() guard with a modeled kernel mount table. Each
+    # case keeps the runtime files/journal intact unless normal begin succeeds.
+    def setUp(self):
+        RuntimePrefixTests.setUp(self)
+        self.store.begin(self.prefix, self.source, self.pid, 'Game', 'Runner')
+        (self.prefix / 'drive_c').mkdir()
+        (self.prefix / 'system.reg').write_text('registry')
+        (self.prefix / 'user.reg').write_text('unsynchronized progression')
+        self.store.phase(self.prefix, self.pid, 'running')
+        self.data = self.store.read(self.prefix)
+        self.data.update(pid=99999999, process_token='dead-owner')
+        self.store.write(self.prefix, self.data)
+        self.mounts.stop()
+        self.ns = Path('/proc/self/ns/mnt').stat().st_ino
+        self.adapter = self.base / 'compatdata' / 'Arbitrary_Game-987' / 'pfx'
+        self.adapter.mkdir(parents=True)
+        self.entries = [(self.ns, str(self.prefix), str(self.adapter))]
+        self.table = patch.object(runtime, 'mount_table', side_effect=lambda: list(self.entries))
+        self.table.start()
+        self.addCleanup(self.table.stop)
+        # An actual bind root and its source have the same device/inode.
+        self.same = patch.object(Path, 'samefile', return_value=True)
+        self.same.start()
+        self.addCleanup(self.same.stop)
+        self.unmount = patch.object(runtime.subprocess, 'run', side_effect=self.release)
+        self.run = self.unmount.start()
+        self.addCleanup(self.unmount.stop)
+
+    def release(self, args, **kwargs):
+        self.assertEqual(args[:2], ['umount', '--'])
+        self.entries[:] = [e for e in self.entries if e[2] != args[2]]
+        return subprocess.CompletedProcess(args, 0, '', '')
+
+    def launch(self):
+        return self.store.begin(self.prefix, self.source, self.pid, 'Game', 'Runner')
+
+    def assert_retained(self):
+        self.assertEqual((self.prefix / 'user.reg').read_text(), 'unsynchronized progression')
+        self.assertEqual(self.store.read(self.prefix)['pid'], 99999999)
+
+    def test_dead_owner_bind_is_unmounted_before_verified_reuse_for_any_game(self):
+        for name in ('Game A.wine-123', 'Unrelated.wsquashfs-456'):
+            with self.subTest(name=name):
+                # The algorithm uses journal and inode identity, never a game name.
+                old = self.prefix
+                self.prefix = self.store.root / name
+                old.rename(self.prefix)
+                self.store.record(old).unlink()
+                self.data['prefix'] = str(self.prefix)
+                self.store.write(self.prefix, dict(self.data))
+                self.entries[:] = [(self.ns, '/system/umu/materialized-prefixes/' + name, str(self.adapter))]
+                self.assertTrue(self.launch())
+                self.assertFalse(runtime.mounted(self.prefix))
+                self.assertEqual((self.prefix / 'user.reg').read_text(), 'unsynchronized progression')
+        self.assertEqual(self.run.call_count, 2)
+
+    def test_live_owner_is_never_unmounted(self):
+        self.data.update(pid=self.pid, process_token='current-start')
+        self.store.write(self.prefix, self.data)
+        with self.assertRaisesRegex(ValueError, 'owner still active'):
+            self.launch()
+        self.run.assert_not_called()
+
+    def test_private_namespace_foreign_target_nested_mount_or_wrong_inode_refused(self):
+        original = list(self.entries)
+        scenarios = (
+            [(self.ns + 1, str(self.prefix), str(self.adapter))],
+            original + [(self.ns + 1, str(self.prefix), '/container/pfx')],
+            [(self.ns, str(self.prefix), '/unmanaged/pfx')],
+            original + [(self.ns, '/different/root', str(self.adapter / 'child'))],
+            original * 2,
+        )
+        for entries in scenarios:
+            with self.subTest(entries=entries):
+                self.entries[:] = entries
+                with self.assertRaisesRegex(ValueError, 'mount requires recovery'):
+                    self.launch()
+                self.run.assert_not_called()
+                self.assert_retained()
+        self.entries[:] = original
+        with patch.object(Path, 'samefile', return_value=False):
+            with self.assertRaisesRegex(ValueError, 'mount requires recovery'):
+                self.launch()
+        self.run.assert_not_called()
+
+    def test_busy_adapter_retained_and_retried_on_next_launch(self):
+        self.run.side_effect = None
+        self.run.return_value = subprocess.CompletedProcess([], 32, '', 'target is busy')
+        with self.assertRaisesRegex(ValueError, 'unmount failed.*target is busy'):
+            self.launch()
+        self.assert_retained()
+        self.run.side_effect = self.release
+        self.assertTrue(self.launch())
+
+    def test_successful_unmount_status_does_not_bypass_remaining_mount_guard(self):
+        self.run.side_effect = None
+        self.run.return_value = subprocess.CompletedProcess([], 0, '', '')
+        with self.assertRaisesRegex(ValueError, 'still mounted after'):
+            self.launch()
+        self.assert_retained()
+
+    def test_unreadable_mount_table_or_missing_journal_authorizes_nothing(self):
+        self.table.stop()
+        with patch.object(runtime, 'mount_table', side_effect=ValueError('unreadable namespace')):
+            with self.assertRaisesRegex(ValueError, 'unreadable namespace'):
+                self.launch()
+        self.table.start()
+        self.store.record(self.prefix).unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.launch()
+        self.run.assert_not_called()
+
+
 class SpacePreflightTests(unittest.TestCase):
     def test_estimate_excludes_game_and_owned_backup_and_refuses_full_disk(self):
         block = WRAPPER[WRAPPER.index('check_materialized_space() {'):WRAPPER.index('if ! protect_all_umu_runners_ro;', WRAPPER.index('check_materialized_space() {'))]

@@ -7,7 +7,26 @@ New to UMU? Start with the user guide, also available offline in the Toolbox’s
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
 Current stable version: **v0.13.14**
-Runner integration version: **v3.10.16**
+Runner integration version: **v3.10.17** (test)
+
+## Stale compatdata adapter recovery (0.13.15-dev1)
+
+All materialized-prefix games now recover abandoned `compatdata/<adapter>/pfx`
+bind mounts before checking runtime reuse. This is independent of the game,
+archive name and ReShade configuration. The existing session-wide inherited
+lock remains held. Recovery requires a valid runtime journal, a dead owner,
+and an exact same-inode bind in this mount namespace under UMU compatdata.
+Every matching mount is checked before any unmount. Foreign/private namespace
+references, nested or stacked mounts, redirected paths and busy mounts stop
+recovery with the actual mount target in the runner log. Only normal unmount
+is attempted; runtime data is preserved and the existing source-generation
+checks still decide whether it can be reused.
+
+Normal exit also logs whether the pfx mount was released. An interrupted exit
+can therefore be recovered on the next launch without hard-coding a title or
+requiring a reboot. This does not automatically dismantle unrelated gameview
+or overlay mounts. Automated regression tests model kernel mount tables;
+end-to-end verification of 3.10.17 on Batocera remains required.
 
 It is designed to make UMU-based Proton runners easy to use from Batocera while keeping the existing Batocera Wine environment isolated. Standard Batocera runners, Wine-TKG and Kron4ek runners are not modified.
 

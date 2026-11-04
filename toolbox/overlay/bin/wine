@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.16 ====="
+log "===== Batocera UMU runner v3.10.17 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -635,6 +635,11 @@ cleanup_runtime_mounts() {
     fi
     if [ "${PFX_BOUND:-0}" -eq 1 ] && [ -n "${PFX_MOUNT:-}" ]; then
         umount "$PFX_MOUNT" 2>>"$LOG" || umount -l "$PFX_MOUNT" 2>>"$LOG" || true
+        if mountpoint -q "$PFX_MOUNT" 2>/dev/null; then
+            log "WARNING: runtime_pfx_still_mounted=$PFX_MOUNT"
+        else
+            log "runtime_pfx_unmounted=$PFX_MOUNT"
+        fi
         PFX_BOUND=0
     fi
     if [ "${GAMEVIEW_BOUND:-0}" -eq 1 ] && [ -n "${GAMEVIEW_TARGET:-}" ]; then
