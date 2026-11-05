@@ -6,10 +6,10 @@ New to UMU? Start with the user guide, also available offline in the Toolbox’s
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.14**
-Runner integration version: **v3.10.17** (test)
+Current stable version: **v0.13.15**
+Runner integration version: **v3.10.17**
 
-## Stale compatdata adapter recovery (0.13.15-dev1)
+## Stale compatdata adapter recovery (0.13.15)
 
 All materialized-prefix games now recover abandoned `compatdata/<adapter>/pfx`
 bind mounts before checking runtime reuse. This is independent of the game,
