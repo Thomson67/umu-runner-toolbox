@@ -321,6 +321,7 @@ I18N=(
   [loading_dw]="Chargement des releases DW-Proton..."
   [loading_ge]="Chargement des releases GE-Proton..."
   [install_gdk_title]="Installer GDK-Proton + UMU"
+  [gdk_source_prompt]="Choisissez une source GitHub pour GDK-Proton."
   [install_cachyos_title]="Installer Proton-CachyOS + UMU"
   [install_em_title]="Installer Proton-EM + UMU"
   [install_ge_title]="Installer GE-Proton + UMU"

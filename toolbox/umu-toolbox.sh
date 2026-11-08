@@ -67,6 +67,7 @@ load_i18n
 
 GE_REPO="GloriousEggroll/proton-ge-custom"
 GDK_REPO="Weather-OS/GDK-Proton"
+GDK_CUSTOM_REPO="LukasPAH/GDK-Proton-Custom"
 CACHY_REPO="CachyOS/proton-cachyos"
 EM_REPO="BananaWorks07/Proton"
 DW_REPO="dawn-winery/dwproton-mirror"
@@ -904,65 +905,83 @@ if tarurl:
 PY
 }
 fetch_gdk_releases() {
-    local out="$1"
+    local repo="$1" out="$2"
     curl -fsSL --max-time 25 \
-        "https://api.github.com/repos/$GDK_REPO/releases?per_page=100" -o "$out"
+        "https://api.github.com/repos/$repo/releases?per_page=100" -o "$out"
 }
 
 build_gdk_menu() {
     local json="$1"
     local menu="$2"
-    python3 - "$json" > "$menu" <<'PY_GDK'
-import json,sys,re
-rels=json.load(open(sys.argv[1],encoding="utf-8"))
-rows=[]
-for rel in rels if isinstance(rels,list) else []:
+    local custom="$3"
+    python3 - "$json" "$custom" > "$menu" <<'PY_GDK'
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as releases_file:
+    releases = json.load(releases_file)
+custom = sys.argv[2] == "1"
+rows = []
+for rel in releases if isinstance(releases, list) else []:
     if rel.get("draft") or rel.get("prerelease"):
         continue
-    release_name=rel.get("name","") or ""
-    tag=rel.get("tag_name","") or ""
-    m=re.search(r"GDK-Proton(\d+)-(\d+)",release_name)
-    if not m:
-        m=re.fullmatch(r"release(\d+)-(\d+)",tag)
-    if not m:
+    tag = rel.get("tag_name") or ""
+    if custom:
+        match = re.fullmatch(r"release-(\d+)-(\d+)(?:-(\d+))?", tag)
+    else:
+        release_name = rel.get("name") or ""
+        match = re.search(r"GDK-Proton(\d+)-(\d+)", release_name)
+        if not match:
+            match = re.fullmatch(r"release(\d+)-(\d+)", tag)
+    if not match:
         continue
-    major,minor=int(m.group(1)),int(m.group(2))
-    runner=f"GDK-Proton{major}-{minor}"
-    candidates=[]
-    for a in rel.get("assets",[]):
-        name=a.get("name","")
-        if not name.endswith(".tar.gz"):
-            continue
-        priority=0 if name==f"{runner}.tar.gz" else 1 if name==f"GE-Proton{major}-{minor}.tar.gz" else 9
-        if priority < 9:
-            digest=a.get("digest") or ""
-            sha=digest.split(":",1)[1] if digest.startswith("sha256:") else ""
-            candidates.append((priority,a.get("browser_download_url",""),sha))
-    if candidates:
-        _,url,sha=sorted(candidates)[0]
-        rows.append(((major,minor),runner,url,sha))
-for _,name,url,sha in sorted(rows,reverse=True):
-    print(f"{name}\t{url}\t{sha}")
+    major, minor = map(int, match.groups()[:2])
+    runner = f"GDK-Proton{major}-{minor}"
+    revision = 0
+    if custom:
+        revision = int(match.group(3) or 0)
+        base_runner = runner
+        runner += f"-Custom-{revision}" if revision else "-Custom"
+        archive_names = (f"{runner}-x86_64.tar.gz", f"{runner}.tar.gz")
+        if not revision:
+            archive_names = (f"{base_runner}-x86_64.tar.gz", *archive_names)
+    else:
+        archive_names = (f"{runner}.tar.gz", f"GE-Proton{major}-{minor}.tar.gz")
+    assets = {a.get("name"): a for a in rel.get("assets", []) if a.get("browser_download_url")}
+    asset = next((assets[name] for name in archive_names if name in assets), None)
+    if not asset:
+        continue
+    digest = asset.get("digest") or ""
+    sha = digest[7:] if digest.startswith("sha256:") else ""
+    asset_id = asset.get("id")
+    if not custom or not isinstance(asset_id, int):
+        asset_id = ""
+    rows.append(((major, minor, revision), runner, asset["browser_download_url"], sha, asset_id))
+
+for _, name, url, sha, asset_id in sorted(rows, key=lambda row: row[:2], reverse=True):
+    print(f"{name}\t{url}\t{sha}\t{asset_id}")
 PY_GDK
 }
 
 install_gdk() {
+    local repo="$1" custom=0
+    [ "$repo" = "$GDK_CUSTOM_REPO" ] && custom=1
     require_net || return
     local tmp json menu_file
-    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/gdk-list.XXXXXX")"
+    tmp="$(mktemp -d "$RUNNER_STAGING_ROOT/gdk-list.XXXXXX")" || return
     json="$tmp/releases.json"
     clear
     echo "$(i18n loading_gdk)"
-    if ! fetch_gdk_releases "$json"; then
+    if ! fetch_gdk_releases "$repo" "$json"; then
         rm -rf "$tmp"
-        msg "$(i18n runner_error "GDK-Proton")" "$(i18n releases_fetch_failed "GDK-Proton")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n releases_fetch_failed "$repo")"
         return
     fi
     menu_file="$tmp/menu.tsv"
-    build_gdk_menu "$json" "$menu_file"
-    if [ ! -s "$menu_file" ]; then
+    if ! build_gdk_menu "$json" "$menu_file" "$custom" || [ ! -s "$menu_file" ]; then
         rm -rf "$tmp"
-        msg "$(i18n runner_error "GDK-Proton")" "$(i18n release_compatible_none "GDK-Proton")"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n release_compatible_none "$repo")"
         return
     fi
 
@@ -978,7 +997,7 @@ install_gdk() {
     done < "$menu_file"
 
     if command -v dialog >/dev/null 2>&1; then
-        name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_gdk_title)" \
+        name="$(dialog --stdout --ok-label "$(i18n accept)" --cancel-label "$(i18n cancel)" --title "$(i18n install_gdk_title) — $repo" \
           --menu "$(i18n help_gdk_versions)"  \
           22 96 14 "${opts[@]}")" || { rm -rf "$tmp"; return; }
     else
@@ -990,11 +1009,12 @@ install_gdk() {
     fi
     [ -n "$name" ] || { rm -rf "$tmp"; return; }
 
-    local line target
+    local line target asset_id
     line="$(awk -F '\t' -v t="$name" '$1==t {print; exit}' "$menu_file")"
     [ -n "$line" ] || { rm -rf "$tmp"; msg "$(i18n release_invalid)" "$(i18n archive_missing "$name")"; return; }
     tarurl="$(printf '%s' "$line" | cut -f2)"
     sha="$(printf '%s' "$line" | cut -f3)"
+    asset_id="$(printf '%s' "$line" | cut -f4)"
     target="$CUSTOM_DIR/${name}-UMU"
 
     if [ -e "$target" ]; then
@@ -1020,9 +1040,12 @@ install_gdk() {
     clear
     echo "$(i18n downloading "$name")"
     if ! curl -fL --progress-bar "$tarurl" -o "$stage/download/$tarname"; then
-        rm -rf "$tmp" "$stage"
-        msg "$(i18n runner_error "GDK-Proton")" "$(i18n download_failed)"
-        return
+        if [ -z "$asset_id" ] || ! curl -fL --progress-bar -H 'Accept: application/octet-stream' \
+            "https://api.github.com/repos/$repo/releases/assets/$asset_id" -o "$stage/download/$tarname"; then
+            rm -rf "$tmp" "$stage"
+            msg "$(i18n runner_error "GDK-Proton")" "$(i18n download_failed)"
+            return
+        fi
     fi
 
     if [ -n "$sha" ]; then
@@ -1038,7 +1061,7 @@ install_gdk() {
     fi
 
     echo "$(i18n extracting_staging)"
-    if ! tar -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
+    if ! tar --no-same-owner -xzf "$stage/download/$tarname" -C "$stage/extracted"; then
         rm -rf "$tmp" "$stage"
         msg "$(i18n runner_error "GDK-Proton")" "$(i18n extract_failed_simple)"
         return
@@ -1054,8 +1077,11 @@ install_gdk() {
     fi
 
     candidate="$stage/candidate"
-    mv "$extracted" "$candidate"
-    cp -a "$OVERLAY/." "$candidate/"
+    if ! mv "$extracted" "$candidate" || ! cp -a "$OVERLAY/." "$candidate/"; then
+        rm -rf "$tmp" "$stage"
+        msg "$(i18n runner_error "GDK-Proton")" "$(i18n runner_finalize_failed)"
+        return
+    fi
     chmod +x "$candidate/proton" "$candidate/bin/wine" "$candidate/bin/wine64" \
         "$candidate/bin/wineserver" "$candidate/umu-batocera/umu-root-runner.py" 2>/dev/null || true
 
@@ -1066,7 +1092,7 @@ RUNNER_FAMILY=GDK-Proton
 UMU_INTEGRATION=$INTEGRATION_VERSION
 TOOLBOX_VERSION=$TOOLBOX_VERSION
 INSTALL_SOURCE=github-release
-SOURCE_REPO=$GDK_REPO
+SOURCE_REPO=$repo
 SOURCE_URL=$tarurl
 SOURCE_SHA256=${sha:-unavailable}
 STATUS=experimental
@@ -1088,15 +1114,30 @@ EOF
     fi
 
     echo "$(i18n atomic_install "$name-UMU")"
-    if ! mv "$candidate" "$target"; then
+    if ! mv -T -n "$candidate" "$target" || [ -e "$candidate" ]; then
         rm -rf "$tmp" "$stage"
         msg "$(i18n runner_error "GDK-Proton")" "$(i18n runner_finalize_failed)"
         return
     fi
 
     rm -rf "$tmp" "$stage"
-    log "Installed immutable ${name}-UMU provider=GDK-Proton"
+    log "Installed immutable ${name}-UMU provider=GDK-Proton source=$repo"
     msg "$(i18n runner_installed)" "$(i18n runner_installed_body "$name-UMU" "GDK-Proton")"
+}
+
+install_gdk_menu() {
+    while true; do
+        local choice
+        choice="$(menu_choice "$(i18n install_gdk_title)" --description "$(i18n gdk_source_prompt)" \
+            "1" "$GDK_CUSTOM_REPO" \
+            "2" "$GDK_REPO" \
+            "0" "$(i18n back)")" || return
+        case "$choice" in
+            1) install_gdk "$GDK_CUSTOM_REPO" ;;
+            2) install_gdk "$GDK_REPO" ;;
+            0|"") return ;;
+        esac
+    done
 }
 
 fetch_cachy_releases() {
@@ -1560,7 +1601,7 @@ install_runner_menu() {
             "0" "$(i18n back)")" || return
         case "$choice" in
             1) install_ge ;;
-            2) install_gdk ;;
+            2) install_gdk_menu ;;
             3) install_cachy ;;
             4) install_em ;;
             5) install_dw ;;
