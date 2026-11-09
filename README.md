@@ -6,7 +6,7 @@ New to UMU? Start with the user guide, also available offline in the Toolbox’s
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.15**
+Current stable version: **v0.13.16**
 Runner integration version: **v3.10.17**
 
 ## Stale compatdata adapter recovery (0.13.15)
@@ -39,7 +39,7 @@ For DualShock 4 and DualSense, **GE-Proton 11-8 or newer is recommended**. Start
 - Install and safely remove GE-Proton-UMU, GDK-Proton-UMU, CachyOS Proton UMU, Proton-EM-UMU and DW-Proton-UMU runners.
 - Install and update `umu-run` with SHA-512 verification.
 - Download GE-Proton releases and verify upstream checksums before installation.
-- Download GDK-Proton releases and verify GitHub SHA-256 digests when available, including support for the historical GDK-Proton10-25 archive naming.
+- Choose between Weather-OS and LukasPAH in the GDK-Proton installer. Custom builds are installed under distinct names such as `GDK-Proton11-12-Custom-UMU`. The Toolbox verifies GitHub SHA-256 digests when available and supports historical archive names from both sources.
 - Install supported CachyOS Proton Steam Linux Runtime (SLR) releases through the same managed UMU workflow.
 - Install official Proton-EM releases from BananaWorks07/Proton with mandatory upstream SHA-256 verification. Releases without an upstream checksum remain visible but are explicitly marked non-installable.
 - Install DW-Proton x86_64 releases from dawn-winery/dwproton-mirror with mandatory upstream SHA-512 verification.

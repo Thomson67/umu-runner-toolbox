@@ -1,19 +1,15 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.15 · intégration 3.10.17**
+**UMU Runner Toolbox v0.13.16 · intégration 3.10.17**
 
-- Récupère au lancement un montage `compatdata/.../pfx` abandonné après une interruption. La récupération concerne les jeux utilisant un préfixe matérialisé.
-- Vérifie le journal, l’ancien propriétaire et la correspondance exacte du montage avant un démontage normal. Les montages actifs, occupés ou ambigus restent protégés, et le journal du runner indique le motif du refus.
-- Le journal indique aussi si le montage a été libéré lors de la fermeture du jeu.
-
-Les tests automatisés couvrent la reprise et le refus des montages non vérifiables. Le scénario d’interruption reste à valider avec cette intégration sur Batocera.
+- Le menu GDK-Proton permet de choisir entre Weather-OS et [LukasPAH/GDK-Proton-Custom](https://github.com/LukasPAH/GDK-Proton-Custom/releases).
+- Les builds x86_64 récents et les anciennes révisions Custom sont disponibles. Les runners Custom portent un nom distinct, par exemple `GDK-Proton11-12-Custom-UMU`, et peuvent cohabiter avec les versions Weather-OS.
+- L’installateur vérifie le SHA-256 publié par GitHub quand il est disponible et peut utiliser l’API GitHub si le téléchargement direct d’une archive Custom échoue.
 
 ## English
 
-**UMU Runner Toolbox v0.13.15 · integration 3.10.17**
+**UMU Runner Toolbox v0.13.16 · integration 3.10.17**
 
-- Recover abandoned `compatdata/.../pfx` mounts on the next launch of a game using a materialized prefix.
-- Verify the journal, former owner and exact mount identity before a normal unmount. Active, busy or ambiguous mounts stay protected, with a refusal reason in the runner log.
-- Log whether the mount was released on game exit.
-
-Automated tests cover recovery and refusal of unverifiable mounts. The interruption scenario still needs validation on Batocera with this integration.
+- The GDK-Proton installer offers a choice between Weather-OS and [LukasPAH/GDK-Proton-Custom](https://github.com/LukasPAH/GDK-Proton-Custom/releases).
+- Recent x86_64 builds and historical Custom revisions are available. Custom runners use distinct names such as `GDK-Proton11-12-Custom-UMU` and can coexist with Weather-OS runners.
+- The installer verifies GitHub’s SHA-256 digest when available and can use the GitHub API if a direct Custom archive download fails.
