@@ -1,15 +1,15 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.16 · intégration 3.10.17**
+**UMU Runner Toolbox v0.13.17 · intégration 3.10.18**
 
-- Le menu GDK-Proton permet de choisir entre Weather-OS et [LukasPAH/GDK-Proton-Custom](https://github.com/LukasPAH/GDK-Proton-Custom/releases).
-- Les builds x86_64 récents et les anciennes révisions Custom sont disponibles. Les runners Custom portent un nom distinct, par exemple `GDK-Proton11-12-Custom-UMU`, et peuvent cohabiter avec les versions Weather-OS.
-- L’installateur vérifie le SHA-256 publié par GitHub quand il est disponible et peut utiliser l’API GitHub si le téléchargement direct d’une archive Custom échoue.
+- L’option `UMU_CPU_AFFINITY` limite les CPU logiques pour un jeu avant le démarrage d’UMU et de Proton. Ajoutez `UMU_CPU_AFFINITY=0-14` à la ligne `ENV=` de son `autorun.cmd`. Le réglage est conservé lors de la compression en `.wsquashfs`.
+- Le journal du runner indique les CPU demandés et ceux effectivement utilisés. Si le réglage est invalide ou qu’aucun CPU demandé n’est disponible, le lancement se poursuit avec l’affinité héritée.
+- Le lancement de Bionic Commando Rearmed avec `UMU_CPU_AFFINITY=0-14` a été validé sur Batocera.
 
 ## English
 
-**UMU Runner Toolbox v0.13.16 · integration 3.10.17**
+**UMU Runner Toolbox v0.13.17 · integration 3.10.18**
 
-- The GDK-Proton installer offers a choice between Weather-OS and [LukasPAH/GDK-Proton-Custom](https://github.com/LukasPAH/GDK-Proton-Custom/releases).
-- Recent x86_64 builds and historical Custom revisions are available. Custom runners use distinct names such as `GDK-Proton11-12-Custom-UMU` and can coexist with Weather-OS runners.
-- The installer verifies GitHub’s SHA-256 digest when available and can use the GitHub API if a direct Custom archive download fails.
+- Use `UMU_CPU_AFFINITY` to restrict a game to selected logical CPUs before UMU and Proton start. Add `UMU_CPU_AFFINITY=0-14` to the `ENV=` line in the game's `autorun.cmd`. This setting is carried into `.wsquashfs` archives.
+- The runner log records the requested and effective CPU lists. If the setting is invalid or none of the requested CPUs are available, the game launches with the inherited affinity.
+- Bionic Commando Rearmed was verified on Batocera with `UMU_CPU_AFFINITY=0-14`.

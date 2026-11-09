@@ -6,10 +6,10 @@ New to UMU? Start with the user guide, also available offline in the Toolbox’s
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.16**
+Current stable version: **v0.13.17**
 Runner integration version: **v3.10.18**
 
-## Per-game Linux CPU affinity (test)
+## Per-game Linux CPU affinity
 
 Add `UMU_CPU_AFFINITY=0-14` to the single `ENV=` line in a game’s `autorun.cmd`.
 Integration 3.10.18 applies the CPU list before starting UMU and Proton. Use
