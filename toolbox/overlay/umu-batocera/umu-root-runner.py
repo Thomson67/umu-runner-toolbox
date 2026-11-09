@@ -199,6 +199,35 @@ def ensure_ldconfig_cache():
         raise RuntimeError(f"generation du cache ldconfig impossible: {detail}")
     log(f"cache ldconfig genere ({cache.stat().st_size} octets)")
 
+def apply_cpu_affinity():
+    requested = os.environ.get("UMU_CPU_AFFINITY", "").strip()
+    if not requested:
+        return
+
+    try:
+        available = os.sched_getaffinity(0)
+        selected = set()
+        for item in requested.split(","):
+            match = re.fullmatch(r"([0-9]+)(?:-([0-9]+))?", item.strip())
+            if match is None:
+                raise ValueError("expected CPU numbers and ranges, for example 0-14")
+            first = int(match[1])
+            last = int(match[2]) if match[2] is not None else first
+            if last < first:
+                raise ValueError("CPU range is reversed")
+            selected.update(cpu for cpu in available if first <= cpu <= last)
+        if not selected:
+            raise ValueError("none of the requested CPUs are allowed by the host")
+
+        os.sched_setaffinity(0, selected)
+        effective = ",".join(str(cpu) for cpu in sorted(os.sched_getaffinity(0)))
+    except (OSError, ValueError) as exc:
+        log(f"WARNING: UMU_CPU_AFFINITY={requested!r} ignored: {exc}")
+        return
+
+    log(f"cpu_affinity_requested={requested} cpu_affinity_effective={effective}")
+
+
 def main():
     if len(sys.argv) < 3:
         print("usage: umu-root-runner.py /path/to/umu-run /path/to/game.exe [args...]", file=sys.stderr)
@@ -232,6 +261,9 @@ def main():
         except Exception as exc:
             log(f"ERREUR preparation compatibilite Batocera: {exc}")
             return 1
+
+    if args != ["--version"]:
+        apply_cpu_affinity()
 
     sys.argv = [umu] + args
     try:
