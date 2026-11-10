@@ -326,6 +326,42 @@ les formats concernés. Voir C:\game n'impose pas à lui seul le mode direct.
 
 <a id="maintenance"></a>
 
+## Affinité CPU par jeu
+
+Disponible avec l’intégration UMU 3.10.18 et les suivantes. Le wrapper
+Batocera règle l’affinité Linux juste avant de démarrer UMU et Proton.
+Les processus lancés héritent de ce masque. Le réglage choisit les CPU
+logiques sur lesquels le jeu peut s’exécuter.
+
+Dans l’`autorun.cmd` du jeu, créez la ligne suivante si `ENV=` est absent.
+
+```ini
+ENV=UMU_CPU_AFFINITY=0-14
+```
+
+Si `ENV=` existe déjà, ajoutez `UMU_CPU_AFFINITY=0-14` à la suite, séparé par
+un espace. Conservez une seule ligne `ENV=`. La modification prend effet
+au prochain lancement.
+
+Les CPU logiques sont numérotés à partir de 0. Les plages sont inclusives
+et peuvent être combinées avec des identifiants séparés par des virgules.
+
+- `0-14` sélectionne les CPU 0 à 14 inclus, soit 15 CPU logiques. Cette
+  valeur a été validée pour Bionic Commando Rearmed sur une machine à 16 CPU logiques.
+- `0-3` sélectionne les quatre premiers CPU logiques.
+- `0,2,4,6` sélectionne ces quatre CPU précis.
+- `0-3,8-11` sélectionne deux plages, soit huit CPU logiques.
+
+Le wrapper retient uniquement les CPU déjà autorisés pour le lanceur.
+Le journal `/userdata/system/logs/umu-runner/runner-*.log` indique
+`cpu_affinity_requested` et `cpu_affinity_effective`. Si la valeur est invalide
+ou qu’aucun CPU demandé n’est autorisé, le lancement se poursuit avec l’affinité
+héritée et le journal affiche un avertissement.
+
+Pour revenir au comportement habituel, retirez `UMU_CPU_AFFINITY` de `ENV=`.
+Le réglage accompagne l’`autorun.cmd` dans le `.wsquashfs`. La machine qui
+l’utilise doit disposer d’un runner UMU avec l’intégration 3.10.18 ou ultérieure.
+
 ## Maintenance : vérifier, réparer, nettoyer
 
 LE BON ORDRE EN CAS DE DOUTE

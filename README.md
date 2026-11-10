@@ -24,6 +24,8 @@ Sur Batocera, ajoutez `UMU_CPU_AFFINITY=0-14` à la ligne `ENV=` existante ou
 créez `ENV=UMU_CPU_AFFINITY=0-14`. Ce réglage s’applique au lancement du jeu
 avec un runner UMU compatible et reste dans l’archive `.wsquashfs`.
 
+[Guide français](docs/README_FR.md#affinité-cpu-par-jeu) · [English guide](docs/GUIDE_EN.md#per-game-cpu-affinity)
+
 ## Stale compatdata adapter recovery (0.13.15)
 
 All materialized-prefix games now recover abandoned `compatdata/<adapter>/pfx`

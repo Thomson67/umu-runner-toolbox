@@ -218,6 +218,38 @@ every game or every forced exit.
 
 The integration also exposes the game's original C: directory for supported
 formats. Seeing C:\game does not by itself require enabling direct mode.
+@@cpuaffinity|Per-game CPU affinity
+
+Available with UMU integration 3.10.18 and later. The Batocera wrapper
+sets Linux CPU affinity just before starting UMU and Proton. The launched
+processes inherit this mask. It selects which logical CPUs can run the game.
+
+In the game’s autorun.cmd, create the following line if ENV= is missing.
+
+    ENV=UMU_CPU_AFFINITY=0-14
+
+If ENV= already exists, append UMU_CPU_AFFINITY=0-14 with a space. Keep a
+single ENV= line. The setting takes effect on the next launch.
+
+Logical CPU IDs start at 0. Ranges are inclusive, and commas let you
+combine IDs and ranges.
+
+- 0-14 selects CPU IDs 0 through 14, for 15 logical CPUs. This value was
+  verified with Bionic Commando Rearmed on a machine with 16 logical CPUs.
+- 0-3 selects the first four logical CPUs.
+- 0,2,4,6 selects those four CPU IDs.
+- 0-3,8-11 selects two ranges, for eight logical CPUs.
+
+The wrapper keeps only CPUs already allowed for the launcher. The
+/userdata/system/logs/umu-runner/runner-*.log file records
+cpu_affinity_requested and cpu_affinity_effective. If the value is invalid
+or none of the requested CPUs are allowed, launch continues with the
+inherited affinity and the log shows a warning.
+
+Remove UMU_CPU_AFFINITY from ENV= to return to the usual behavior. The
+setting travels with autorun.cmd in a .wsquashfs archive. The receiving
+machine needs a compatible UMU runner with integration 3.10.18 or later.
+
 @@maintenance|Maintenance: check, repair and clean
 WHEN SOMETHING LOOKS WRONG
 
