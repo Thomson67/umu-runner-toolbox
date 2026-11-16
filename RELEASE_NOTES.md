@@ -1,13 +1,13 @@
 ## Français
 
-**UMU Runner Toolbox v0.13.18 · intégration 3.10.19**
+**UMU Runner Toolbox v0.13.19 · intégration 3.10.19**
 
-- **HK+Start** arrête le Wine de la session UMU active. Batocera attend ainsi que l’intégration termine la synchronisation du préfixe avant de démonter le jeu.
-- Le correctif s’applique aux jeux UMU qui utilisent le raccourci de sortie standard de Batocera. Il a été validé sur Zelda OoT 3D. Le retour à EmulationStation peut prendre quelques secondes de plus pendant la copie.
+- Rétablit les visuels manquants de l’entrée UMU Runner Toolbox dans Ports. L’installation et la mise à jour synchronisent cette entrée avec EmulationStation, même si Ports est groupé, sans recharger les autres listes de jeux.
+- Les médias personnalisés et les statistiques sont conservés. Le correctif a été validé sur Batocera v44.
 
 ## English
 
-**UMU Runner Toolbox v0.13.18 · integration 3.10.19**
+**UMU Runner Toolbox v0.13.19 · integration 3.10.19**
 
-- **Hotkey + Start** stops Wine for the active UMU session. This lets the integration finish synchronizing the prefix before Batocera unmounts the game.
-- The fix applies to UMU games using Batocera’s standard exit shortcut and was verified on Zelda OoT 3D. Returning to EmulationStation may take a few extra seconds while the copy completes.
+- Restores missing artwork for the UMU Runner Toolbox entry in Ports. Installation and updates sync that entry with EmulationStation, including when Ports is grouped, without reloading other game lists.
+- Custom media and play statistics are preserved. The fix was verified on Batocera v44.
