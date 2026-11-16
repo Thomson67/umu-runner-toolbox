@@ -92,7 +92,8 @@ if [ -s "$SRC/toolbox/ports/UMU Runner Toolbox.sh.keys" ]; then
     cp -a "$SRC/toolbox/ports/UMU Runner Toolbox.sh.keys" "$PORT_KEYS"
 fi
 
-if ! "$DEST/helpers/install-scraper-assets.sh" "$DEST/scraper-assets" \
+if ! SCRAPER_LOG_FILE="/userdata/system/logs/umu-toolbox/scraper-install.log" \
+    "$DEST/helpers/install-scraper-assets.sh" "$DEST/scraper-assets" \
     "umu-runner-toolbox" "UMU Runner Toolbox.sh" "UMU Runner Toolbox" \
     "Gestion des runners Proton via UMU sous Batocera, runtimes Steam Linux Runtime, compatibilité des jeux et maintenance." \
     "Manage Proton runners through UMU on Batocera, with Steam Linux Runtime support, game compatibility and maintenance tools." \
@@ -100,8 +101,6 @@ if ! "$DEST/helpers/install-scraper-assets.sh" "$DEST/scraper-assets" \
     "/userdata/system/umu/backups/scraper"; then
     echo "AVERTISSEMENT: integration du scrap Batocera incomplete."
 fi
-
-command -v batocera-es-swissknife >/dev/null 2>&1 && batocera-es-swissknife --update-gamelists >/dev/null 2>&1 || true
 
 echo
 echo "Synchronisation de l integration sur les runners UMU geres existants..."

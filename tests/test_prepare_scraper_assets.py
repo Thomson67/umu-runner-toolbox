@@ -1,5 +1,6 @@
 from pathlib import Path
 import importlib.util
+import shutil
 import tempfile
 import unittest
 
@@ -18,6 +19,17 @@ spec.loader.exec_module(prepare_assets)
 
 
 class PrepareScraperAssetsTests(unittest.TestCase):
+    def test_source_archive_already_has_installable_media(self):
+        shipped = ROOT / "toolbox/scraper-assets"
+        with tempfile.TemporaryDirectory() as tmp:
+            assets = Path(tmp)
+            for name in ("screenshot.jpg", "box2d.jpg", "fanart.jpg", "logo.png"):
+                shutil.copy2(shipped / name, assets / name)
+            prepare_assets.prepare(assets)
+            for stem in ("screenshot", "box2d", "fanart"):
+                self.assertEqual((assets / f"{stem}.jpg").read_bytes(),
+                                 (shipped / f"{stem}.jpg").read_bytes())
+
     def test_jpeg_conversion_and_logo_limit(self):
         with tempfile.TemporaryDirectory() as tmp:
             assets = Path(tmp)

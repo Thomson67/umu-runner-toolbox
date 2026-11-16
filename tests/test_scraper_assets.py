@@ -31,7 +31,7 @@ class ScraperAssetsTests(unittest.TestCase):
             ports.mkdir()
             state = base / "state"
             backups = base / "backups"
-            legacy_rel = "media/images/ultimate-wine-toolbox.png"
+            legacy_rel = "media/images/umu-runner-toolbox.png"
             legacy_file = ports / legacy_rel
             legacy_file.parent.mkdir(parents=True)
             legacy_file.write_bytes(b"managed old box art")
@@ -39,27 +39,28 @@ class ScraperAssetsTests(unittest.TestCase):
             (state / "scraper-assets.sha256").parent.mkdir(parents=True)
             (state / "scraper-assets.sha256").write_text(f"{old_hash} {legacy_rel}\n")
             (ports / "gamelist.xml").write_text(
-                '<?xml version="1.0"?><gameList><game><path>./Ultimate Wine Toolbox.sh</path>'
-                '<image>./media/images/ultimate-wine-toolbox.png</image>'
-                '<boxart>./media/box2d/ultimate-wine-toolbox.png</boxart>'
-                '<thumbnail>./media/thumbnails/ultimate-wine-toolbox.png</thumbnail>'
+                '<?xml version="1.0"?><gameList><game><path>./UMU Runner Toolbox.sh</path>'
+                '<image>./media/images/umu-runner-toolbox.png</image>'
+                '<boxart>./media/box2d/umu-runner-toolbox.png</boxart>'
+                '<thumbnail>./media/thumbnails/umu-runner-toolbox.png</thumbnail>'
                 '</game></gameList>', encoding="utf-8")
 
-            env = dict(os.environ, SCRAPER_PORTS_DIR=str(ports))
-            subprocess.run(["bash", str(HELPER), str(src), "ultimate-wine-toolbox",
-                            "Ultimate Wine Toolbox.sh", "Ultimate Wine Toolbox", "desc fr",
+            env = dict(os.environ, SCRAPER_PORTS_DIR=str(ports),
+                       SCRAPER_ES_RUNNING="0", SCRAPER_ES_URL="http://127.0.0.1:1")
+            subprocess.run(["bash", str(HELPER), str(src), "umu-runner-toolbox",
+                            "UMU Runner Toolbox.sh", "UMU Runner Toolbox", "desc fr",
                             "desc en", str(state), str(backups)], check=True, env=env,
                            capture_output=True, text=True)
 
             self.assertFalse(legacy_file.exists())
             xml = (ports / "gamelist.xml").read_text(encoding="utf-8")
-            self.assertIn("./media/images/ultimate-wine-toolbox.jpg", xml)
-            self.assertIn("./media/box2d/ultimate-wine-toolbox.jpg", xml)
-            self.assertIn("./media/thumbnails/ultimate-wine-toolbox.jpg", xml)
-            self.assertIn("./media/fanarts/ultimate-wine-toolbox.jpg", xml)
-            self.assertIn("./media/marquee/ultimate-wine-toolbox.png", xml)
-            self.assertEqual((ports / "media/box2d/ultimate-wine-toolbox.jpg").read_bytes(),
-                             (ports / "media/thumbnails/ultimate-wine-toolbox.jpg").read_bytes())
+            self.assertIn("./media/images/umu-runner-toolbox.jpg", xml)
+            self.assertIn("./media/box2d/umu-runner-toolbox.jpg", xml)
+            self.assertIn("./media/thumbnails/umu-runner-toolbox.jpg", xml)
+            self.assertIn("./media/fanarts/umu-runner-toolbox.jpg", xml)
+            self.assertIn("./media/marquee/umu-runner-toolbox.png", xml)
+            self.assertEqual((ports / "media/box2d/umu-runner-toolbox.jpg").read_bytes(),
+                             (ports / "media/thumbnails/umu-runner-toolbox.jpg").read_bytes())
 
 
 if __name__ == "__main__":
