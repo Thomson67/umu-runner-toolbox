@@ -129,7 +129,7 @@ unprotect_umu_runners() {
     UMU_PROTECTED_MOUNTS=()
 }
 
-log "===== Batocera UMU runner v3.10.18 ====="
+log "===== Batocera UMU runner v3.10.19 ====="
 log "date=$(date -Is 2>/dev/null || date)"
 log "uid=$(id)"
 log "runner=$RUNNER_DIR"
@@ -629,6 +629,11 @@ cleanup_runtime_mounts() {
     fi
     cleanup_c_game_path || true
     if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
+        if [ "${HOTKEY_SETUP_ATTEMPTED:-0}" -eq 1 ]; then
+            python3 "$RUNTIME_HELPER" restore-hotkey --state-file "$ACTIVE_STATE_FILE" \
+                --pid "$$" --owner-token "$STOP_OWNER_TOKEN" --log "$LOG" >>"$LOG" 2>&1 || \
+                log "WARNING: cannot restore Batocera Wine hotkey"
+        fi
         rm -f "$ACTIVE_STATE_FILE" 2>>"$LOG" || true
         log "runtime_active_state_removed=$ACTIVE_STATE_FILE"
         ACTIVE_STATE_FILE=""
@@ -1643,6 +1648,12 @@ log "umu_exe=$UMU_EXE"
 if [ "$RUNTIME_TRACKED" -eq 1 ]; then
     python3 "$RUNTIME_HELPER" running "$MATERIALIZED_PREFIX" --pid "$$" >>"$LOG" 2>&1 || exit 97
     RUNTIME_SAFE_TO_REMOVE=0
+fi
+if [ -n "${ACTIVE_STATE_FILE:-}" ]; then
+    HOTKEY_SETUP_ATTEMPTED=1
+    python3 "$RUNTIME_HELPER" register-hotkey --state-file "$ACTIVE_STATE_FILE" \
+        --pid "$$" --owner-token "$STOP_OWNER_TOKEN" --log "$LOG" >>"$LOG" 2>&1 || \
+        log "WARNING: cannot register UMU hotkey"
 fi
 # v3.8: real materialized pfx + external merged Batocera gameview.
 python3 "$ROOT_BRIDGE" "$UMU_RUN" "$UMU_EXE" "${launch_args[@]}" >> "$LOG" 2>&1

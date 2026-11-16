@@ -11,8 +11,10 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -49,6 +51,79 @@ def wait_owner(state_file, pid, token):
         # Wait for the verified process to end, including the zombie case.
         time.sleep(0.05)
     print('runtime_wait_complete=owner-ended', flush=True)
+
+
+NATIVE_WINE_STOP = '/usr/bin/batocera-wine windows stop'
+HOTKEY_CONTEXT_FILES = (Path('/run/hotkeygen.state'), Path('/run/hotkeygen.context'))
+
+
+def wine_hotkey_context():
+    for path in HOTKEY_CONTEXT_FILES:
+        try:
+            saved = json.loads(path.read_text())
+        except FileNotFoundError:
+            continue
+        # Older hotkeygen stores the effective keys, including common actions.
+        # Its successor stores the original keys and the common-actions flag.
+        context = saved.get('context', saved)
+        if context.get('name') == 'wine' and isinstance(context.get('keys'), dict):
+            return context['keys'], saved.get('include_common', False)
+        break
+    return None
+
+
+def update_hotkey(state_file, pid, token, log, restore=False):
+    context = wine_hotkey_context()
+    if context is None:
+        if not restore:
+            print('runtime_hotkey=skipped reason=no-wine-context', flush=True)
+        return
+    keys, common = context
+    command = shlex.join([sys.executable, str(Path(__file__).resolve()), 'stop-hotkey',
+                          '--state-file', str(state_file), '--pid', str(pid), '--owner-token', token])
+    command += ' >>' + shlex.quote(log) + ' 2>&1'
+    previous, replacement = (command, NATIVE_WINE_STOP) if restore else (NATIVE_WINE_STOP, command)
+    if keys.get('exit') != previous:
+        if not restore:
+            print('runtime_hotkey=skipped reason=custom-exit', flush=True)
+        return
+    args = ['hotkeygen', '--new-context', 'wine', json.dumps(dict(keys, exit=replacement))]
+    if not common:
+        args.append('--disable-common')
+    rc = subprocess.run(args, timeout=5).returncode
+    if rc:
+        raise ValueError(f'hotkeygen exited with status {rc}')
+    print('runtime_hotkey=' + ('restored' if restore else 'registered'), flush=True)
+
+
+def stop_hotkey(state_file, pid, token):
+    try:
+        lines = state_file.read_text().splitlines()
+    except FileNotFoundError:
+        return 0  # A repeated hotkey may arrive after normal shutdown.
+    runner = Path(__file__).resolve().parents[1]
+    if (len(lines) < 7 or lines[4:7] != [str(runner), str(pid), token]
+            or not token or process_token(pid) != token):
+        return 0
+    prefix = Path(lines[3])
+    if not prefix.is_absolute() or not prefix.is_dir():
+        raise ValueError('active wineserver prefix unavailable')
+    # Ask only this wineserver to stop. The foreground launcher stays alive,
+    # so Batocera cannot enter its signal handler and tear down the overlay.
+    env = dict(os.environ, WINEPREFIX=str(prefix))
+    try:
+        owner_env = Path(f'/proc/{pid}/environ').read_bytes().split(b'\0')
+    except FileNotFoundError:
+        return 0
+    for entry in owner_env:
+        key, _, value = os.fsdecode(entry).partition('=')
+        if key in ('LD_LIBRARY_PATH', 'HOME', 'XDG_RUNTIME_DIR', 'TMPDIR'):
+            env[key] = value
+    if process_token(pid) != token:
+        return 0
+    rc = subprocess.run([str(runner / 'files/bin/wineserver'), '-k'], env=env, timeout=10).returncode
+    print(f'runtime_hotkey_wineserver_rc={rc}', flush=True)
+    return rc
 
 
 def mount_table():
@@ -393,7 +468,9 @@ class PrefixStore:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('begin', 'running', 'finish', 'collect', 'report', 'check-idle', 'direct-save', 'checkpoint', 'token', 'wait-owner'))
+    parser.add_argument('action', choices=('begin', 'running', 'finish', 'collect', 'report', 'check-idle',
+                                          'direct-save', 'checkpoint', 'token', 'wait-owner',
+                                          'register-hotkey', 'restore-hotkey', 'stop-hotkey'))
     parser.add_argument('prefix', nargs='?', type=Path)
     parser.add_argument('--source', default='')
     parser.add_argument('--pid', type=int, default=os.getppid())
@@ -419,6 +496,11 @@ if __name__ == '__main__':
         if args.action == 'wait-owner':
             wait_owner(args.state_file, args.pid, args.owner_token)
             raise SystemExit(0)
+        if args.action in ('register-hotkey', 'restore-hotkey'):
+            update_hotkey(args.state_file, args.pid, args.owner_token, args.log, args.action == 'restore-hotkey')
+            raise SystemExit(0)
+        if args.action == 'stop-hotkey':
+            raise SystemExit(stop_hotkey(args.state_file, args.pid, args.owner_token))
         store = PrefixStore()
         if args.action == 'begin':
             reused = store.begin(args.prefix, args.source, args.pid, args.game_dir, args.runner, args.log,
@@ -433,5 +515,5 @@ if __name__ == '__main__':
         elif args.action == 'collect': store.collect()
         elif args.action == 'report': print(store.report(), end='')
         else: raise SystemExit(0 if store.idle() else 2)
-    except (OSError, ValueError, KeyError, TypeError) as error:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f'Runtime prefix retained/refused: {error}\n')

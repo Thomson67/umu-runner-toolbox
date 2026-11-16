@@ -1,15 +1,19 @@
 """Native -w must hold Batocera cleanup until the host return has ended."""
+import json
 import os
 from pathlib import Path
+import runpy
 import shutil
 import subprocess
 import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 WINE_SERVER = (ROOT / 'toolbox/overlay/bin/wineserver').read_text()
+RUNTIME = ROOT / 'toolbox/overlay/umu-batocera/runtime-prefix.py'
 
 
 class StopBarrierTests(unittest.TestCase):
@@ -113,6 +117,69 @@ if __name__ == '__main__':
         result = self.run_server(rc=9)
         timer.join()
         self.assertEqual(result.returncode, 9, result.stderr)
+
+
+class HotkeyStopTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.context = self.root / 'hotkeygen.context'
+        self.modern = self.root / 'hotkeygen.state'
+        self.state = self.root / 'session.state'
+        self.log = str(self.root / 'runner log')
+        self.runtime = runpy.run_path(str(RUNTIME))
+        self.runtime['update_hotkey'].__globals__['HOTKEY_CONTEXT_FILES'] = (self.modern, self.context)
+
+    def test_replaces_only_the_standard_wine_exit_and_restores_it(self):
+        native = self.runtime['NATIVE_WINE_STOP']
+        other_keys = {'screenshot': 'KEY_F12'}
+        for modern in (False, True):
+            with self.subTest(modern=modern):
+                source = self.modern if modern else self.context
+                keys = dict(other_keys, exit=native)
+                context = {'name': 'wine', 'keys': keys}
+                source.write_text(json.dumps({'context': context, 'include_common': True} if modern else context))
+                with patch('subprocess.run') as run:
+                    run.return_value.returncode = 0
+                    update = self.runtime['update_hotkey']
+                    update(self.state, 42, 'owner', self.log)
+                    args = run.call_args.args[0]
+                    replacement = json.loads(args[3])
+                    self.assertIn('stop-hotkey', replacement['exit'])
+                    self.assertNotIn(native, replacement['exit'])
+                    self.assertEqual(replacement['screenshot'], other_keys['screenshot'])
+                    self.assertEqual('--disable-common' in args, not modern)
+                    context['keys'] = replacement
+                    source.write_text(json.dumps({'context': context, 'include_common': True} if modern else context))
+                    update(self.state, 42, 'owner', self.log, restore=True)
+                    self.assertEqual(json.loads(run.call_args.args[0][3]), keys)
+
+    def test_does_not_replace_a_custom_exit_or_another_context(self):
+        with patch('subprocess.run') as run:
+            for name, exit_command in (('wine', 'KEY_ESC'), ('retroarch', self.runtime['NATIVE_WINE_STOP'])):
+                self.context.write_text(json.dumps({'name': name, 'keys': {'exit': exit_command}}))
+                self.runtime['update_hotkey'](self.state, 42, 'owner', self.log)
+            run.assert_not_called()
+
+    def test_targets_only_the_live_session_wineserver(self):
+        prefix = self.root / 'materialized prefix'
+        prefix.mkdir()
+        runner = RUNTIME.parents[1]
+        pid = os.getpid()
+        self.state.write_text(f'/run/wine/game\n/run/wine/game\n\n{prefix}\n{runner}\n{pid}\nowner\n')
+        stop = self.runtime['stop_hotkey']
+        with patch.dict(stop.__globals__, {'process_token': lambda p: 'owner'}), patch('subprocess.run') as run:
+            run.return_value.returncode = 0
+            self.assertEqual(stop(self.state, pid, 'old-owner'), 0)
+            run.assert_not_called()
+            self.assertEqual(stop(self.state, pid, 'owner'), 0)
+            self.assertEqual(run.call_args.args[0], [str(runner / 'files/bin/wineserver'), '-k'])
+            self.assertEqual(run.call_args.kwargs['env']['WINEPREFIX'], str(prefix))
+            self.state.unlink()
+            run.reset_mock()
+            self.assertEqual(stop(self.state, pid, 'owner'), 0)
+            run.assert_not_called()
 
 
 if __name__ == '__main__':
