@@ -11,7 +11,9 @@ FUNCTIONS = WRAPPER[WRAPPER.index('expose_c_game_path() {'):WRAPPER.index('clean
 
 
 class CGamePathTests(unittest.TestCase):
-    def run_case(self, action, name='game', direct=0, enabled='1', existing=False, failed_mount=False, failed_unmount=False, split=True):
+    def run_case(self, action, name='game', direct=0, enabled='1', existing=False,
+                 failed_mount=False, failed_unmount=False, split=True,
+                 empty_target=False, symlink_target=False, reused=False):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = root / 'original' / name
@@ -24,6 +26,10 @@ class CGamePathTests(unittest.TestCase):
             if existing:
                 target.mkdir()
                 (target / 'preserve').write_text('existing data')
+            if empty_target:
+                target.mkdir()
+            if symlink_target:
+                target.symlink_to(source)
             script = '''set -u
 log() { printf '%s\\n' "$*" >> "$TRACE"; }
 mount() { printf 'mount:%s\\n' "$*" >> "$TRACE"; [ "$FAIL_MOUNT" = 0 ]; }
@@ -39,6 +45,7 @@ C_GAME_PATH_TARGET=''
                 GAME_DIR=name, GAME_REL='drive_c/' + name,
                 EXE_ABS=str(source / 'bin/game.exe'), UMU_CWD=str(source / 'bin'),
                 UMU_DIRECT_GAME_ENABLED=str(direct), UMU_C_GAME_PATH=enabled,
+                RUNTIME_REUSED=str(int(reused)),
                 FAIL_MOUNT=str(int(failed_mount)), FAIL_UNMOUNT=str(int(failed_unmount)))
             result = subprocess.run(['bash', '-c', script], env=env, capture_output=True, text=True)
             trace = (root / 'trace').read_text() if (root / 'trace').exists() else ''
@@ -46,6 +53,8 @@ C_GAME_PATH_TARGET=''
             self.assertEqual(os.readlink(source / 'saves'), '/userdata/saves/windows/Game')
             if existing:
                 self.assertEqual((target / 'preserve').read_text(), 'existing data')
+            if symlink_target:
+                self.assertEqual(target.readlink(), source)
             return result, trace, str(source), str(target), target.exists()
 
     def test_normal_launch_uses_original_c_drive_directory_and_relative_cwd(self):
@@ -73,10 +82,22 @@ C_GAME_PATH_TARGET=''
             self.assertFalse(exists)
 
     def test_existing_target_is_never_hidden_or_removed(self):
-        result, trace, _, _, exists = self.run_case('expose_c_game_path; rc=$?; cleanup_c_game_path; exit "$rc"', existing=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn('mount:--bind', trace)
-        self.assertTrue(exists)
+        for settings in ({'existing': True, 'reused': True},
+                         {'symlink_target': True, 'reused': True},
+                         {'empty_target': True}):
+            result, trace, _, _, exists = self.run_case(
+                'expose_c_game_path; rc=$?; cleanup_c_game_path; exit "$rc"', **settings)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('mount:--bind', trace)
+            self.assertTrue(exists)
+
+    def test_recovered_prefix_recreates_empty_mountpoint(self):
+        result, trace, source, target, exists = self.run_case(
+            'expose_c_game_path && cleanup_c_game_path', empty_target=True, reused=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('runtime_c_game_stale_mountpoint_removed=' + target, trace)
+        self.assertIn('mount:--bind ' + source + ' ' + target, trace)
+        self.assertFalse(exists)
 
     def test_failed_bind_removes_only_new_empty_placeholder(self):
         result, trace, _, _, exists = self.run_case(

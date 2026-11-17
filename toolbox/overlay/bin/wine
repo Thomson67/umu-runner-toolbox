@@ -569,10 +569,15 @@ expose_c_game_path() {
     esac
     [ -d "$GAMEVIEW" ] && [ ! -L "$PFX_MOUNT/drive_c" ] || return 1
     target="$PFX_MOUNT/$GAME_REL"
-    # The game was excluded from materialization. Never hide existing files,
-    # follow an alias, reuse a stale mount or replace a real game directory.
+    # A verified restart can retain the empty mountpoint created by the
+    # interrupted wrapper. rmdir refuses a populated directory or a mount.
     if [ -e "$target" ] || [ -L "$target" ]; then
-        log "ERROR: C game target already exists: $target"; return 1
+        if [ "${RUNTIME_REUSED:-0}" -eq 1 ] && [ -d "$target" ] && [ ! -L "$target" ] &&
+                rmdir -- "$target" 2>>"$LOG"; then
+            log "runtime_c_game_stale_mountpoint_removed=$target"
+        else
+            log "ERROR: C game target already exists: $target"; return 1
+        fi
     fi
     mkdir -- "$target" || return 1
     C_GAME_PATH_CREATED=1
