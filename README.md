@@ -6,8 +6,8 @@ New to UMU? Start with the user guide, also available offline in the Toolbox’s
 
 **UMU Runner Toolbox** is a community tool for installing, managing, validating, updating and sharing **GE-Proton / GDK-Proton / CachyOS Proton / Proton-EM / DW-Proton + UMU** runners on Batocera.
 
-Current stable version: **v0.13.19**
-Runner integration version: **v3.10.19**
+Current stable version: **v0.13.20**
+Runner integration version: **v3.10.20**
 
 ## Per-game Linux CPU affinity
 

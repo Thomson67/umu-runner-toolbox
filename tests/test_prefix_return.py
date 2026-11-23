@@ -1,6 +1,7 @@
 """Exercise actual return copying without destroying matching directory roots."""
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -104,6 +105,24 @@ rm() {
         self.assertFalse((self.target / 'user.reg').is_symlink())
         self.assertEqual((self.target / 'drive_c/windows/settings/save').read_text(), 'private save')
         self.assertNotEqual(runner.stat().st_ino, (self.target / 'drive_c/windows/module.dll').stat().st_ino)
+
+    def test_unchanged_files_are_kept_but_matching_timestamps_do_not_hide_changes(self):
+        for name in ('same.dll', 'different.dll'):
+            target = self.target / 'drive_c/windows' / name
+            target.write_bytes(b'original')
+            source = self.source / 'drive_c/windows' / name
+            shutil.copy2(target, source)
+        unchanged = self.target / 'drive_c/windows/same.dll'
+        inode = unchanged.stat().st_ino
+        target = self.target / 'drive_c/windows/different.dll'
+        source = self.source / 'drive_c/windows/different.dll'
+        source.write_bytes(b'modified')
+        timestamp = target.stat()
+        os.utime(source, ns=(timestamp.st_atime_ns, timestamp.st_mtime_ns))
+        result = self.persist()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(unchanged.stat().st_ino, inode)
+        self.assertEqual(target.read_bytes(), b'modified')
 
     def test_manifest_is_replaced_with_a_temporary_sibling_not_a_root_staged_file(self):
         for directory in (self.source, self.target):
