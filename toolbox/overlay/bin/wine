@@ -1163,6 +1163,7 @@ persist_split_wine_prefix() {
     # Replace files privately so a destination hardlink never modifies a runner.
     if ! python3 - "$source" "$target" "$GAME_DIR" "${UWT_GAME_BACKUP_NAME:-}" >>"$LOG" 2>&1 <<'PREFIX_RETURN_SYNC'
 from pathlib import Path
+import filecmp
 import os
 import shutil
 import stat
@@ -1173,6 +1174,8 @@ import uuid
 source, target = map(Path, sys.argv[1:3])
 game, backup = sys.argv[3:5]
 reserved = '.umu-prefix-sync-'
+unchanged = 0
+unchanged_bytes = 0
 for root in (source, target, source / 'drive_c', target / 'drive_c'):
     if root.is_symlink() or not root.is_dir():
         raise RuntimeError('missing or redirected prefix directory: ' + str(root))
@@ -1189,7 +1192,27 @@ def excluded(relative, name):
         return name.lower() == 'autorun.cmd'
     return relative == Path('drive_c') and name in {game, backup} - {''}
 
+def attributes(path):
+    return {key: os.getxattr(path, key, follow_symlinks=False)
+            for key in os.listxattr(path, follow_symlinks=False)}
+
+def unchanged_file(src, dst):
+    try:
+        source_info, target_info = src.lstat(), dst.lstat()
+        if not stat.S_ISREG(target_info.st_mode):
+            return False
+        for attr in ('st_mode', 'st_uid', 'st_gid', 'st_size', 'st_mtime_ns'):
+            if getattr(source_info, attr) != getattr(target_info, attr):
+                return False
+        # A game may modify contents while preserving size and timestamps.
+        if not filecmp.cmp(src, dst, shallow=False):
+            return False
+        return attributes(src) == attributes(dst)
+    except OSError:
+        return False
+
 def mirror(src, dst, relative=Path('.')):
+    global unchanged, unchanged_bytes
     if src.is_symlink():
         # Keep both directory entries in the same parent. A root staging
         # directory can fail to rename into a merged OverlayFS subdirectory.
@@ -1217,6 +1240,10 @@ def mirror(src, dst, relative=Path('.')):
             mirror(child, dst / name, relative / name)
         shutil.copystat(src, dst, follow_symlinks=False)
     elif stat.S_ISREG(mode):
+        if unchanged_file(src, dst):
+            unchanged += 1
+            unchanged_bytes += src.lstat().st_size
+            return
         fd, temporary = tempfile.mkstemp(prefix=reserved, dir=dst.parent)
         os.close(fd)
         candidate = Path(temporary)
@@ -1235,6 +1262,7 @@ def mirror(src, dst, relative=Path('.')):
         raise RuntimeError('unsupported prefix entry retained for recovery: ' + str(src))
 
 mirror(source, target)
+print(f'wine_persistence_unchanged_files={unchanged} bytes={unchanged_bytes}', flush=True)
 PREFIX_RETURN_SYNC
     then
         log "wine_persistence_result=failed phase=sync-tree target=$target"
